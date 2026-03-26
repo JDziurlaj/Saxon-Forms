@@ -416,9 +416,26 @@
 
 
     <xd:doc scope="component">
+        <xd:desc>Handle file selection on an xf:upload-rendered file input.
+            Reads the file as XML, parses it, and replaces the bound instance.</xd:desc>
+    </xd:doc>
+    <xsl:template match="*:input[@type='file'][exists(@data-ref)]" mode="ixsl:onchange">
+        <xsl:variable name="instance-id" as="xs:string" select="xforms:getInstanceId(string(@data-ref))"/>
+        <xsl:variable name="file-input" select="." as="element()"/>
+        <xsl:variable name="files" select="ixsl:get($file-input, 'files')"/>
+        <xsl:variable name="file" select="ixsl:call($files, 'item', [0])"/>
+        
+        <xsl:if test="exists($file)">
+            <xsl:message use-when="$debugMode">[xf:upload onchange] File selected for instance '<xsl:value-of select="$instance-id"/>'</xsl:message>
+            <!-- Call JS helper: reads file async, sets instance, then clicks hidden refresh trigger -->
+            <xsl:sequence select="ixsl:call(ixsl:window(), 'readFileAsXML', [$file, $instance-id])"/>
+        </xsl:if>
+    </xsl:template>
+    
+    <xd:doc scope="component">
         <xd:desc>Handle change to HTML form control value (except when control has "incremental" set)</xd:desc>
     </xd:doc>
-    <xsl:template match="*:input[not(xforms:hasClass(.,'incremental'))] | *:select | *:textarea" mode="ixsl:onchange">
+    <xsl:template match="*:input[not(xforms:hasClass(.,'incremental'))][not(@type='file')] | *:select | *:textarea" mode="ixsl:onchange">
         <xsl:message use-when="$debugMode">[isxl:onchange mode] HTML form control '<xsl:sequence select="name()"/>' value changed</xsl:message>
         <xsl:call-template name="action-setvalue-form-control">
             <xsl:with-param name="form-control" select="."/>
@@ -1572,6 +1589,45 @@
 
     <xd:doc scope="component">
         <xd:desc>
+            <xd:p>Implementation of XForms <a href="https://www.w3.org/TR/xforms11/#ui-upload">upload element</a></xd:p>
+            <xd:p>Generates HTML file input. File content is read via the readFileAsXML JS helper and set as instance data.</xd:p>
+        </xd:desc>
+        <xd:param name="id">ID of HTML element.</xd:param>
+        <xd:param name="nodeset">XPath binding expression</xd:param>
+        <xd:param name="instance-context">ID of XForms instance relevant to this control</xd:param>
+        <xd:param name="actions">Map(s) of actions relevant to this control</xd:param>
+    </xd:doc>
+    <xsl:template match="xforms:upload" mode="get-html">
+        <xsl:param name="id" as="xs:string" tunnel="yes"/>
+        <xsl:param name="nodeset" as="xs:string" tunnel="yes"/>
+        <xsl:param name="instance-context" as="xs:string" tunnel="yes"/>
+        <xsl:param name="actions" as="map(*)*"/>
+        
+        <xsl:message use-when="$debugMode">[xforms:upload get-html] START (instance: <xsl:value-of select="$instance-context"/>, ref: <xsl:value-of select="$nodeset"/>)</xsl:message>
+        
+        <div class="xforms-upload">
+            <xsl:apply-templates select="xforms:label"/>
+            <input type="file">
+                <xsl:attribute name="id" select="$id"/>
+                <xsl:attribute name="data-ref" select="$nodeset"/>
+                <xsl:attribute name="instance-context" select="$instance-context"/>
+                <xsl:if test="exists(@accept)">
+                    <xsl:attribute name="accept" select="string(@accept)"/>
+                </xsl:if>
+                <xsl:if test="exists(@mediatype)">
+                    <xsl:attribute name="data-mediatype" select="string(@mediatype)"/>
+                </xsl:if>
+                <xsl:if test="exists($actions)">
+                    <xsl:attribute name="data-action" select="$id"/>
+                </xsl:if>
+            </input>
+        </div>
+        
+        <xsl:message use-when="$debugMode">[xforms:upload get-html] END</xsl:message>
+    </xsl:template>
+
+    <xd:doc scope="component">
+        <xd:desc>
             <xd:p>Implementation of XForms <a href="https://www.w3.org/TR/xforms11/#ui-input">input element</a></xd:p>
             <xd:p>Generates HTML input field and registers actions.</xd:p>
         </xd:desc>
@@ -2368,7 +2424,12 @@
             -->
             <xsl:if test=". is $insert-node-location and $position-relative = 'child'">
                 <!--<xsl:message>[insert-node mode] Found! (inserting as child) <xsl:value-of select="serialize($insert-node-location)"/></xsl:message>-->
-                <xsl:copy-of select="$nodes-to-insert"/>
+                <!-- Handle attribute nodes: add as attributes of this element -->
+                <xsl:for-each select="$nodes-to-insert[self::attribute()]">
+                    <xsl:copy-of select="."/>
+                </xsl:for-each>
+                <!-- Handle element/text nodes: add as children -->
+                <xsl:copy-of select="$nodes-to-insert[not(self::attribute())]"/>
             </xsl:if>
             <xsl:apply-templates select="node()" mode="insert-node"/>
         </xsl:copy>
@@ -2391,11 +2452,16 @@
         
         <xsl:choose>
             <xsl:when test="some $n in $delete-node satisfies $n is .">
-
+                <!-- This element is marked for deletion — suppress it -->
             </xsl:when>
             <xsl:otherwise>
                 <xsl:copy>
-                    <xsl:copy-of select="@*"/>
+                    <!-- Copy attributes, excluding any targeted for deletion -->
+                    <xsl:for-each select="@*">
+                        <xsl:if test="not(some $n in $delete-node satisfies $n is .)">
+                            <xsl:copy-of select="."/>
+                        </xsl:if>
+                    </xsl:for-each>
                     <xsl:apply-templates select="node()" mode="delete-node"/>
                 </xsl:copy>
             </xsl:otherwise>
@@ -4085,26 +4151,14 @@
                 </xsl:variable>
                 
                 <!-- 
-                    https://www.saxonica.com/saxonjs/documentation3/index.html#!ixsl-extension/instructions/promise 
-                https://www.w3.org/TR/xslt-30/#dynamic-component-references
-                
-                Having problems getting this to work,
-                error message relating to context item
+                    SaxonJS 3 migration: use ixsl:promise instead of deprecated ixsl:schedule-action.
+                    The xforms:HTTPsubmit function handles the response; xforms:serverError handles failures.
+                    All needed parameters are captured as function arguments (no tunnel parameters needed).
+                    See https://www.saxonica.com/saxonjs/documentation3/index.html#!ixsl-extension/instructions/promise
                 -->
-                <!--<ixsl:promise select="ixsl:http-request($HTTPrequest)"
-                on-completion="xforms:HTTPsubmit(?, $instance-id-update, $submission-map, $actions)"
-                on-failure="xforms:serverError#1"/>-->
-                
-                <ixsl:schedule-action http-request="$HTTPrequest">
-                    <!-- The value of @http-request is an XPath expression, which evaluates to an 'HTTP request
-                            map' - i.e. our representation of an HTTP request as an XDM map -->
-                    <xsl:call-template name="HTTPsubmit">
-                        <xsl:with-param name="instance-id" select="$instance-id-update" as="xs:string"/>
-                        <xsl:with-param name="targetref" select="map:get($submission-map,'@targetref')"/>
-                        <xsl:with-param name="replace" select="map:get($submission-map,'@replace')"/>
-                        <xsl:with-param name="when-done" select="$actions[map:get(.,'@event') = 'xforms-submit-done']" tunnel="yes"/>
-                    </xsl:call-template>
-                </ixsl:schedule-action>
+                <ixsl:promise select="ixsl:http-request($HTTPrequest)"
+                    on-completion="xforms:HTTPsubmit(?, $instance-id-update, $submission-map, $actions)"
+                    on-failure="xforms:serverError#1"/>
                 
                 
             </xsl:when>
@@ -4144,6 +4198,27 @@
             <xsl:with-param name="replace" select="map:get($submission-map,'@replace')"/>
             <xsl:with-param name="when-done" select="$actions[map:get(.,'@event') = 'xforms-submit-done']" tunnel="yes"/>
         </xsl:call-template>
+    </xsl:function>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Completion handler for xf:upload file read. Triggers the deferred update cycle (rebuild/recalculate/refresh).</xd:p>
+        </xd:desc>
+    </xd:doc>
+    <xsl:function name="xforms:uploadComplete">
+        <xsl:param name="instance-id" as="item()"/>
+        <xsl:message use-when="$debugMode">[xforms:uploadComplete] File upload complete for instance '<xsl:value-of select="$instance-id"/>'</xsl:message>
+        <xsl:call-template name="outermost-action-handler"/>
+    </xsl:function>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Error handler for xf:upload file read.</xd:p>
+        </xd:desc>
+    </xd:doc>
+    <xsl:function name="xforms:uploadError">
+        <xsl:param name="error" as="item()"/>
+        <xsl:sequence select="ixsl:call(ixsl:window(), 'alert', [concat('Upload error: ', string($error))])"/>
     </xsl:function>
     
     <xd:doc scope="component">
@@ -4728,22 +4803,26 @@
         <xsl:message use-when="$debugMode">[action-insert] $origin-nodeset = <xsl:value-of select="fn:serialize($origin-nodeset)"/></xsl:message>-->
         
         <xsl:if test="exists($nodes-to-insert)">
+            <!-- Determine effective insert target and position -->
+            <xsl:variable name="effective-insert-location" as="node()?" select="if (exists($insert-node-location)) then $insert-node-location else $context-node"/>
+            <xsl:variable name="effective-position" as="xs:string" select="if (exists($insert-node-location)) then $position else 'child'"/>
+            
             <xsl:variable name="instance-with-insert" as="element()">
                 <xsl:choose>
-                    <xsl:when test="$instanceDoc//node()[. intersect ($insert-node-location,$context-node)]">                    
-                        <!--<xsl:message use-when="$debugMode">[action-insert] found insert location in $insertDoc</xsl:message>-->
+                    <!-- Try document-wrapped instance first -->
+                    <xsl:when test="exists($effective-insert-location) and ($instanceDoc//*[. is $effective-insert-location])">
                         <xsl:apply-templates select="$instanceDoc" mode="insert-node">
-                            <xsl:with-param name="insert-node-location" select="if (exists($insert-node-location)) then $insert-node-location else $context-node" tunnel="yes"/>
+                            <xsl:with-param name="insert-node-location" select="$effective-insert-location" tunnel="yes"/>
                             <xsl:with-param name="nodes-to-insert" select="$nodes-to-insert" tunnel="yes"/>
-                            <xsl:with-param name="position-relative" select="if (exists($insert-node-location)) then $position else 'child'" tunnel="yes"/>
+                            <xsl:with-param name="position-relative" select="$effective-position" tunnel="yes"/>
                         </xsl:apply-templates>
                     </xsl:when>
-                    <xsl:when test="$instanceXML//node()[. intersect ($insert-node-location,$context-node)]">                    
-                        <!--<xsl:message use-when="$debugMode">[action-insert] looking for insert location in $insertXML2 (position <xsl:sequence select="$position"/>)</xsl:message>-->
+                    <!-- Try raw instance element -->
+                    <xsl:when test="exists($effective-insert-location) and ($instanceXML is $effective-insert-location or $instanceXML//*[. is $effective-insert-location])">
                         <xsl:apply-templates select="$instanceXML" mode="insert-node">
-                            <xsl:with-param name="insert-node-location" select="if (exists($insert-node-location)) then $insert-node-location else $context-node" tunnel="yes"/>
+                            <xsl:with-param name="insert-node-location" select="$effective-insert-location" tunnel="yes"/>
                             <xsl:with-param name="nodes-to-insert" select="$nodes-to-insert" tunnel="yes"/>
-                            <xsl:with-param name="position-relative" select="if (exists($insert-node-location)) then $position else 'child'" tunnel="yes"/>
+                            <xsl:with-param name="position-relative" select="$effective-position" tunnel="yes"/>
                         </xsl:apply-templates>
                     </xsl:when>
                     <xsl:otherwise>
@@ -4835,7 +4914,8 @@
         
             <xsl:variable name="instance-with-delete" as="element()">
                 <xsl:choose>
-                    <xsl:when test="$instanceDoc//node()[. is $delete-node]">
+                    <!-- Check if any of the delete targets exist in the document-wrapped instance -->
+                    <xsl:when test="some $n in $delete-node satisfies $instanceDoc//*[. is $n] or $instanceDoc//*/@*[. is $n]">
                         <xsl:apply-templates select="$instanceDoc" mode="delete-node">
                             <xsl:with-param name="delete-node" select="$delete-node" tunnel="yes"/>
                         </xsl:apply-templates>
@@ -4847,7 +4927,7 @@
                     </xsl:otherwise>
                 </xsl:choose>
                 
-            </xsl:variable> 
+            </xsl:variable>
             
         <!--            <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> Updated instance: <xsl:sequence select="fn:serialize($instance-with-delete)"/></xsl:message>-->
             

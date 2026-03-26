@@ -424,6 +424,38 @@
          }
 
          /**
+          * Read a File object as XML, parse it, and replace the named
+          * XForms instance with the parsed document element.
+          * Triggers deferred updates (rebuild, recalculate, revalidate, refresh).
+          *
+          * Called from XSLT via: ixsl:call(ixsl:window(), 'readFileAsXML', [$file, $instanceId])
+          */
+         var readFileAsXML = function(file, instanceId) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    var parser = new DOMParser();
+                    var doc = parser.parseFromString(e.target.result, 'application/xml');
+                    var parseError = doc.querySelector('parsererror');
+                    if (parseError) {
+                        alert('Invalid XML file: ' + parseError.textContent);
+                        return;
+                    }
+                    setInstance(instanceId, doc.documentElement);
+                    setDeferredUpdateFlags(['rebuild','recalculate','revalidate','refresh']);
+                    // Trigger refresh by clicking the hidden refresh trigger
+                    // (bridges async JS back into XSLT processing pipeline)
+                    var refreshBtn = document.querySelector('button[data-action*="upload-refresh-trigger"]');
+                    if (refreshBtn) { refreshBtn.click(); }
+                } catch(err) {
+                    alert('Error processing file: ' + err.message);
+                }
+            };
+            reader.onerror = function() { alert('File read error'); };
+            reader.readAsText(file);
+         }
+
+         /**
           * Open a file picker, read an XML file, parse it, and replace
           * the named XForms instance. Returns a Promise that resolves
           * to the root element name of the uploaded document (or rejects
