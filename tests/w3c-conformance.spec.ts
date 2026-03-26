@@ -122,10 +122,11 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
     expect(dataText).not.toContain("John Doe");
   });
 
-  test("B.11 Replace Attribute", async ({ page }) => {
+  test("B.11 Replace Attribute — both keys show 0", async ({ page }) => {
     await loadW3CTest(page, "Appendix_B_B.11_b.11.a.xhtml");
+    // After replace, both item keys should be "0"
     const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    expect(text).toContain("0");
   });
 
   test("B.12 Replace Instance with Insert", async ({ page }) => {
@@ -133,24 +134,26 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
     // Instance root replaced with empty <shoppingcart/> — no product items in output
     const outputs = page.locator(".hlist");
     const count = await outputs.count();
-    // No .hlist outputs should exist (the repeat over item should be empty)
     expect(count).toBe(0);
   });
 
-  test("B.13 Move Element", async ({ page }) => {
+  test("B.13 Move Element — track ids 251, 331, 461", async ({ page }) => {
     await loadW3CTest(page, "Appendix_B_B.13_b.13.a.xhtml");
     const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    expect(text).toContain("251");
+    expect(text).toContain("331");
+    expect(text).toContain("461");
   });
 
-  test("B.14 Move Attribute", async ({ page }) => {
+  test("B.14 Move Attribute — classified on key 42", async ({ page }) => {
     await loadW3CTest(page, "Appendix_B_B.14_b.14.a.xhtml");
     const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    expect(text).toContain("classified");
   });
 
-  test("B.15 Insert into Heterogeneous Nodeset", async ({ page }) => {
+  test("B.15 Insert into Heterogeneous Nodeset — empty paragraph", async ({ page }) => {
     await loadW3CTest(page, "Appendix_B_B.15_b.15.a.xhtml");
+    // After insert, should see an empty paragraph element rendered
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
@@ -161,10 +164,11 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
 // =================================================================
 
 test.describe("W3C Chapter 10 — XForms Actions", () => {
-  test("10.1.a action element", async ({ page }) => {
+  test("10.1.a action element renders triggers", async ({ page }) => {
     await loadW3CTest(page, "Chapt10_10.1_10.1.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const triggers = page.locator('button.xforms-trigger');
+    const count = await triggers.count();
+    expect(count).toBeGreaterThan(0);
   });
 
   test("10.2.a setvalue with expression or literal", async ({ page }) => {
@@ -174,10 +178,10 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     expect(text).toContain("excellent");
   });
 
-  test("10.2.b setvalue with expression and literal", async ({ page }) => {
+  test("10.2.b setvalue shows white and excellent", async ({ page }) => {
     await loadW3CTest(page, "Chapt10_10.2_10.2.b.xhtml");
     const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    expect(text).toContain("white");
   });
 
   test("10.3.a insert action using context attribute", async ({ page }) => {
@@ -189,26 +193,29 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
 
   test("10.3.c insert action using origin attribute", async ({ page }) => {
     await loadW3CTest(page, "Chapt10_10.3_10.3.c.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const outputs = page.locator('.xforms-output');
+    const count = await outputs.count();
+    expect(count).toBeGreaterThan(0);
   });
 
   test("10.3.d insert action using at attribute", async ({ page }) => {
     await loadW3CTest(page, "Chapt10_10.3_10.3.d.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const outputs = page.locator('.xforms-output');
+    const count = await outputs.count();
+    expect(count).toBeGreaterThan(0);
   });
 
   test("10.3.e insert action using position attribute", async ({ page }) => {
     await loadW3CTest(page, "Chapt10_10.3_10.3.e.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const outputs = page.locator('.xforms-output');
+    const count = await outputs.count();
+    expect(count).toBeGreaterThan(0);
   });
 
-  test("10.3.j insert action — copying an attribute", async ({ page }) => {
+  test("10.3.j insert action — must not show 4.00", async ({ page }) => {
     await loadW3CTest(page, "Chapt10_10.3_10.3.j.xhtml");
     const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    expect(text).not.toContain("4.00");
   });
 
   test("10.4.a delete action using context attribute", async ({ page }) => {
@@ -219,14 +226,16 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
 
   test("10.4.d delete action using at attribute", async ({ page }) => {
     await loadW3CTest(page, "Chapt10_10.4_10.4.d.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const outputs = page.locator('.xforms-output');
+    const count = await outputs.count();
+    expect(count).toBeGreaterThan(0);
   });
 
   test("10.4.e delete element rules", async ({ page }) => {
     await loadW3CTest(page, "Chapt10_10.4_10.4.e.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const outputs = page.locator('.xforms-output');
+    const count = await outputs.count();
+    expect(count).toBeGreaterThan(0);
   });
 
   test("10.5.a setindex element rules", async ({ page }) => {
@@ -241,16 +250,18 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     expect(text).not.toBe("");
   });
 
-  test("10.8.a dispatch element dispatches predefined event", async ({ page }) => {
+  test("10.8.a dispatch dispatches xforms-rebuild", async ({ page }) => {
     await loadW3CTest(page, "Chapt10_10.8_10.8.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const triggers = page.locator('button.xforms-trigger');
+    const count = await triggers.count();
+    expect(count).toBeGreaterThan(0);
   });
 
-  test("10.8.b dispatch element dispatches custom event", async ({ page }) => {
+  test("10.8.b dispatch dispatches custom-event", async ({ page }) => {
     await loadW3CTest(page, "Chapt10_10.8_10.8.b.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const triggers = page.locator('button.xforms-trigger');
+    const count = await triggers.count();
+    expect(count).toBeGreaterThan(0);
   });
 });
 

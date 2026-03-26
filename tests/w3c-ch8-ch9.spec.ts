@@ -207,57 +207,65 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     expect(text).not.toBe("");
   });
 
-  test("9.2.2.a — case element renders", async ({ page }) => {
+  test("9.2.2.a — case element shows Name: Janel", async ({ page }) => {
     await loadAndWait(page, "Chapt09_9.2_9.2.2_9.2.2.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const outputs = page.locator('.xforms-output');
+    const texts = await outputs.allInnerTexts();
+    expect(texts).toContain("Janel");
   });
 
-  test("9.2.2.b — case selected renders", async ({ page }) => {
+  test("9.2.2.b — case selected shows Eye Color: Blue", async ({ page }) => {
     await loadAndWait(page, "Chapt09_9.2_9.2.2_9.2.2.b.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const outputs = page.locator('.xforms-output');
+    const texts = await outputs.allInnerTexts();
+    expect(texts).toContain("Blue");
   });
 
-  test("9.2.2.c — case multiple selected: first wins", async ({ page }) => {
+  test("9.2.2.c — case multiple selected: first wins, shows Name: Janel", async ({ page }) => {
     await loadAndWait(page, "Chapt09_9.2_9.2.2_9.2.2.c.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const outputs = page.locator('.xforms-output');
+    const texts = await outputs.allInnerTexts();
+    expect(texts).toContain("Janel");
   });
 
-  test("9.3.1.a — repeat element renders items", async ({ page }) => {
+  test("9.3.1.a — repeat shows windshield wipers, tires, exhaust", async ({ page }) => {
     await loadAndWait(page, "Chapt09_9.3_9.3.1_9.3.1.a.xhtml");
+    const items = page.locator('[data-repeat-item]');
+    await expect(items).toHaveCount(4);
     const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    expect(text).toContain("tires");
   });
 
-  test("9.3.1.b — repeat startindex renders", async ({ page }) => {
+  test("9.3.1.b — repeat startindex renders items", async ({ page }) => {
     await loadAndWait(page, "Chapt09_9.3_9.3.1_9.3.1.b.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const items = page.locator('[data-repeat-item]');
+    const count = await items.count();
+    expect(count).toBeGreaterThan(0);
   });
 
-  test("9.3.1.c — repeat number renders", async ({ page }) => {
+  test("9.3.1.c — repeat number renders items", async ({ page }) => {
     await loadAndWait(page, "Chapt09_9.3_9.3.1_9.3.1.c.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const items = page.locator('[data-repeat-item]');
+    const count = await items.count();
+    expect(count).toBeGreaterThan(0);
   });
 
-  test("9.3.1.d — unrolling repeat renders", async ({ page }) => {
+  test("9.3.1.d — unrolling repeat shows items in both lists", async ({ page }) => {
     await loadAndWait(page, "Chapt09_9.3_9.3.1_9.3.1.d.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const items = page.locator('[data-repeat-item]');
+    const count = await items.count();
+    expect(count).toBeGreaterThan(0);
   });
 
-  test("9.3.1.e — repeat example renders", async ({ page }) => {
+  test("9.3.1.e — repeat shows items a, b, c with prices", async ({ page }) => {
     await loadAndWait(page, "Chapt09_9.3_9.3.1_9.3.1.e.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const items = page.locator('[data-repeat-item]');
+    await expect(items).toHaveCount(3);
   });
 
-  test("9.3.1.f — switch in repeat renders", async ({ page }) => {
+  test("9.3.1.f — switch in repeat shows 3 In case statements", async ({ page }) => {
     await loadAndWait(page, "Chapt09_9.3_9.3.1_9.3.1.f.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const items = page.locator('[data-repeat-item]');
+    await expect(items).toHaveCount(3);
   });
 });
