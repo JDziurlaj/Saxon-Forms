@@ -1002,7 +1002,16 @@
                     <!-- remove root element from XPath -->
                     <xsl:analyze-string select="$relative" regex="^/[^/]+/(.*)$">
                         <xsl:matching-substring>
-                            <xsl:sequence select="$base || '/' || regex-group(1)"/>
+                            <xsl:choose>
+                                <!-- When base is empty (top-level bind with absolute XPath),
+                                     just return the path after the root element -->
+                                <xsl:when test="$base = ''">
+                                    <xsl:sequence select="regex-group(1)"/>
+                                </xsl:when>
+                                <xsl:otherwise>
+                                    <xsl:sequence select="$base || '/' || regex-group(1)"/>
+                                </xsl:otherwise>
+                            </xsl:choose>
                         </xsl:matching-substring>
                         <xsl:non-matching-substring>
                             <xsl:message>[xforms:resolveXPathStrings] Invalid XPath: '<xsl:value-of select="$relative"/>' ($base = <xsl:sequence select="$base"/>)</xsl:message>
@@ -1523,6 +1532,14 @@
             <xsl:choose>
                 <xsl:when test="exists($binding/@calculate) and exists($instanceField)">
                     <xsl:sequence select="xforms:evaluate-xpath-with-context-node('string(' || $binding/@calculate || ')',$instanceField,())"/>
+                </xsl:when>
+                <!-- 
+                    XForms 1.1 §8.1.5: When @bind is present, the single-node
+                    binding takes precedence over @value for determining the
+                    displayed value.  Use the bound node's string value directly.
+                -->
+                <xsl:when test="exists(@bind) and exists($instanceField)">
+                    <xsl:value-of select="$instanceField"/>
                 </xsl:when>
                 <xsl:when test="exists(@value) and exists($instanceField)">
                     <xsl:sequence select="xforms:evaluate-xpath-with-context-node('string(' || xforms:resolveContext(@value,$context-nodeset) || ')',$instanceField,())"/>
@@ -2209,18 +2226,39 @@
         <xd:desc>
             <xd:p>Implementation of XForms <a href="https://www.w3.org/TR/xforms11/#ui-group">group element</a></xd:p>
             <xd:p>Generates an HTML div and passes @ref or @nodeset to descendants.</xd:p>
+            <xd:p>When the group uses @bind and the binding has a @relevant MIP that evaluates to false(), the group is hidden (display:none).</xd:p>
         </xd:desc>
         <xd:param name="id">ID of HTML element.</xd:param>
         <xd:param name="nodeset">XPath binding expression</xd:param>
+        <xd:param name="instance-context">ID of XForms instance relevant to this control</xd:param>
+        <xd:param name="binding">xforms:bind elements relevant to this control</xd:param>
     </xd:doc>
     <xsl:template match="xforms:group" mode="get-html">
         <xsl:param name="id" as="xs:string" required="yes" tunnel="yes"/>
         <xsl:param name="nodeset" as="xs:string" required="yes" tunnel="yes"/>
+        <xsl:param name="instance-context" as="xs:string" required="no" select="$global-default-instance-id" tunnel="yes"/>
+        <xsl:param name="binding" as="element(xforms:bind)*" required="no" select="()" tunnel="yes"/>
+        
+        <!-- Resolve relevance from binding when @bind is used -->
+        <xsl:variable name="instanceField" as="node()?" select="
+            if ($nodeset != '')
+            then xforms:evaluate-xpath-with-instance-id($nodeset, $instance-context, ())
+            else ()"/>
+        
+        <xsl:variable name="relevantStatus" as="xs:boolean">
+            <xsl:call-template name="getRelevantStatus">
+                <xsl:with-param name="xformsControl" as="element()" select="."/>
+                <xsl:with-param name="instanceField" as="node()?" select="$instanceField"/>
+            </xsl:call-template>
+        </xsl:variable>
         
         <div>
             <xsl:attribute name="id" select="$id"/>
             <xsl:if test="$nodeset != ''">
                 <xsl:attribute name="data-group-ref" select="$nodeset" />
+            </xsl:if>
+            <xsl:if test="not($relevantStatus)">
+                <xsl:attribute name="style" select="'display:none'"/>
             </xsl:if>
             <xsl:apply-templates select="child::node()"/>
         </div>
@@ -2995,6 +3033,59 @@
                     then $instanceField/parent::*
                     else $instanceField"/>
                 <xsl:evaluate xpath="xforms:impose($binding/@relevant)" context-item="$eval-context" namespace-context="$namespace-context-item"/>
+            </xsl:when>
+            <!-- 
+                No direct binding with @relevant found.  Walk up the instance
+                tree and check whether any ANCESTOR node is bound with
+                relevant="false()".  XForms 1.1 §6.1.4: "The default value of
+                relevant is true(), and a node is only relevant when all of
+                its ancestors are also relevant."
+            -->
+            <xsl:when test="exists($instanceField) and $instanceField[self::*]">
+                <xsl:variable name="all-bindings" as="element(xforms:bind)*" select="js:getBindings()"/>
+                <xsl:variable name="instance-root" as="element()" select="root($instanceField)"/>
+                <!-- Check the node itself AND its ancestors for non-relevant bindings -->
+                <xsl:variable name="ancestor-irrelevant" as="xs:boolean">
+                    <xsl:iterate select="$instanceField/ancestor-or-self::*">
+                        <xsl:param name="found" as="xs:boolean" select="false()"/>
+                        <xsl:on-completion select="$found"/>
+                        <xsl:variable name="anc" as="element()" select="."/>
+                        <xsl:variable name="matching-bind" as="element(xforms:bind)?" select="
+                            ($all-bindings[exists(@relevant)][
+                                let $bn := xforms:impose(string(@nodeset))
+                                return (some $n in xforms:evaluate-xpath-with-context-node($bn, $instance-root, ())
+                                        satisfies $n is $anc)
+                            ])[1]"/>
+                        <xsl:choose>
+                            <xsl:when test="exists($matching-bind)">
+                                <xsl:variable name="rel" as="xs:boolean">
+                                    <xsl:try>
+                                        <xsl:evaluate xpath="xforms:impose($matching-bind/@relevant)" context-item="$anc" namespace-context="$namespace-context-item"/>
+                                        <xsl:catch>
+                                            <xsl:sequence select="true()"/>
+                                        </xsl:catch>
+                                    </xsl:try>
+                                </xsl:variable>
+                                <xsl:choose>
+                                    <xsl:when test="not($rel)">
+                                        <xsl:break select="true()"/>
+                                    </xsl:when>
+                                    <xsl:otherwise>
+                                        <xsl:next-iteration>
+                                            <xsl:with-param name="found" select="false()"/>
+                                        </xsl:next-iteration>
+                                    </xsl:otherwise>
+                                </xsl:choose>
+                            </xsl:when>
+                            <xsl:otherwise>
+                                <xsl:next-iteration>
+                                    <xsl:with-param name="found" select="$found"/>
+                                </xsl:next-iteration>
+                            </xsl:otherwise>
+                        </xsl:choose>
+                    </xsl:iterate>
+                </xsl:variable>
+                <xsl:sequence select="not($ancestor-irrelevant)"/>
             </xsl:when>
             <xsl:otherwise>
                 <xsl:sequence select="true()"/>

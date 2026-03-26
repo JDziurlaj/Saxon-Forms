@@ -253,3 +253,54 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     expect(text).not.toBe("");
   });
 });
+
+// =================================================================
+// CHAPTER 7 — current() function (fix #10)
+// =================================================================
+
+test.describe("W3C Chapter 7 — current() function", () => {
+  test("7.10.2.a current() in bind calculate (cross-instance lookup)", async ({ page }) => {
+    await loadW3CTest(page, "Chapt07_7.10_7.10.2_7.10.2.a.xhtml");
+    // calculate="../amount * instance('convTable')/rate[@currency=current()/../currency]"
+    // amount=100, currency=jpy, rate for jpy=80.23451 → 8023.451
+    const text = await getRenderedText(page);
+    expect(text).toContain("8023.451");
+  });
+
+  test("7.10.2.b current() in repeat output value", async ({ page }) => {
+    await loadW3CTest(page, "Chapt07_7.10_7.10.2_7.10.2.b.xhtml");
+    // repeat over mon (01, 02, 03); output value uses current() to look up month names
+    const text = await getRenderedText(page);
+    expect(text).toContain("Jan");
+    expect(text).toContain("Feb");
+    expect(text).toContain("Mar");
+  });
+});
+
+// =================================================================
+// CHAPTER 8 — output @bind precedence (fix #11)
+// =================================================================
+
+test.describe("W3C Chapter 8 — output bind precedence", () => {
+  test("8.1.5.b output with @value and @bind — bind takes precedence", async ({ page }) => {
+    await loadW3CTest(page, "Chapt08_8.1_8.1.5_8.1.5.b.xhtml");
+    // Tax output: value="0.024 * /car/price" → 1032
+    // Car Year output: value="/car/price" bind="year_bind" → bind wins, shows 2005
+    const text = await getRenderedText(page);
+    expect(text).toContain("1032");
+    expect(text).toContain("2005");
+  });
+});
+
+// =================================================================
+// CHAPTER 9 — group with @bind relevance (fix #12)
+// =================================================================
+
+test.describe("W3C Chapter 9 — group bind relevance", () => {
+  test("9.1.1.a1 group with bind relevant=false hides children", async ({ page }) => {
+    await loadW3CTest(page, "Chapt09_9.1_9.1.1_9.1.1.a1.xhtml");
+    // group1 binds to shipDate with relevant="false()" — Street Name input must NOT be visible
+    const streetLabel = page.getByText("Street Name", { exact: true });
+    await expect(streetLabel).toBeHidden();
+  });
+});

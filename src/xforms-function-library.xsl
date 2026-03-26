@@ -51,24 +51,44 @@
         
         <xsl:variable name="input2" as="xs:string" select="string-join($parts)"/>
         
-        <!-- handle case where XPath starts "/" (i.e. root node of default instance) -->
-        <xsl:variable name="input3" as="xs:string">
+        <!-- 
+            Handle absolute XPaths like /rootElement/path anywhere in the expression.
+            XForms instances are element nodes (not document nodes), so SaxonJS
+            raises XPDY0050 when evaluating '/' against a non-document context.
+            Strip the root element step and replace with root(.) which always
+            navigates to the tree root regardless of the current context depth.
+            E.g. /car/price  →  root(.)/price
+                 0.024 * /car/price  →  0.024 * root(.)/price
+                 /order/item/amount > 1000  →  root(.)/item/amount > 1000
+            This is critical for bind MIP expressions (relevant, calculate, etc.)
+            where the evaluation context is the bound node, not the instance root.
+            The lookbehind matches start-of-string or XPath operators/whitespace
+            that can precede an absolute path, but NOT '/' (to avoid //elem).
+        -->
+        <xsl:variable name="input3" as="xs:string" select="
+            replace($input2, '(^|[\s(*+,=&lt;&gt;\[\-])(/\i\c*)(/)','$1root(.)$3')"/>
+
+        
+        <!-- 
+            Handle XForms current() function.
+            Rewrite current() as an XPath 3.0 let-expression that captures the
+            outermost context item (.), so that $__xf_current stays stable even
+            inside predicates where . would change.
+            See https://www.w3.org/TR/xforms11/#fn-current
+        -->
+        <xsl:variable name="input4" as="xs:string">
             <xsl:choose>
-                <xsl:when test="matches($input2,'^\s*/')">
-                    <xsl:sequence select="replace($input2, '^\s/[^/]+', '.')"/>
+                <xsl:when test="matches($input3, 'current\s*\(\s*\)')">
+                    <xsl:variable name="replaced" as="xs:string" select="replace($input3, 'current\s*\(\s*\)', '\$__xf_current')"/>
+                    <xsl:sequence select="'let $__xf_current := . return (' || $replaced || ')'" />
                 </xsl:when>
-                <!-- TEST - can we remove instance() at start of expression? -->
-                <!--<xsl:when test="matches($input2,'^\s*xforms:instance\s*\(\s*''[^'']+''\s*\)')">
-                    <xsl:sequence select="replace($input2, '^\s*xforms:instance\s*\(\s*''[^'']+''\s*\)', '.')"/>
-                </xsl:when>-->
                 <xsl:otherwise>
-                    <xsl:sequence select="$input2"/>
+                    <xsl:sequence select="$input3"/>
                 </xsl:otherwise>
             </xsl:choose>
         </xsl:variable>
-
         
-        <xsl:sequence select="$input3" />
+        <xsl:sequence select="$input4" />
     </xsl:function>
     
     <xsl:function name="xforms:resolve-index" as="xs:string" visibility="public">
