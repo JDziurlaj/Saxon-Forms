@@ -422,6 +422,51 @@
          var debugAlert = function(message) {
             alert(message);
          }
+
+         /**
+          * Open a file picker, read an XML file, parse it, and replace
+          * the named XForms instance. Returns a Promise that resolves
+          * to the root element name of the uploaded document (or rejects
+          * on cancel/error).
+          *
+          * Called from XSLT via: ixsl:call(ixsl:window(), 'uploadAndSetInstance', [instanceId])
+          */
+         var uploadAndSetInstance = function(instanceId) {
+            return new Promise(function(resolve, reject) {
+                var input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.xml';
+                input.onchange = function() {
+                    if (!input.files || !input.files[0]) {
+                        reject('No file selected');
+                        return;
+                    }
+                    var file = input.files[0];
+                    var reader = new FileReader();
+                    reader.onload = function(e) {
+                        try {
+                            var parser = new DOMParser();
+                            var doc = parser.parseFromString(e.target.result, 'application/xml');
+                            var parseError = doc.querySelector('parsererror');
+                            if (parseError) {
+                                reject('XML parse error: ' + parseError.textContent);
+                                return;
+                            }
+                            // Store as instance via Saxon-Forms JS API
+                            setInstance(instanceId, doc.documentElement);
+                            // Set deferred update flags so Saxon-Forms refreshes
+                            setDeferredUpdateFlags(['rebuild','recalculate','revalidate','refresh']);
+                            resolve(doc.documentElement.localName);
+                        } catch(err) {
+                            reject('Error processing file: ' + err.message);
+                        }
+                    };
+                    reader.onerror = function() { reject('File read error'); };
+                    reader.readAsText(file);
+                };
+                input.click();
+            });
+         }
          
     </xsl:variable>
 </xsl:stylesheet>

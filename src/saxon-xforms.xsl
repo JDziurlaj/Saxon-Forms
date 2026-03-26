@@ -736,8 +736,13 @@
                     <xsl:map-entry key="'@value'" select="xforms:resolveContext(string(@value),$nodeset)" />                          
                 </xsl:if>
                 
-                <xsl:if test="empty(@value) and exists(./text()) and not(self::xforms:message)">
+                <xsl:if test="empty(@value) and exists(./text()) and not(self::xforms:message) and not(self::xforms:script)">
                     <xsl:map-entry key="'value'" select="string(.)" />                         
+                </xsl:if>
+                
+                <!-- Capture xf:script body text as 'script-body' -->
+                <xsl:if test="self::xforms:script">
+                    <xsl:map-entry key="'script-body'" select="string(.)" />
                 </xsl:if>
                 
                 <xsl:map-entry key="'@ref'" select="$refi"/>
@@ -836,8 +841,16 @@
                     <xsl:map-entry key="'case'" select="if (xforms:case/text()[normalize-space() ne '']) then xforms:case/text() else string(xforms:case/@value)"/>
                 </xsl:if>
                 
+                <!-- Capture xf:load @resource and @show -->
+                <xsl:if test="exists(@resource)">
+                    <xsl:map-entry key="'@resource'" select="string(@resource)" />
+                </xsl:if>
+                <xsl:if test="exists(@show)">
+                    <xsl:map-entry key="'@show'" select="string(@show)" />
+                </xsl:if>
+                
                 <!-- need to apply nested actions in order! -->            
-                <xsl:if test="(child::* and not(self::xforms:toggle)) or (self::xforms:message and child::text())">
+                <xsl:if test="(child::* and not(self::xforms:toggle) and not(self::xforms:script)) or (self::xforms:message and child::text())">
                     <xsl:map-entry key="'nested-actions'">
                         <xsl:variable name="array" as="map(*)*">
                             <xsl:for-each select="child::node()[self::* or self::text()[parent::xforms:message]]">
@@ -1029,13 +1042,22 @@
         <xsl:param name="context-node" as="node()"/>
         <xsl:param name="namespace-context" as="element()?"/>
         
+        <!-- 
+            Use the namespace-enriched XForm element as default namespace context
+            so that namespace prefixes declared on xf:xform are available in XPath evaluation.
+            Previously fell back to the context-node (instance element), which lacked these bindings.
+        -->
         <xsl:variable name="namespace-context-item" as="element()" select="
             if (exists($namespace-context))
             then $namespace-context
             else (
-                if ($context-node[not(self::*)])
-                then $context-node/parent::*
-                else $context-node
+                if (exists(js:getXForm()))
+                then js:getXForm()
+                else (
+                    if ($context-node[not(self::*)])
+                    then $context-node/parent::*
+                    else $context-node
+                )
             )"/>
         
         <xsl:choose>
@@ -1065,12 +1087,17 @@
         
         <xsl:variable name="instanceXML" as="element()" select="xforms:instance($instance-id)"/>
         
+        <!-- Use namespace-enriched XForm element as default namespace context -->
         <xsl:variable name="namespace-context-item" as="element()" select="
             if (exists($namespace-context))
             then $namespace-context
-            else $instanceXML"/>
+            else (
+                if (exists(js:getXForm()))
+                then js:getXForm()
+                else $instanceXML
+            )"/>
         
-        <xsl:evaluate xpath="xforms:impose($xpath)" context-item="$instanceXML" namespace-context="$namespace-context-item"/>     
+        <xsl:evaluate xpath="xforms:impose($xpath)" context-item="$instanceXML" namespace-context="$namespace-context-item"/>
         
     </xsl:function>
     
@@ -3287,14 +3314,17 @@
                 <xsl:when test="$action-name = 'reset'">
                     <xsl:call-template name="action-reset"/>
                 </xsl:when>
-                <!--<xsl:when test="$action-name = 'load'">
+                <xsl:when test="$action-name = 'load'">
                     <xsl:call-template name="action-load"/>
-                </xsl:when>-->
+                </xsl:when>
                 <xsl:when test="$action-name = 'send'">
                     <xsl:call-template name="action-send"/>
                 </xsl:when>
                 <xsl:when test="$action-name = 'message'">
                     <xsl:call-template name="action-message"/>
+                </xsl:when>
+                <xsl:when test="$action-name = 'script'">
+                    <xsl:call-template name="action-script"/>
                 </xsl:when>
                 <xsl:when test="$action-name = 'output'">
                     <xsl:call-template name="action-output">
@@ -5003,6 +5033,69 @@
     <xsl:template name="action-text">
         <xsl:param name="action-map" required="yes" as="map(*)" tunnel="yes"/>
         <xsl:sequence select="map:get($action-map,'@value')"/>        
+    </xsl:template>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Template for applying script action (XForms 2.0).</xd:p>
+            <xd:p>Evaluates the text content of xf:script as JavaScript via window.eval().</xd:p>
+        </xd:desc>
+        <xd:param name="action-map">Action map</xd:param>
+    </xd:doc>
+    <xsl:template name="action-script">
+        <xsl:param name="action-map" required="yes" as="map(*)" tunnel="yes"/>
+        
+        <xsl:variable name="log-label" as="xs:string" select="'[action-script]'"/>
+        <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> START</xsl:message>
+        
+        <xsl:variable name="js-code" as="xs:string?" select="map:get($action-map, 'script-body')"/>
+        
+        <xsl:if test="exists($js-code) and $js-code ne ''">
+            <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> Evaluating script: <xsl:value-of select="substring($js-code, 1, 100)"/></xsl:message>
+            <xsl:sequence select="ixsl:call(ixsl:window(), 'eval', [$js-code])"/>
+        </xsl:if>
+        
+        <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> END</xsl:message>
+    </xsl:template>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Template for applying load action.</xd:p>
+            <xd:p>See <xd:a href="https://www.w3.org/TR/xforms11/#action-load">XForms 1.1 §10.1.8 The load Element</xd:a></xd:p>
+        </xd:desc>
+        <xd:param name="action-map">Action map</xd:param>
+    </xd:doc>
+    <xsl:template name="action-load">
+        <xsl:param name="action-map" required="yes" as="map(*)" tunnel="yes"/>
+        
+        <xsl:variable name="log-label" as="xs:string" select="'[action-load]'"/>
+        <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> START</xsl:message>
+        
+        <xsl:variable name="resource" as="xs:string?" select="map:get($action-map, '@resource')"/>
+        <xsl:variable name="show" as="xs:string" select="(map:get($action-map, '@show'), 'replace')[1]"/>
+        
+        <xsl:if test="exists($resource) and $resource ne ''">
+            <xsl:choose>
+                <!-- javascript: URI scheme - eval the expression -->
+                <xsl:when test="starts-with($resource, 'javascript:')">
+                    <xsl:variable name="js-expr" as="xs:string" select="substring-after($resource, 'javascript:')"/>
+                    <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> Evaluating javascript: <xsl:value-of select="$js-expr"/></xsl:message>
+                    <xsl:sequence select="ixsl:call(ixsl:window(), 'eval', [$js-expr])"/>
+                </xsl:when>
+                <!-- show="new" - open in new window/tab -->
+                <xsl:when test="$show = 'new'">
+                    <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> Opening '<xsl:value-of select="$resource"/>' in new window</xsl:message>
+                    <xsl:sequence select="ixsl:call(ixsl:window(), 'open', [$resource])"/>
+                </xsl:when>
+                <!-- show="replace" (default) - navigate current window -->
+                <xsl:otherwise>
+                    <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> Navigating to '<xsl:value-of select="$resource"/>'</xsl:message>
+                    <ixsl:set-property name="href" select="$resource" object="ixsl:get(ixsl:window(), 'location')"/>
+                </xsl:otherwise>
+            </xsl:choose>
+        </xsl:if>
+        
+        <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> END</xsl:message>
     </xsl:template>
     
 
