@@ -34,6 +34,15 @@ function getRenderedText(page: any): Promise<string> {
   return page.locator("#xForm").innerText();
 }
 
+async function getInstanceXML(page: any, instanceId?: string): Promise<string> {
+  return page.evaluate((id: string | undefined) => {
+    const g = window as any;
+    const inst = id ? g.getInstance(id) : g.getDefaultInstance?.() || g.getInstance(g.getDefaultInstanceId?.());
+    if (!inst) return "";
+    return new XMLSerializer().serializeToString(inst);
+  }, instanceId);
+}
+
 // =====================================================================
 // 8.1 Core Controls [smoke]
 // =====================================================================
@@ -89,11 +98,19 @@ test.describe("W3C Ch8 §8.1 — Core Controls [smoke]", () => {
 });
 
 test.describe("W3C Ch8 §8.1 — Core Controls [behavioral]", () => {
-  test("8.1.5.a — output appearance shows Lotus and 2005", async ({ page }) => {
+  test("8.1.5.a — output controls show car instance values", async ({ page }) => {
     await loadAndWait(page, "Chapt08_8.1_8.1.5_8.1.5.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).toContain("Lotus");
-    expect(text).toContain("2005");
+    // Scoped: check output elements contain expected car data
+    const outputs = page.locator('.xforms-output');
+    const texts = await outputs.allInnerTexts();
+    expect(texts).toContain("Lotus");
+    expect(texts).toContain("2005");
+    expect(texts).toContain("Aztec Bronze");
+    // Instance data
+    const xml = await getInstanceXML(page);
+    expect(xml).toContain(">Lotus<");
+    expect(xml).toContain(">2005<");
+    expect(xml).toContain(">Aztec Bronze<");
   });
 });
 
