@@ -11,6 +11,7 @@
     xmlns:xhtml="http://www.w3.org/1999/xhtml"
     xmlns:js="http://saxonica.com/ns/globalJS" 
     xmlns:ixsl="http://saxonica.com/ns/interactiveXSLT"
+    xmlns:xsdh="http://saxonica.com/ns/xsd-helpers"
     xmlns:sfl="http://saxonica.com/ns/forms-local"
     xmlns:sfp="http://saxon.sf.net/ns/packages" 
     
@@ -21,7 +22,7 @@
     xmlns:saxon="http://saxon.sf.net/"
     xmlns:ev="http://www.w3.org/2001/xml-events"
         
-    exclude-result-prefixes="xs math xforms sfl sfp"
+    exclude-result-prefixes="xs math xforms xsdh sfl sfp"
     extension-element-prefixes="ixsl saxon" version="3.0">
     
     <!-- 
@@ -55,6 +56,7 @@
     -->
     
     <xsl:include href="xforms-function-library.xsl"/>
+    <xsl:include href="xsd-helpers.xsl"/>
     <xsl:include href="xforms-javascript-library.xsl"/>
     
     <xsl:output method="html" encoding="utf-8" omit-xml-declaration="no" indent="no"
@@ -1181,6 +1183,11 @@
         <xsl:param name="instanceXML" as="element()"/>
 
         <xsl:variable name="required-fieldsi" select="ixsl:page()//*[@data-required]" as="element()*"/>
+        <!--
+            Required checks must run against bound instance nodes (not DOM nodes),
+            and only for currently relevant controls, so hidden/non-relevant fields
+            do not block submit.
+        -->
 
         <xsl:for-each select="$required-fieldsi">
             <xsl:variable name="contexti" as="node()?" select="
@@ -1224,6 +1231,10 @@
     </xd:doc>
     <xsl:function name="xforms:check-constraints-on-fields" as="item()*">
         <xsl:param name="instanceXML" as="element()"/>
+        <!--
+            Include controls carrying explicit @data-constraint and controls that
+            only provide bind type metadata; both can participate in submit validity.
+        -->
         <xsl:variable name="constraint-fieldsi" select="ixsl:page()//*[@data-constraint or @data-binding-type]" as="element()*"/>
 
         <xsl:for-each select="$constraint-fieldsi">
@@ -1251,21 +1262,9 @@
                 if (exists($contexti))
                 then normalize-space(string($contexti))
                 else ''"/>
-            <xsl:variable name="binding-type" as="xs:string" select="lower-case(normalize-space(string(@data-binding-type)))"/>
-            <xsl:variable name="type-validi" as="xs:boolean" select="
-                if ($binding-type = ('xsd:gyearmonth','xs:gyearmonth'))
-                then (
-                    if ($typed-value = '')
-                    then true()
-                    else matches($typed-value,'^\d{4}-(0[1-9]|1[0-2])$')
-                )
-                else if ($binding-type = ('my:ccnumber','ccnumber'))
-                then (
-                    if ($typed-value = '')
-                    then true()
-                    else matches($typed-value,'^\d{14,18}$')
-                )
-                else true()"/>
+            <xsl:variable name="binding-type" as="xs:string" select="normalize-space(string(@data-binding-type))"/>
+            <!-- Delegate schema/datatype rules to xsd-helpers.xsl for reuse and testability. -->
+            <xsl:variable name="type-validi" as="xs:boolean" select="xsdh:is-type-valid($binding-type,$typed-value)"/>
             <xsl:variable name="resulti" as="xs:boolean" select="$constraint-resulti and $type-validi"/>
             <xsl:message use-when="$debugMode">[xforms:check-constraints-on-fields] ref=<xsl:value-of select="@data-ref"/> relevant=<xsl:value-of select="$relevanti"/> bindingType=<xsl:value-of select="$binding-type"/> constraintResult=<xsl:value-of select="$constraint-resulti"/> typeValid=<xsl:value-of select="$type-validi"/></xsl:message>
             <xsl:sequence select="if ($relevanti and not($resulti)) then . else ()"/>
@@ -1769,6 +1768,10 @@
                 <xsl:if test="exists($binding) and exists($binding/@required)">
                     <xsl:attribute name="data-required" select="$binding/@required"/>
                 </xsl:if>
+                <!--
+                    Persist bind @type on the rendered control so submit-time validation
+                    can enforce typed binds even when no explicit @constraint exists.
+                -->
                 <xsl:if test="exists($binding[@type])">
                     <xsl:attribute name="data-binding-type" select="string(($binding[@type][1]/@type)[1])"/>
                 </xsl:if>
@@ -1909,6 +1912,7 @@
                 <xsl:if test="exists($binding) and exists($binding/@required)">
                     <xsl:attribute name="data-required" select="$binding/@required"/>
                 </xsl:if>
+                <!-- Keep bind @type available for submit validation over textarea bindings. -->
                 <xsl:if test="exists($binding[@type])">
                     <xsl:attribute name="data-binding-type" select="string(($binding[@type][1]/@type)[1])"/>
                 </xsl:if>
@@ -2016,6 +2020,7 @@
                 <xsl:if test="exists($binding) and exists($binding/@required)">
                     <xsl:attribute name="data-required" select="$binding/@required"/>
                 </xsl:if>
+                <!-- Keep bind @type available for submit validation over select bindings. -->
                 <xsl:if test="exists($binding[@type])">
                     <xsl:attribute name="data-binding-type" select="string(($binding[@type][1]/@type)[1])"/>
                 </xsl:if>
