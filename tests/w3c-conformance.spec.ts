@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/echo-intercept";
 
 /**
  * W3C XForms 1.1 Conformance Test Suite — automated via Playwright.
@@ -31,7 +31,8 @@ async function getRenderedText(page: any): Promise<string> {
 async function getInstanceXML(page: any, instanceId?: string): Promise<string> {
   return page.evaluate((id: string | undefined) => {
     const g = window as any;
-    const inst = id ? g.getInstance(id) : g.getDefaultInstance?.() || g.getInstance(g.getDefaultInstanceId?.());
+    const key = id || g.getInstanceKeys?.()[0];
+    const inst = key ? g.getInstance(key) : null;
     if (!inst) return "";
     return new XMLSerializer().serializeToString(inst);
   }, instanceId);

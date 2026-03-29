@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/echo-intercept";
 
 /**
  * W3C XForms 1.1 Test Suite — Chapters 2, 3, 4.
@@ -29,6 +29,16 @@ function getRenderedText(page: any): Promise<string> {
   return page.locator("#xForm").innerText();
 }
 
+async function getInstanceXML(page: any, instanceId?: string): Promise<string> {
+  return page.evaluate((id: string | undefined) => {
+    const g = window as any;
+    const key = id || g.getInstanceKeys?.()[0];
+    const inst = key ? g.getInstance(key) : null;
+    if (!inst) return "";
+    return new XMLSerializer().serializeToString(inst);
+  }, instanceId);
+}
+
 // =====================================================================
 // Chapter 2 — Introduction / Examples
 // =====================================================================
@@ -36,9 +46,63 @@ function getRenderedText(page: any): Promise<string> {
 test.describe("W3C Ch2 — Introduction [behavioral]", () => {
   test("2.1.a — select1 with Cash/Credit and input controls", async ({ page }) => {
     await loadAndWait(page, "Chapt02/2.1.a.xhtml");
+
+    // 1. select1 control with values "Cash" and "Credit"
+    const select = page.locator('select.xforms-select');
+    await expect(select).toHaveCount(1);
+    const options = select.locator('option');
+    await expect(options).toHaveCount(2);
+    await expect(options.nth(0)).toHaveText("Cash");
+    await expect(options.nth(1)).toHaveText("Credit");
+    // Default instance value is "cc" so "Credit" should be selected
+    await expect(select).toHaveValue("cc");
+
+    // 2. Two input controls: Credit Card Number and Expiration Date
+    const inputs = page.locator('input.xforms-input');
+    await expect(inputs).toHaveCount(2);
     const text = await getRenderedText(page);
-    expect(text).toContain("Cash");
-    expect(text).toContain("Credit");
+    expect(text).toContain("Credit Card Number:");
+    expect(text).toContain("Expiration Date:");
+
+    // Select Cash — input controls must remain visible
+    await select.selectOption("cash");
+    await page.waitForTimeout(500);
+    await expect(inputs.nth(0)).toBeVisible();
+    await expect(inputs.nth(1)).toBeVisible();
+
+    // Enter values in input controls
+    await inputs.nth(0).fill("4111111111111111");
+    await inputs.nth(0).blur();
+    await inputs.nth(1).fill("12/2025");
+    await inputs.nth(1).blur();
+    await page.waitForTimeout(500);
+
+    // Instance data must reflect all user interactions
+    const xml = await getInstanceXML(page);
+    expect(xml).toContain("cash");
+    expect(xml).toContain("4111111111111111");
+    expect(xml).toContain("12/2025");
+
+    // 3. Submit Now — must trigger form submission
+    const submitBtn = page.locator('button[data-submit="submit"]');
+    await expect(submitBtn).toBeVisible();
+    await expect(submitBtn).toContainText("Submit Now");
+
+    // Verify Submit fires a POST (echo.sh is intercepted by the shared fixture)
+    const requestPromise = page.waitForRequest(
+      (req: any) => req.url().includes('echo.sh'),
+      { timeout: 5000 }
+    ).catch(() => null);
+    await submitBtn.click();
+    const submissionRequest = await requestPromise;
+
+    // Spec: "this page must be replaced by the form data"
+    expect(submissionRequest, 'Submit Now must trigger form submission').not.toBeNull();
+    // Submitted data must contain selected method and entered values
+    const postBody = submissionRequest?.postData() || '';
+    expect(postBody).toContain('cash');
+    expect(postBody).toContain('4111111111111111');
+    expect(postBody).toContain('12/2025');
   });
 
   test("2.2.a — instance with select1 and inputs", async ({ page }) => {
