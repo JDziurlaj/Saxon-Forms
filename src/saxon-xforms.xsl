@@ -87,8 +87,8 @@
     
     <xsl:param name="xforms-doc-global" as="document-node()?" required="no" select="if (exists($xforms-file-global) and fn:doc-available($xforms-file-global)) then fn:doc($xforms-file-global) else (if (exists(/) and namespace-uri(/*) = ('http://www.w3.org/2002/xforms','http://www.w3.org/1999/xhtml')) then (/) else ())"/>
 
-    <xsl:variable static="yes" name="debugMode" select="false()"/>
-    <xsl:variable static="yes" name="debugTiming" select="false()"/>
+    <xsl:variable static="yes" name="debugMode" select="true()"/>
+    <xsl:variable static="yes" name="debugTiming" select="true()"/>
     <xsl:variable static="yes" name="global-default-model-id" select="'saxon-forms-default-model'" as="xs:string"/>
     <xsl:variable static="yes" name="global-default-instance-id" select="'saxon-forms-default-instance'" as="xs:string"/>
     <xsl:variable static="yes" name="global-default-submission-id" select="'saxon-forms-default-submission'" as="xs:string"/>
@@ -436,7 +436,7 @@
         <xd:desc>Handle change to HTML form control value (except when control has "incremental" set)</xd:desc>
     </xd:doc>
     <xsl:template match="*:input[not(xforms:hasClass(.,'incremental'))][not(@type='file')] | *:select | *:textarea" mode="ixsl:onchange">
-        <xsl:message use-when="$debugMode">[isxl:onchange mode] HTML form control '<xsl:sequence select="name()"/>' value changed</xsl:message>
+        <xsl:message use-when="$debugMode">[ixsl:onchange mode] HTML form control '<xsl:sequence select="name()"/>' value changed</xsl:message>
         <xsl:call-template name="action-setvalue-form-control">
             <xsl:with-param name="form-control" select="."/>
         </xsl:call-template>
@@ -643,8 +643,12 @@
                 <xsl:when test="$refi != '' and exists($bindings-this-instance)">
                     <xsl:variable name="nodeset-mod" as="xs:string" select="xforms:impose($refi)"/>
                     <xsl:variable name="instanceXML" as="element()?">
+                        <xsl:variable name="instanceXMLFromJS" as="element()?" select="xforms:instance($instance-context)"/>
                         <xsl:variable name="intanceXMLWithID" as="element()?" select="$context-model/xforms:instance[@id = $instance-context]"/>
                         <xsl:choose>
+                            <xsl:when test="exists($instanceXMLFromJS)">
+                                <xsl:sequence select="$instanceXMLFromJS"/>
+                            </xsl:when>
                             <xsl:when test="exists($intanceXMLWithID)">
                                 <xsl:sequence select="$intanceXMLWithID"/>
                             </xsl:when>
@@ -1737,31 +1741,17 @@
                         </xsl:otherwise>
                     </xsl:choose>
                 </xsl:variable>
+                <xsl:variable name="binding-type" as="xs:string" select="if (exists($binding) and exists($binding/@type)) then lower-case(normalize-space(string($binding/@type))) else ''"/>
                 
                 <xsl:variable name="input-type" as="xs:string">
                     <xsl:choose>
-                        <xsl:when
-                            test="
-                            if (exists($binding)) then
-                            xs:QName($binding/@type) eq xs:QName('xs:date')
-                            else
-                            false()">
+                        <xsl:when test="$binding-type = ('xs:date','xsd:date')">
                             <xsl:sequence select="'date'"/>
                         </xsl:when>
-                        <xsl:when
-                            test="
-                            if (exists($binding)) then
-                            xs:QName($binding/@type) eq xs:QName('xs:time')
-                            else
-                            false()">
+                        <xsl:when test="$binding-type = ('xs:time','xsd:time')">
                             <xsl:sequence select="'time'"/>
                         </xsl:when>
-                        <xsl:when
-                            test="
-                            if (exists($binding)) then
-                            xs:QName($binding/@type) eq xs:QName('xs:boolean')
-                            else
-                            false()">
+                        <xsl:when test="$binding-type = ('xs:boolean','xsd:boolean')">
                             <xsl:sequence select="'checkbox'"/>
                         </xsl:when>
                         
@@ -2720,7 +2710,7 @@
         </xd:desc>
     </xd:doc>
     <xsl:template match="*:select" mode="get-field">
-
+        <xsl:message>Aw geez ZI hope I don't below up here.</xsl:message>
         <xsl:sequence select="ixsl:get(./option[ixsl:get(., 'selected') = true()], 'value')"/>
     </xsl:template>
 
@@ -3593,6 +3583,7 @@
         <xsl:param name="instance-context" as="xs:string" tunnel="yes"/>
         <xsl:param name="data-type" as="xs:string" required="no" select="''"/>
         <xsl:param name="additional-class-values" as="xs:string*"/>
+        <xsl:variable name="time-id-register-outputs" as="xs:string" select="concat('registerOutput ', generate-id())"/>
         
         <xsl:sequence use-when="$debugTiming" select="js:startTime($time-id-register-outputs)" />
         
@@ -3680,6 +3671,10 @@
         <xsl:map>
             <xsl:if test="exists($this/@resource)">
                 <xsl:map-entry key="'@resource'" select="xs:string($this/@resource)" />
+            </xsl:if>
+            <!-- Depricated in XForms 1.1 but needed to meet the test suite -->
+            <xsl:if test="exists($this/@action)">
+                <xsl:map-entry key="'@action'" select="xs:string($this/@action)" />
             </xsl:if>
             
             <xsl:map-entry key="'@id'" select="if (exists($this/@id)) then $this/@id else $submission-id"/>
@@ -4214,8 +4209,8 @@
                     </xsl:if>
                 </xsl:variable>
                 
-                <xsl:variable name="href-base" as="xs:string?" select="map:get($submission-map,'@resource')"/>
-                
+                <xsl:variable name="href-base" as="xs:string?" select="if(map:get($submission-map,'@resource')) then map:get($submission-map,'@resource') else map:get($submission-map,'@action')"/>
+                <xsl:message> Map is '<xsl:value-of select="map:keys($submission-map)"/></xsl:message>
                 <xsl:variable name="href" as="xs:string?">
                     <xsl:choose>
                         <xsl:when test="not(exists($href-base))">
@@ -4267,10 +4262,21 @@
                     All needed parameters are captured as function arguments (no tunnel parameters needed).
                     See https://www.saxonica.com/saxonjs/documentation3/index.html#!ixsl-extension/instructions/promise
                 -->
-                <ixsl:promise select="ixsl:http-request($HTTPrequest)"
+                <!--<ixsl:promise select="ixsl:http-request($HTTPrequest)"
                     on-completion="xforms:HTTPsubmit(?, $instance-id-update, $submission-map, $actions)"
-                    on-failure="xforms:serverError#1"/>
+                    on-failure="xforms:serverError#1"/>-->
                 
+                <ixsl:schedule-action http-request="$HTTPrequest">
+                    <!-- The value of @http-request is an XPath expression, which evaluates to an 'HTTP request
+                            map' - i.e. our representation of an HTTP request as an XDM map -->                    
+                    <xsl:call-template name="HTTPsubmit">
+                        <xsl:with-param name="instance-id" select="$instance-id-update" as="xs:string"/>
+                        <xsl:with-param name="targetref" select="map:get($submission-map,'@targetref')"/>
+                        <xsl:with-param name="replace" select="map:get($submission-map,'@replace')"/>
+                        <xsl:with-param name="when-done" select="$actions[map:get(.,'@event') = 'xforms-submit-done']" tunnel="yes"/>
+                    </xsl:call-template>
+                    
+                </ixsl:schedule-action>
                 
             </xsl:when>
             
@@ -4303,6 +4309,7 @@
         <xsl:param name="instance-id" as="xs:string"/>
         <xsl:param name="submission-map" as="map(*)"/>
         <xsl:param name="actions" as="map(*)*"/>
+        <xsl:message>Debug xforms:HTTPsubmit retrieve</xsl:message>
         <xsl:call-template name="HTTPsubmit">
             <xsl:with-param name="instance-id" select="$instance-id" as="xs:string"/>
             <xsl:with-param name="targetref" select="map:get($submission-map,'@targetref')"/>

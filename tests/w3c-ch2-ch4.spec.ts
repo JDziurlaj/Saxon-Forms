@@ -39,6 +39,22 @@ async function getInstanceXML(page: any, instanceId?: string): Promise<string> {
   }, instanceId);
 }
 
+async function submitAndCapture(page: any, submitButton: any, timeout = 2000) {
+  const requestPromise = page.waitForRequest(
+    (req: any) => req.url().includes("echo.sh"),
+    { timeout }
+  ).catch(() => null);
+  await submitButton.click();
+  return requestPromise;
+}
+
+async function isUnavailable(input: any): Promise<boolean> {
+  const visible = await input.isVisible().catch(() => false);
+  if (!visible) return true;
+  const enabled = await input.isEnabled().catch(() => false);
+  return !enabled;
+}
+
 // =====================================================================
 // Chapter 2 — Introduction / Examples
 // =====================================================================
@@ -111,10 +127,89 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
     expect(text).toContain("Cash");
   });
 
-  test("2.3.a — bindings with select1 and inputs", async ({ page }) => {
+  test("2.3.a — renders select1 and credit inputs with default Credit selection", async ({ page }) => {
     await loadAndWait(page, "Chapt02/2.3.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).toContain("Cash");
+    const select = page.locator("select.xforms-select");
+    await expect(select).toHaveCount(1);
+    const options = select.locator("option");
+    await expect(options).toHaveCount(2);
+    await expect(options.nth(0)).toHaveText("Cash");
+    await expect(options.nth(1)).toHaveText("Credit");
+    await expect(select).toHaveValue("cc");
+
+    const inputs = page.locator("input.xforms-input");
+    await expect(inputs).toHaveCount(2);
+    await expect(inputs.nth(0)).toBeVisible();
+    await expect(inputs.nth(1)).toBeVisible();
+  });
+
+  test("2.3.a — selecting Cash makes credit inputs unavailable", async ({ page }) => {
+    await loadAndWait(page, "Chapt02/2.3.a.xhtml");
+
+    const select = page.locator("select.xforms-select");
+    const inputs = page.locator("input.xforms-input");
+
+    await select.selectOption("cash");
+    await page.waitForTimeout(500);
+
+    expect(await isUnavailable(inputs.nth(0))).toBe(true);
+    expect(await isUnavailable(inputs.nth(1))).toBe(true);
+  });
+
+  test("2.3.a — selecting Cash still allows submit", async ({ page }) => {
+    await loadAndWait(page, "Chapt02/2.3.a.xhtml");
+
+    const select = page.locator("select.xforms-select");
+    const submitBtn = page.locator('button[data-submit="submit01"]');
+
+    await select.selectOption("cash");
+    await page.waitForTimeout(500);
+    await expect(submitBtn).toBeVisible();
+    await expect(submitBtn).toContainText("Submit Now");
+
+    const submissionRequest = await submitAndCapture(page, submitBtn, 5000);
+    expect(submissionRequest, "Cash selection should still allow submit").not.toBeNull();
+    const postBody = submissionRequest?.postData() || "";
+    expect(postBody).toContain("cash");
+  });
+
+  test("2.3.a — Credit blocks invalid values and submits only after valid card + gYearMonth", async ({ page }) => {
+    await loadAndWait(page, "Chapt02/2.3.a.xhtml");
+
+    const select = page.locator("select.xforms-select");
+    const cardInput = page.locator("input.xforms-input").nth(0);
+    const expiryInput = page.locator("input.xforms-input").nth(1);
+    const submitBtn = page.locator('button[data-submit="submit01"]');
+
+    await select.selectOption("cc");
+    await page.waitForTimeout(300);
+
+    await cardInput.fill("1234567890123");
+    await cardInput.blur();
+    await expiryInput.fill("2025-12");
+    await expiryInput.blur();
+
+    const invalidSubmission = await submitAndCapture(page, submitBtn, 1500);
+    expect(
+      invalidSubmission,
+      "Credit with an invalid 13-digit card number must not submit"
+    ).toBeNull();
+
+    await cardInput.fill("12345678901234");
+    await cardInput.blur();
+    await expiryInput.fill("2025-12");
+    await expiryInput.blur();
+
+    const validSubmission = await submitAndCapture(page, submitBtn, 5000);
+    expect(
+      validSubmission,
+      "Credit with valid card and gYearMonth expiry should submit"
+    ).not.toBeNull();
+
+    const postBody = validSubmission?.postData() || "";
+    expect(postBody).toContain("cc");
+    expect(postBody).toContain("12345678901234");
+    expect(postBody).toContain("2025-12");
   });
 
   test("2.4.a — complete example with select1 and inputs", async ({ page }) => {
