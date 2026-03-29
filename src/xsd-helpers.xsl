@@ -41,13 +41,17 @@
     <xsl:function name="xsdh:is-type-valid" as="xs:boolean">
         <xsl:param name="binding-type" as="xs:string?"/>
         <xsl:param name="raw-value" as="xs:string?"/>
+        <xsl:variable name="raw-type" as="xs:string" select="lower-case(normalize-space(string($binding-type)))"/>
+        <xsl:variable name="is-xforms-type" as="xs:boolean" select="starts-with($raw-type,'xforms:')"/>
         <xsl:variable name="type" as="xs:string" select="xsdh:canonical-type($binding-type)"/>
         <xsl:variable name="value" as="xs:string" select="normalize-space(string($raw-value))"/>
         <xsl:sequence select="
             if ($type = '')
             then true()
-            else if ($value = '')
-            then ($type != 'nonemptystring')
+            else if ($type = 'nonemptystring')
+            then string-length($value) gt 0
+            else if ($value = '' and $is-xforms-type)
+            then true()
             else if ($type = 'datetime')
             then ($value castable as xs:dateTime)
             else if ($type = 'time')
@@ -138,8 +142,6 @@
             then matches($value,'^\d{12,19}$')
             else if ($type = 'ccnumber-strict')
             then matches($value,'^\d{14,18}$')
-            else if ($type = 'nonemptystring')
-            then string-length($value) gt 0
             else true()"/>
     </xsl:function>
 

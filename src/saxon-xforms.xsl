@@ -526,11 +526,26 @@
                 <!-- take first available of: model explicitly referenced with @model, ancestor model, default model -->
                 <xsl:variable name="context-model" as="element(xforms:model)" select="
                     ($models-global[@id = $model-ref], ./ancestor::xforms:model, $models-global[1])[1]"/>
-                
+                <xsl:variable name="context-model-id" as="xs:string" select="
+                    if (exists($context-model/@id))
+                    then string($context-model/@id)
+                    else $global-default-model-id"/>
+                <xsl:variable name="default-model-id-local" as="xs:string" select="
+                    if (exists($models-global[1]/@id))
+                    then string($models-global[1]/@id)
+                    else $global-default-model-id"/>
                 <xsl:variable name="local-default-instance" as="element(xforms:instance)?" select="$context-model/xforms:instance[1]"/>
+                <xsl:variable name="context-default-instance-id" as="xs:string" select="
+                    if (exists($local-default-instance/@id))
+                    then xs:string($local-default-instance/@id)
+                    else (
+                        if ($context-model-id = $default-model-id-local)
+                        then $global-default-instance-id
+                        else concat($context-model-id, '-', $global-default-instance-id)
+                    )"/>
                 <xsl:choose>
                     <xsl:when test="exists($local-default-instance)">
-                        <xsl:sequence select="if (exists($local-default-instance/@id)) then xs:string($local-default-instance/@id) else $global-default-instance-id"/>
+                        <xsl:sequence select="$context-default-instance-id"/>
                     </xsl:when>
                     <!-- use default instance of XForm if there is nothing else to go on -->
                     <xsl:otherwise>
@@ -594,8 +609,36 @@
         
         <xsl:variable name="context-model" as="element(xforms:model)" select="
             ($models-global[@id = $model-ref], ./ancestor::xforms:model, $models-global[1])[1]"/>
+        <xsl:variable name="context-model-id" as="xs:string" select="
+            if (exists($context-model/@id))
+            then string($context-model/@id)
+            else $global-default-model-id"/>
+        <xsl:variable name="default-model-id-local" as="xs:string" select="
+            if (exists($models-global[1]/@id))
+            then string($models-global[1]/@id)
+            else $global-default-model-id"/>
+        <xsl:variable name="context-default-instance-id" as="xs:string" select="
+            if (exists($context-model/xforms:instance[1]/@id))
+            then string($context-model/xforms:instance[1]/@id)
+            else (
+                if ($context-model-id = $default-model-id-local)
+                then $global-default-instance-id
+                else concat($context-model-id, '-', $global-default-instance-id)
+            )"/>
+        <xsl:variable name="context-default-nodeset" as="xs:string" select="concat('instance(''', $context-default-instance-id, ''')')"/>
         
-        <xsl:variable name="context-nodeset" as="xs:string" select="if (exists(@context)) then xforms:resolveXPathStrings($nodeset,@context) else (if ($nodeset ne '') then $nodeset else ('instance(''' || $default-instance-id || ''')'))"/>
+        <xsl:variable name="context-nodeset" as="xs:string" select="
+            if (exists(@context))
+            then xforms:resolveXPathStrings($nodeset,@context)
+            else (
+                if (exists(@model))
+                then $context-default-nodeset
+                else (
+                    if ($nodeset ne '')
+                    then $nodeset
+                    else $context-default-nodeset
+                )
+            )"/>
         
         <!-- empty if @iterate not set (so we only set the 'iterate' property when there is iteration) -->
         <xsl:variable name="context-nodeset-iterate" as="xs:string?" select="if (exists(@iterate)) then xforms:resolveXPathStrings($context-nodeset,@iterate) else ()"/>
@@ -620,7 +663,7 @@
                     <xsl:sequence select="$nodeset"/>
                 </xsl:when>
                 <xsl:otherwise>
-                    <xsl:sequence select="concat('instance(''',$default-instance-id,''')')"/>
+                    <xsl:sequence select="$context-default-nodeset"/>
                 </xsl:otherwise>
             </xsl:choose>           
         </xsl:variable>
@@ -3879,7 +3922,18 @@
             <xsl:variable name="instance-with-explicit-namespaces" as="element()">
                 <xsl:apply-templates select="$instance-data" mode="namespace-fix"/>
             </xsl:variable>
-            <xsl:variable name="instance-key" as="xs:string" select="if (exists(@id)) then xs:string(@id) else $global-default-instance-id"/>
+            <xsl:variable name="implicit-instance-key-base" as="xs:string" select="
+                if ($model-key = $default-model-id)
+                then $global-default-instance-id
+                else concat($model-key, '-', $global-default-instance-id)"/>
+            <xsl:variable name="instance-key" as="xs:string" select="
+                if (exists(@id))
+                then xs:string(@id)
+                else (
+                    if (position() = 1)
+                    then $implicit-instance-key-base
+                    else concat($implicit-instance-key-base, '-', position())
+                )"/>
             <!--<xsl:message use-when="$debugMode">[xforms-model-construct] Setting instance with ID '<xsl:sequence select="$instance-key"/>': <xsl:sequence select="fn:serialize($instance-with-explicit-namespaces)"/></xsl:message>-->
             <xsl:sequence select="js:setInstance($instance-key,$instance-with-explicit-namespaces)"/>
             <xsl:if test="position() = 1">
@@ -4127,7 +4181,68 @@
         </xd:desc>
     </xd:doc>
     <xsl:template name="xforms-revalidate">
-        
+        <xsl:message use-when="$debugMode">[xforms-revalidate] START</xsl:message>
+
+        <xsl:variable name="valid-actions" as="map(*)*" select="js:getEventAction('xforms-valid')"/>
+        <xsl:variable name="invalid-actions" as="map(*)*" select="js:getEventAction('xforms-invalid')"/>
+        <xsl:variable name="bindings" as="element(xforms:bind)*" select="js:getBindings()"/>
+
+        <xsl:variable name="context-refs" as="xs:string*">
+            <xsl:for-each select="($valid-actions,$invalid-actions)">
+                <xsl:variable name="context-ref" as="xs:string?" select="map:get(.,'@context')"/>
+                <xsl:if test="exists($context-ref) and normalize-space($context-ref) ne ''">
+                    <xsl:sequence select="normalize-space($context-ref)"/>
+                </xsl:if>
+            </xsl:for-each>
+        </xsl:variable>
+
+        <xsl:for-each select="distinct-values($context-refs)">
+            <xsl:variable name="context-ref" as="xs:string" select="."/>
+            <xsl:variable name="context-instance-id" as="xs:string" select="xforms:getInstanceId($context-ref)"/>
+            <xsl:variable name="context-ref-local" as="xs:string" select="replace(normalize-space($context-ref), &quot;^instance\s*\(\s*'[^']+'\s*\)\s*/\s*&quot;, '')"/>
+            <xsl:variable name="context-instance-xml" as="element()?" select="xforms:instance($context-instance-id)"/>
+            <xsl:variable name="context-items" as="item()*" select="xforms:evaluate-xpath-with-instance-id($context-ref,$context-instance-id,())"/>
+            <xsl:variable name="context-node" as="node()?" select="(for $i in $context-items return if ($i instance of node()) then $i else ())[1]"/>
+            <xsl:variable name="binding-type-from-bind-exact" as="xs:string?" select="string(($bindings[@instance-context = $context-instance-id][@nodeset = ($context-ref,$context-ref-local)][1]/@type)[1])"/>
+            <xsl:variable name="binding-by-node" as="element(xforms:bind)?">
+                <xsl:for-each select="$bindings[@instance-context = $context-instance-id][exists(@type)]">
+                    <xsl:variable name="binding-nodes" as="node()*">
+                        <xsl:choose>
+                            <xsl:when test="exists($context-instance-xml)">
+                                <xsl:evaluate xpath="xforms:impose(string(@nodeset))" context-item="$context-instance-xml" namespace-context="$context-instance-xml"/>
+                            </xsl:when>
+                            <xsl:otherwise/>
+                        </xsl:choose>
+                    </xsl:variable>
+                    <xsl:if test="exists($context-node) and (some $n in $binding-nodes satisfies $n is $context-node)">
+                        <xsl:sequence select="."/>
+                    </xsl:if>
+                </xsl:for-each>
+            </xsl:variable>
+            <xsl:variable name="binding-type-from-bind-node" as="xs:string?" select="string(($binding-by-node[1]/@type)[1])"/>
+            <xsl:variable name="binding-type-from-instance" as="xs:string?" select="
+                if (exists($context-node))
+                then string(($context-node/@*[local-name() = 'type' and namespace-uri() = 'http://www.w3.org/2001/XMLSchema-instance'])[1])
+                else ()"/>
+            <xsl:variable name="binding-type" as="xs:string" select="((normalize-space($binding-type-from-bind-exact),normalize-space($binding-type-from-bind-node),normalize-space($binding-type-from-instance))[. ne ''],'')[1]"/>
+            <xsl:variable name="typed-value" as="xs:string" select="if (exists($context-node)) then normalize-space(string($context-node)) else ''"/>
+            <xsl:variable name="is-valid" as="xs:boolean" select="if (exists($context-node)) then xsdh:is-type-valid($binding-type,$typed-value) else false()"/>
+
+            <xsl:message use-when="$debugMode">[xforms-revalidate] ref=<xsl:value-of select="$context-ref"/> instance=<xsl:value-of select="$context-instance-id"/> type=<xsl:value-of select="$binding-type"/> value='<xsl:value-of select="$typed-value"/>' valid=<xsl:value-of select="$is-valid"/></xsl:message>
+
+            <xsl:variable name="actions-to-apply" as="map(*)*" select="
+                if ($is-valid)
+                then $valid-actions[map:get(.,'@context') = $context-ref]
+                else $invalid-actions[map:get(.,'@context') = $context-ref]"/>
+
+            <xsl:for-each select="$actions-to-apply">
+                <xsl:call-template name="applyActions">
+                    <xsl:with-param name="action-map" as="map(*)" select="map:put(.,'handler-status','inner')" tunnel="yes"/>
+                </xsl:call-template>
+            </xsl:for-each>
+        </xsl:for-each>
+
+        <xsl:message use-when="$debugMode">[xforms-revalidate] END</xsl:message>
     </xsl:template>
 
     <xd:doc scope="component">

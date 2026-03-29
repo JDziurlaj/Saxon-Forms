@@ -41,33 +41,406 @@ async function getInstanceXML(page: any, instanceId?: string): Promise<string> {
   }, instanceId);
 }
 
+async function getEventModelResults(page: any): Promise<string[]> {
+  return page.evaluate(() => {
+    const g = window as any;
+    const raw = g.getModelDefaultInstanceKey?.("event_model");
+    const instanceKey = Array.isArray(raw) ? raw[0] : raw;
+    const instance = instanceKey ? g.getInstance(instanceKey) : null;
+    if (!instance) return [];
+    return Array.from(instance.getElementsByTagName("event")).map((node: any) =>
+      String(node?.textContent ?? "").replace(/\s+/g, " ").trim()
+    );
+  });
+}
+
 // =====================================================================
-// Chapter 5 — Datatypes (smoke only: requires schema type validation
-// and multi-model event dispatching, both unimplemented)
+// Chapter 5 — Datatypes
 // =====================================================================
 
-const ch5: [string, string][] = [
-  ["5.1.a", "Chapt05_5.1_5.1.a.xhtml"],
-  ["5.1.b", "Chapt05_5.1_5.1.b.xhtml"],
-  ["5.1.c", "Chapt05_5.1_5.1.c.xhtml"],
-  ["5.1.d", "Chapt05_5.1_5.1.d.xhtml"],
-  ["5.1.e", "Chapt05_5.1_5.1.e.xhtml"],
-  ["5.2.1.a", "Chapt05_5.2_5.2.1_5.2.1.a.xhtml"],
-  ["5.2.1.b", "Chapt05_5.2_5.2.1_5.2.1.b.xhtml"],
-  ["5.2.1.c", "Chapt05_5.2_5.2.1_5.2.1.c.xhtml"],
-  ["5.2.2.a", "Chapt05_5.2_5.2.2_5.2.2.a.xhtml"],
-  ["5.2.3.a", "Chapt05_5.2_5.2.3_5.2.3.a.xhtml"],
-  ["5.2.4.a", "Chapt05_5.2_5.2.4_5.2.4.a.xhtml"],
-  ["5.2.5.a", "Chapt05_5.2_5.2.5_5.2.5.a.xhtml"],
-  ["5.2.6.a", "Chapt05_5.2_5.2.6_5.2.6.a.xhtml"],
-  ["5.2.7.a", "Chapt05_5.2_5.2.7_5.2.7.a.xhtml"],
-  ["5.2.7.b", "Chapt05_5.2_5.2.7_5.2.7.b.xhtml"],
-];
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
 
-test.describe("W3C Ch5 — Datatypes [smoke]", () => {
-  for (const [name, file] of ch5) {
-    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function expectDatatypeEvents(
+  values: string[],
+  eventName: "xforms-valid" | "XFORMS-INVALID",
+  typeNames: string[]
+) {
+  const normalized = values.map(normalizeWhitespace);
+  for (const typeName of typeNames) {
+    const pattern = new RegExp(
+      `${escapeRegex(eventName)}[^\\)]*\\(${escapeRegex(typeName)}\\)`,
+      "i"
+    );
+    expect(normalized.some((value) => pattern.test(value))).toBe(true);
   }
+}
+
+async function clickTrigger(page: any, label: string) {
+  await page.getByRole("button", { name: label, exact: true }).click();
+  await page.waitForTimeout(300);
+}
+
+test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
+  test("5.1.a — primitive types: valid and invalid triggers produce expected event outputs", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.1_5.1.a.xhtml");
+
+    await clickTrigger(page, "Valid Values");
+    let eventResults = await getEventModelResults(page);
+    expectDatatypeEvents(eventResults, "xforms-valid", [
+      "dateTime",
+      "time",
+      "date",
+      "gYearMonth",
+      "gYear",
+      "gMonthDay",
+      "gDay",
+      "gMonth",
+      "string",
+      "boolean",
+      "base64Binary",
+      "hexBinary",
+      "float",
+      "decimal",
+      "double",
+      "anyURI",
+      "QName",
+    ]);
+
+    await clickTrigger(page, "Invalid Values");
+    eventResults = await getEventModelResults(page);
+    expectDatatypeEvents(eventResults, "XFORMS-INVALID", [
+      "dateTime",
+      "time",
+      "date",
+      "gYearMonth",
+      "gYear",
+      "gMonthDay",
+      "gDay",
+      "gMonth",
+      "boolean",
+      "base64Binary",
+      "hexBinary",
+      "float",
+      "decimal",
+      "double",
+      "anyURI",
+      "QName",
+    ]);
+  });
+
+  test("5.1.b — derived types: valid and invalid triggers produce expected event outputs", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.1_5.1.b.xhtml");
+
+    await clickTrigger(page, "Valid Values");
+    let eventResults = await getEventModelResults(page);
+    expectDatatypeEvents(eventResults, "xforms-valid", [
+      "normalizedString",
+      "token",
+      "language",
+      "Name",
+      "NCName",
+      "ID",
+      "IDREF",
+      "IDREFS",
+      "NMTOKEN",
+      "NMTOKENS",
+      "integer",
+      "nonPositiveInteger",
+      "negativeInteger",
+      "long",
+      "int",
+      "short",
+      "byte",
+      "nonNegativeInteger",
+      "unsignedLong",
+      "unsignedInt",
+      "unsignedShort",
+      "unsignedByte",
+      "positiveInteger",
+    ]);
+
+    await clickTrigger(page, "Invalid Values");
+    eventResults = await getEventModelResults(page);
+    expectDatatypeEvents(eventResults, "XFORMS-INVALID", [
+      "language",
+      "Name",
+      "NCName",
+      "ID",
+      "IDREF",
+      "IDREFS",
+      "NMTOKEN",
+      "NMTOKENS",
+      "integer",
+      "nonPositiveInteger",
+      "negativeInteger",
+      "long",
+      "int",
+      "short",
+      "byte",
+      "nonNegativeInteger",
+      "unsignedLong",
+      "unsignedInt",
+      "unsignedShort",
+      "unsignedByte",
+      "positiveInteger",
+    ]);
+  });
+
+  test("5.1.c — basic primitive support: valid and invalid triggers produce expected event outputs", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.1_5.1.c.xhtml");
+
+    await clickTrigger(page, "Valid Values");
+    let eventResults = await getEventModelResults(page);
+    expectDatatypeEvents(eventResults, "xforms-valid", [
+      "dateTime",
+      "time",
+      "date",
+      "gYearMonth",
+      "gYear",
+      "gMonthDay",
+      "gDay",
+      "gMonth",
+      "string",
+      "boolean",
+      "base64Binary",
+      "decimal",
+      "anyURI",
+    ]);
+
+    await clickTrigger(page, "Invalid Values");
+    eventResults = await getEventModelResults(page);
+    expectDatatypeEvents(eventResults, "XFORMS-INVALID", [
+      "dateTime",
+      "time",
+      "date",
+      "gYearMonth",
+      "gYear",
+      "gMonthDay",
+      "gDay",
+      "gMonth",
+      "boolean",
+      "base64Binary",
+      "decimal",
+      "anyURI",
+    ]);
+  });
+
+  test("5.1.d — basic derived support: valid and invalid triggers produce expected event outputs", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.1_5.1.d.xhtml");
+
+    await clickTrigger(page, "Valid Values");
+    let eventResults = await getEventModelResults(page);
+    const integerFamily = [
+      "integer",
+      "nonPositiveInteger",
+      "negativeInteger",
+      "long",
+      "int",
+      "short",
+      "byte",
+      "nonNegativeInteger",
+      "unsignedLong",
+      "unsignedInt",
+      "unsignedShort",
+      "unsignedByte",
+      "positiveInteger",
+    ];
+    expectDatatypeEvents(eventResults, "xforms-valid", integerFamily);
+
+    await clickTrigger(page, "Invalid Values");
+    eventResults = await getEventModelResults(page);
+    expectDatatypeEvents(eventResults, "XFORMS-INVALID", integerFamily);
+  });
+
+  test("5.1.e — xsi:type date: valid and invalid triggers produce expected event outputs", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.1_5.1.e.xhtml");
+
+    await clickTrigger(page, "Valid Value");
+    let eventResults = await getEventModelResults(page);
+    expectDatatypeEvents(eventResults, "xforms-valid", ["date"]);
+
+    await clickTrigger(page, "Invalid Value");
+    eventResults = await getEventModelResults(page);
+    expectDatatypeEvents(eventResults, "XFORMS-INVALID", ["date"]);
+  });
+
+  test("5.2.1.a — empty primitive values remain valid (no invalid events)", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.2_5.2.1_5.2.1.a.xhtml");
+
+    await clickTrigger(page, "Run Test");
+    const eventResults = await getEventModelResults(page);
+    expect(eventResults.some((value) => /XFORMS-INVALID/i.test(value))).toBe(false);
+    expectDatatypeEvents(eventResults, "xforms-valid", [
+      "dateTime",
+      "time",
+      "date",
+      "gYearMonth",
+      "gYear",
+      "gMonthDay",
+      "gDay",
+      "gMonth",
+      "string",
+      "boolean",
+      "base64Binary",
+      "hexBinary",
+      "float",
+      "decimal",
+      "double",
+      "anyURI",
+      "QName",
+    ]);
+  });
+
+  test("5.2.1.b — empty derived values remain valid (no invalid events)", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.2_5.2.1_5.2.1.b.xhtml");
+
+    await clickTrigger(page, "Run Test");
+    const eventResults = await getEventModelResults(page);
+    expect(eventResults.some((value) => /XFORMS-INVALID/i.test(value))).toBe(false);
+    expectDatatypeEvents(eventResults, "xforms-valid", [
+      "normalizedString",
+      "token",
+      "language",
+      "Name",
+      "NCName",
+      "ID",
+      "IDREF",
+      "IDREFS",
+      "NMTOKEN",
+      "NMTOKENS",
+      "integer",
+      "nonPositiveInteger",
+      "negativeInteger",
+      "long",
+      "int",
+      "short",
+      "byte",
+      "nonNegativeInteger",
+      "unsignedLong",
+      "unsignedInt",
+      "unsignedShort",
+      "unsignedByte",
+      "positiveInteger",
+    ]);
+  });
+
+  test("5.2.1.c — empty basic-processor datatypes remain valid (no invalid events)", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.2_5.2.1_5.2.1.c.xhtml");
+
+    await clickTrigger(page, "Run Test");
+    const eventResults = await getEventModelResults(page);
+    expect(eventResults.some((value) => /XFORMS-INVALID/i.test(value))).toBe(false);
+    expectDatatypeEvents(eventResults, "xforms-valid", [
+      "dateTime",
+      "time",
+      "date",
+      "gYearMonth",
+      "gYear",
+      "gMonthDay",
+      "gDay",
+      "gMonth",
+      "string",
+      "boolean",
+      "base64Binary",
+      "decimal",
+      "anyURI",
+      "integer",
+      "nonPositiveInteger",
+      "negativeInteger",
+      "long",
+      "int",
+      "short",
+      "byte",
+      "nonNegativeInteger",
+      "unsignedLong",
+      "unsignedInt",
+      "unsignedShort",
+      "unsignedByte",
+      "positiveInteger",
+    ]);
+  });
+
+  test("5.2.2.a — listItem test initializes with a valid single token value", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.2_5.2.2_5.2.2.a.xhtml");
+    const input = page.locator('input[data-ref*=\"availableColors\"]');
+    await expect(input).toHaveValue("RedBlueGreen");
+    expect(await input.inputValue()).not.toMatch(/\s/);
+  });
+
+  test("5.2.3.a — listItems test initializes with a valid whitespace-separated list", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.2_5.2.3_5.2.3.a.xhtml");
+    const input = page.locator('input[data-ref*=\"availableColors\"]');
+    await expect(input).toHaveValue("Red Blue Green");
+    expect(await input.inputValue()).toMatch(/^\S+(\s+\S+)+$/);
+  });
+
+  test("5.2.4.a — dayTimeDuration test initializes with a valid lexical duration", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.2_5.2.4_5.2.4.a.xhtml");
+    const input = page.locator('input[data-ref*=\"rentalLeaseLength\"]');
+    await expect(input).toHaveValue("P5DT3H4M2S");
+    expect(await input.inputValue()).toMatch(/^P(\d+D)?(T(\d+H)?(\d+M)?(\d+S)?)?$/);
+  });
+
+  test("5.2.5.a — yearMonthDuration test initializes with a valid lexical duration", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.2_5.2.5_5.2.5.a.xhtml");
+    const input = page.locator('input[data-ref*=\"leaseLength\"]');
+    await expect(input).toHaveValue("P100Y1M");
+    expect(await input.inputValue()).toMatch(/^P(\d+Y)?(\d+M)?$/);
+  });
+
+  test("5.2.6.a — email triggers set the expected valid and invalid lexical values", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.2_5.2.6_5.2.6.a.xhtml");
+
+    const emailInput = page.locator('input[data-ref*=\"email_address\"]');
+    await expect(emailInput).toHaveCount(1);
+
+    await clickTrigger(page, "Valid Email Test 1");
+    await expect(emailInput).toHaveValue("editors@example.com");
+
+    await clickTrigger(page, "Valid Email Test 2");
+    await expect(emailInput).toHaveValue("~my_mail+{nospam}$?@sub-domain.example.info");
+
+    await clickTrigger(page, "Invalid Email Test 1");
+    await expect(emailInput).toHaveValue("editors@(this is a comment)example.info");
+
+    await clickTrigger(page, "Invalid Email Test 2");
+    await expect(emailInput).toHaveValue("editors{at}example{dot}info");
+  });
+
+  test("5.2.7.a — card-number triggers set the expected valid and invalid lexical values", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.2_5.2.7_5.2.7.a.xhtml");
+
+    const cardInput = page.locator('input[data-binding-type*=\"card-number\"]');
+    await expect(cardInput).toHaveCount(1);
+
+    await clickTrigger(page, "Valid card-number Test 1");
+    await expect(cardInput).toHaveValue("012345678910");
+
+    await clickTrigger(page, "Valid card-number Test 2");
+    await expect(cardInput).toHaveValue("1234567891011121314");
+
+    await clickTrigger(page, "Invalid card-number Test 1");
+    await expect(cardInput).toHaveValue("0II23581321");
+
+    await clickTrigger(page, "Invalid card-number Test 2");
+    await expect(cardInput).toHaveValue("0112E581321345589144");
+  });
+
+  test("5.2.7.b — credit-card example trigger sets the expected valid card-number value", async ({ page }) => {
+    await loadAndWait(page, "Chapt05_5.2_5.2.7_5.2.7.b.xhtml");
+
+    const cardInput = page.locator('input[data-binding-type*=\"card-number\"]');
+    await expect(cardInput).toHaveCount(1);
+
+    await clickTrigger(page, "Valid card-number Test");
+    await expect(cardInput).toHaveValue("4111111111111111");
+  });
 });
 
 // =====================================================================
