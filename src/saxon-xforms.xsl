@@ -1180,18 +1180,35 @@
     <xsl:function name="xforms:check-required-fields" as="item()*">
         <xsl:param name="instanceXML" as="element()"/>
 
-        <xsl:variable name="required-fieldsi" select="ixsl:page()//*[@data-required]" as="item()*"/>
+        <xsl:variable name="required-fieldsi" select="ixsl:page()//*[@data-required]" as="element()*"/>
 
         <xsl:for-each select="$required-fieldsi">
-            <xsl:variable name="resulti" as="xs:boolean">
-                <xsl:evaluate
-                    xpath="'child::node() or string-length() gt 0'"
-                    context-item="." namespace-context="$instanceXML"/>
-
-            </xsl:variable>
-            <xsl:message use-when="$debugMode">[xforms:check-required-fields] Evaluating XPath: <xsl:sequence select="'child::node() or string-length() gt 0'"/></xsl:message>
-            <xsl:message use-when="$debugMode">[xforms:check-required-fields] XPath result: <xsl:sequence select="$resulti"/></xsl:message>
-            <xsl:sequence select="if (not($resulti)) then . else ()"/>
+            <xsl:variable name="contexti" as="node()?" select="
+                if (exists(@data-ref))
+                then (xforms:evaluate-xpath-with-context-node(string(@data-ref),$instanceXML,()))[1]
+                else ()"/>
+            <xsl:variable name="relevanti" as="xs:boolean" select="
+                if (exists(@data-relevant))
+                then (
+                    if (exists($contexti))
+                    then boolean(xforms:evaluate-xpath-with-context-node(string(@data-relevant),$contexti,()))
+                    else false()
+                )
+                else true()"/>
+            <xsl:variable name="requiredi" as="xs:boolean" select="
+                if (exists(@data-required))
+                then (
+                    if (exists($contexti))
+                    then boolean(xforms:evaluate-xpath-with-context-node(string(@data-required),$contexti,()))
+                    else false()
+                )
+                else false()"/>
+            <xsl:variable name="has-value" as="xs:boolean" select="
+                if (exists($contexti))
+                then (exists($contexti/*) or string-length(normalize-space(string($contexti))) gt 0)
+                else false()"/>
+            <xsl:message use-when="$debugMode">[xforms:check-required-fields] ref=<xsl:value-of select="@data-ref"/> relevant=<xsl:value-of select="$relevanti"/> required=<xsl:value-of select="$requiredi"/> hasValue=<xsl:value-of select="$has-value"/></xsl:message>
+            <xsl:sequence select="if ($relevanti and $requiredi and not($has-value)) then . else ()"/>
         </xsl:for-each>
 
     </xsl:function>
@@ -1207,19 +1224,51 @@
     </xd:doc>
     <xsl:function name="xforms:check-constraints-on-fields" as="item()*">
         <xsl:param name="instanceXML" as="element()"/>
-        <xsl:variable name="instanceDoc" as="document-node()">
-            <xsl:document>
-                <xsl:sequence select="$instanceXML"/>
-            </xsl:document>
-        </xsl:variable>
-        <xsl:variable name="constraint-fieldsi" select="ixsl:page()//*[@data-constraint]" as="item()*"/>
-        
+        <xsl:variable name="constraint-fieldsi" select="ixsl:page()//*[@data-constraint or @data-binding-type]" as="element()*"/>
+
         <xsl:for-each select="$constraint-fieldsi">
-            <xsl:variable name="contexti" as="node()" select="if (exists(@data-ref)) then xforms:evaluate-xpath-with-context-node(string(@data-ref),$instanceXML,()) else ()"/>
-            <xsl:message use-when="$debugMode">[xforms:check-constraints-on-fields] Evaluating XPath: <xsl:value-of select="@data-ref"/></xsl:message>
-            
-            <xsl:variable name="resulti" as="xs:boolean" select="if (exists(@data-constraint)) then xforms:evaluate-xpath-with-context-node(string(@data-constraint),$contexti,()) else ()"/>
-            <xsl:sequence select="if (not($resulti)) then . else ()"/>
+            <xsl:variable name="contexti" as="node()?" select="
+                if (exists(@data-ref))
+                then (xforms:evaluate-xpath-with-context-node(string(@data-ref),$instanceXML,()))[1]
+                else ()"/>
+            <xsl:variable name="relevanti" as="xs:boolean" select="
+                if (exists(@data-relevant))
+                then (
+                    if (exists($contexti))
+                    then boolean(xforms:evaluate-xpath-with-context-node(string(@data-relevant),$contexti,()))
+                    else false()
+                )
+                else true()"/>
+            <xsl:variable name="constraint-resulti" as="xs:boolean" select="
+                if (exists(@data-constraint))
+                then (
+                    if (exists($contexti))
+                    then boolean(xforms:evaluate-xpath-with-context-node(string(@data-constraint),$contexti,()))
+                    else false()
+                )
+                else true()"/>
+            <xsl:variable name="typed-value" as="xs:string" select="
+                if (exists($contexti))
+                then normalize-space(string($contexti))
+                else ''"/>
+            <xsl:variable name="binding-type" as="xs:string" select="lower-case(normalize-space(string(@data-binding-type)))"/>
+            <xsl:variable name="type-validi" as="xs:boolean" select="
+                if ($binding-type = ('xsd:gyearmonth','xs:gyearmonth'))
+                then (
+                    if ($typed-value = '')
+                    then true()
+                    else matches($typed-value,'^\d{4}-(0[1-9]|1[0-2])$')
+                )
+                else if ($binding-type = ('my:ccnumber','ccnumber'))
+                then (
+                    if ($typed-value = '')
+                    then true()
+                    else matches($typed-value,'^\d{14,18}$')
+                )
+                else true()"/>
+            <xsl:variable name="resulti" as="xs:boolean" select="$constraint-resulti and $type-validi"/>
+            <xsl:message use-when="$debugMode">[xforms:check-constraints-on-fields] ref=<xsl:value-of select="@data-ref"/> relevant=<xsl:value-of select="$relevanti"/> bindingType=<xsl:value-of select="$binding-type"/> constraintResult=<xsl:value-of select="$constraint-resulti"/> typeValid=<xsl:value-of select="$type-validi"/></xsl:message>
+            <xsl:sequence select="if ($relevanti and not($resulti)) then . else ()"/>
         </xsl:for-each>
     </xsl:function>
 
@@ -1720,6 +1769,9 @@
                 <xsl:if test="exists($binding) and exists($binding/@required)">
                     <xsl:attribute name="data-required" select="$binding/@required"/>
                 </xsl:if>
+                <xsl:if test="exists($binding[@type])">
+                    <xsl:attribute name="data-binding-type" select="string(($binding[@type][1]/@type)[1])"/>
+                </xsl:if>
                 
                 <xsl:if test="exists($actions)">
                     <xsl:attribute name="data-action" select="$id"/>
@@ -1857,6 +1909,9 @@
                 <xsl:if test="exists($binding) and exists($binding/@required)">
                     <xsl:attribute name="data-required" select="$binding/@required"/>
                 </xsl:if>
+                <xsl:if test="exists($binding[@type])">
+                    <xsl:attribute name="data-binding-type" select="string(($binding[@type][1]/@type)[1])"/>
+                </xsl:if>
                 
                 <xsl:if test="exists($actions)">
                     <xsl:attribute name="data-action" select="$id"/>
@@ -1960,6 +2015,9 @@
                 </xsl:if>
                 <xsl:if test="exists($binding) and exists($binding/@required)">
                     <xsl:attribute name="data-required" select="$binding/@required"/>
+                </xsl:if>
+                <xsl:if test="exists($binding[@type])">
+                    <xsl:attribute name="data-binding-type" select="string(($binding[@type][1]/@type)[1])"/>
                 </xsl:if>
                 
                 <xsl:if test="exists($actions)">
