@@ -1,0 +1,19 @@
+{
+  "name": "saxon-forms",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:sef": "npx xslt3 -t -xsl:src/saxon-xforms.xsl -export:sef/saxon-xforms.sef.json -nogo \"-ns:##html5\" && node -e \"require('fs').cpSync('sef/saxon-xforms.sef.json','test-app/sef/saxon-xforms.sef.json')\"",
+    "predev": "node -e \"const fs=require('fs');const t='test-app/w3c-suite';if(!fs.existsSync(t)){fs.symlinkSync(require('path').resolve('public-test/w3c-suite'),t,'junction')}\"",
+    "dev": "npm run predev && vite",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "http-server": "^14.1.1",
+    "tsx": "^4.21.0",
+    "vite": "^6.4.1"
+  }
+}

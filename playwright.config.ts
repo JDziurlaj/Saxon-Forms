@@ -9,6 +9,10 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:5174",
     trace: "on-first-retry",
+    bypassCSP: true,
+    launchOptions: {
+      args: ["--disable-web-security"],
+    }
   },
   projects: [
     {

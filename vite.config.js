@@ -5,5 +5,6 @@ export default defineConfig({
   publicDir: "../public-test",
   server: {
     port: 5174,
+    cors: true,
   },
 });
