@@ -5314,8 +5314,14 @@
                     <xsl:with-param name="message" select="$message-value"/>
                 </xsl:call-template>
             </xsl:when>
-            <xsl:when test="$message-level = 'modal'"/>
-            <xsl:when test="$message-level = 'modeless'"/>
+            <xsl:when test="$message-level = 'modal'">
+                <xsl:sequence select="ixsl:call(ixsl:window(), 'alert', [$message-value])"/>
+            </xsl:when>
+            <xsl:when test="$message-level = 'modeless'">
+                <xsl:call-template name="logToPage">
+                    <xsl:with-param name="message" select="$message-value"/>
+                </xsl:call-template>
+            </xsl:when>
             <xsl:otherwise/>
         </xsl:choose>
     </xsl:template>

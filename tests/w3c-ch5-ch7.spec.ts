@@ -85,6 +85,26 @@ async function clickTrigger(page: any, label: string) {
   await page.getByRole("button", { name: label, exact: true }).click();
   await page.waitForTimeout(300);
 }
+function collectDialogMessages(page: any): string[] {
+  const dialogMessages: string[] = [];
+  page.on("dialog", async (dialog) => {
+    dialogMessages.push(normalizeWhitespace(dialog.message()));
+    await dialog.dismiss();
+  });
+  return dialogMessages;
+}
+async function expectDialogAfterTrigger(
+  page: any,
+  dialogMessages: string[],
+  triggerLabel: string,
+  messagePattern: RegExp
+) {
+  const beforeCount = dialogMessages.length;
+  await clickTrigger(page, triggerLabel);
+  await page.waitForTimeout(300);
+  const newMessages = dialogMessages.slice(beforeCount);
+  expect(newMessages.some((message) => messagePattern.test(message))).toBe(true);
+}
 
 test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
   test("5.1.a — primitive types: valid and invalid triggers produce expected event outputs", async ({ page }) => {
@@ -366,79 +386,148 @@ test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
     ]);
   });
 
-  test("5.2.2.a — listItem test initializes with a valid single token value", async ({ page }) => {
+  test("5.2.2.a — listItem emits the required valid-message output", async ({ page }) => {
+    const dialogMessages: string[] = [];
+    page.on("dialog", async (dialog) => {
+      dialogMessages.push(normalizeWhitespace(dialog.message()));
+      await dialog.dismiss();
+    });
     await loadAndWait(page, "Chapt05_5.2_5.2.2_5.2.2.a.xhtml");
     const input = page.locator('input[data-ref*=\"availableColors\"]');
     await expect(input).toHaveValue("RedBlueGreen");
     expect(await input.inputValue()).not.toMatch(/\s/);
+
+    await page.waitForTimeout(300);
+    expect(
+      dialogMessages.some((message) => /You entered a valid listItem/i.test(message))
+    ).toBe(true);
   });
 
-  test("5.2.3.a — listItems test initializes with a valid whitespace-separated list", async ({ page }) => {
+  test("5.2.3.a — listItems emits the required valid-message output", async ({ page }) => {
+    const dialogMessages: string[] = [];
+    page.on("dialog", async (dialog) => {
+      dialogMessages.push(normalizeWhitespace(dialog.message()));
+      await dialog.dismiss();
+    });
     await loadAndWait(page, "Chapt05_5.2_5.2.3_5.2.3.a.xhtml");
     const input = page.locator('input[data-ref*=\"availableColors\"]');
     await expect(input).toHaveValue("Red Blue Green");
     expect(await input.inputValue()).toMatch(/^\S+(\s+\S+)+$/);
+
+    await page.waitForTimeout(300);
+    expect(
+      dialogMessages.some((message) => /You entered a valid listItems/i.test(message))
+    ).toBe(true);
   });
 
-  test("5.2.4.a — dayTimeDuration test initializes with a valid lexical duration", async ({ page }) => {
+  test("5.2.4.a — dayTimeDuration emits the required valid-message output", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt05_5.2_5.2.4_5.2.4.a.xhtml");
-    const input = page.locator('input[data-ref*=\"rentalLeaseLength\"]');
+    const input = page.locator('input[data-ref*="rentalLeaseLength"]');
     await expect(input).toHaveValue("P5DT3H4M2S");
     expect(await input.inputValue()).toMatch(/^P(\d+D)?(T(\d+H)?(\d+M)?(\d+S)?)?$/);
+    await page.waitForTimeout(300);
+    expect(
+      dialogMessages.some((message) => /You entered a valid dayTimeDuration/i.test(message))
+    ).toBe(true);
   });
 
-  test("5.2.5.a — yearMonthDuration test initializes with a valid lexical duration", async ({ page }) => {
+  test("5.2.5.a — yearMonthDuration emits the required valid-message output", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt05_5.2_5.2.5_5.2.5.a.xhtml");
-    const input = page.locator('input[data-ref*=\"leaseLength\"]');
+    const input = page.locator('input[data-ref*="leaseLength"]');
     await expect(input).toHaveValue("P100Y1M");
     expect(await input.inputValue()).toMatch(/^P(\d+Y)?(\d+M)?$/);
+    await page.waitForTimeout(300);
+    expect(
+      dialogMessages.some((message) => /You entered a valid yearMonthDuration/i.test(message))
+    ).toBe(true);
   });
 
-  test("5.2.6.a — email triggers set the expected valid and invalid lexical values", async ({ page }) => {
+  test("5.2.6.a — email triggers emit required valid/invalid messages", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt05_5.2_5.2.6_5.2.6.a.xhtml");
 
     const emailInput = page.locator('input[data-ref*=\"email_address\"]');
     await expect(emailInput).toHaveCount(1);
-
-    await clickTrigger(page, "Valid Email Test 1");
+    await expectDialogAfterTrigger(
+      page,
+      dialogMessages,
+      "Valid Email Test 1",
+      /You entered a valid email/i
+    );
     await expect(emailInput).toHaveValue("editors@example.com");
-
-    await clickTrigger(page, "Valid Email Test 2");
+    await expectDialogAfterTrigger(
+      page,
+      dialogMessages,
+      "Valid Email Test 2",
+      /You entered a valid email/i
+    );
     await expect(emailInput).toHaveValue("~my_mail+{nospam}$?@sub-domain.example.info");
-
-    await clickTrigger(page, "Invalid Email Test 1");
+    await expectDialogAfterTrigger(
+      page,
+      dialogMessages,
+      "Invalid Email Test 1",
+      /You entered an invalid email/i
+    );
     await expect(emailInput).toHaveValue("editors@(this is a comment)example.info");
-
-    await clickTrigger(page, "Invalid Email Test 2");
+    await expectDialogAfterTrigger(
+      page,
+      dialogMessages,
+      "Invalid Email Test 2",
+      /You entered an invalid email/i
+    );
     await expect(emailInput).toHaveValue("editors{at}example{dot}info");
   });
 
-  test("5.2.7.a — card-number triggers set the expected valid and invalid lexical values", async ({ page }) => {
+  test("5.2.7.a — card-number triggers emit required valid/invalid messages", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt05_5.2_5.2.7_5.2.7.a.xhtml");
 
     const cardInput = page.locator('input[data-binding-type*=\"card-number\"]');
     await expect(cardInput).toHaveCount(1);
-
-    await clickTrigger(page, "Valid card-number Test 1");
+    await expectDialogAfterTrigger(
+      page,
+      dialogMessages,
+      "Valid card-number Test 1",
+      /You entered a valid card-number/i
+    );
     await expect(cardInput).toHaveValue("012345678910");
-
-    await clickTrigger(page, "Valid card-number Test 2");
+    await expectDialogAfterTrigger(
+      page,
+      dialogMessages,
+      "Valid card-number Test 2",
+      /You entered a valid card-number/i
+    );
     await expect(cardInput).toHaveValue("1234567891011121314");
-
-    await clickTrigger(page, "Invalid card-number Test 1");
+    await expectDialogAfterTrigger(
+      page,
+      dialogMessages,
+      "Invalid card-number Test 1",
+      /You entered an invalid card-number/i
+    );
     await expect(cardInput).toHaveValue("0II23581321");
-
-    await clickTrigger(page, "Invalid card-number Test 2");
+    await expectDialogAfterTrigger(
+      page,
+      dialogMessages,
+      "Invalid card-number Test 2",
+      /You entered an invalid card-number/i
+    );
     await expect(cardInput).toHaveValue("0112E581321345589144");
   });
 
-  test("5.2.7.b — credit-card example trigger sets the expected valid card-number value", async ({ page }) => {
+  test("5.2.7.b — credit-card example emits required valid card-number message", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt05_5.2_5.2.7_5.2.7.b.xhtml");
 
     const cardInput = page.locator('input[data-binding-type*=\"card-number\"]');
     await expect(cardInput).toHaveCount(1);
-
-    await clickTrigger(page, "Valid card-number Test");
+    await expectDialogAfterTrigger(
+      page,
+      dialogMessages,
+      "Valid card-number Test",
+      /You entered a valid card-number/i
+    );
     await expect(cardInput).toHaveValue("4111111111111111");
   });
 });
