@@ -4043,6 +4043,12 @@
                 )"/>
             <!--<xsl:message use-when="$debugMode">[xforms-model-construct] Setting instance with ID '<xsl:sequence select="$instance-key"/>': <xsl:sequence select="fn:serialize($instance-with-explicit-namespaces)"/></xsl:message>-->
             <xsl:sequence select="js:setInstance($instance-key,$instance-with-explicit-namespaces)"/>
+            <!-- TEST-TRACE: alias first instance under implicit default key when it has an explicit @id,
+                 so that default-instance lookups (instance() with no arg, plain XPaths) find it;
+                 helps tests/w3c/ch07.spec.ts "7.4.6.a", "7.10.1.a" -->
+            <xsl:if test="position() = 1 and exists(@id) and $instance-key != $implicit-instance-key-base">
+                <xsl:sequence select="js:setInstance($implicit-instance-key-base,$instance-with-explicit-namespaces)"/>
+            </xsl:if>
             <xsl:if test="position() = 1">
                 <xsl:sequence select="js:setModelDefaultInstanceKey($model-key,$instance-key)"/>
                 <xsl:if test="$model-key = $default-model-id">

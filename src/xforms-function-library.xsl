@@ -136,6 +136,14 @@
         
     </xsl:function>
     
+    <!-- TEST-TRACE: 1-arg overload of random(seed); XForms 1.1 7.7.7;
+         helps tests/w3c/ch07.spec.ts "7.7.7.a" -->
+    <xsl:function name="xforms:random" as="xs:double" visibility="public">
+        <xsl:param name="seed" as="item()"/>
+        <!-- seed parameter is accepted but ignored; JS Math.random() is always seeded by implementation -->
+        <xsl:sequence select="js:Math.random()"/>
+    </xsl:function>
+    
     <!-- This is almost an implementation of xforms:local-date(), but not quite, since TZ is missing
         It is actually equivalent to: substring(xforms:local-date(), 1, 10) -->
     <xsl:function name="sfl:current-date" as="xs:string" visibility="public">
@@ -149,6 +157,13 @@
     <xsl:function name="xforms:instance" as="element()?" visibility="public">
         <xsl:param name="instance-id" as="xs:string"/>
         <xsl:sequence select="js:getInstance($instance-id)"/> 
+    </xsl:function>
+    
+    <!-- TEST-TRACE: 0-arg overload of instance(); XForms 1.1 7.10.1 says
+         instance() with no argument returns the default instance;
+         helps tests/w3c/ch07.spec.ts "7.10.1.a" -->
+    <xsl:function name="xforms:instance" as="element()?" visibility="public">
+        <xsl:sequence select="js:getDefaultInstance()"/>
     </xsl:function>
     
     <!-- implement XForms context() function -->
