@@ -3010,21 +3010,20 @@
     <xsl:function name="xforms:getInstanceId" as="xs:string">
         <xsl:param name="nodeset" as="xs:string"/>
         
+        <xsl:variable name="nodeset-normalized" as="xs:string" select="normalize-space($nodeset)"/>
+        
         <xsl:choose>
-            <xsl:when test="$nodeset = ''">
+            <xsl:when test="$nodeset-normalized = ''">
                 <xsl:sequence select="$global-default-instance-id"/>
             </xsl:when>
+            <xsl:when test="matches($nodeset-normalized, &quot;^instance\s*\(\s*'[^']+'\s*\).*&quot;)">
+                <xsl:sequence select="replace($nodeset-normalized, &quot;^instance\s*\(\s*'([^']+)'\s*\).*$&quot;, '$1')"/>
+            </xsl:when>
+            <xsl:when test="matches($nodeset-normalized, '^instance\s*\(\s*&quot;[^&quot;]+&quot;\s*\).*')">
+                <xsl:sequence select="replace($nodeset-normalized, '^instance\s*\(\s*&quot;([^&quot;]+)&quot;\s*\).*$', '$1')"/>
+            </xsl:when>
             <xsl:otherwise>
-                <xsl:analyze-string select="normalize-space($nodeset)"
-                    regex="^instance\s*\(\s*&apos;([^&apos;]+)&apos;\s*\)\s*(/\s*(.*)|)$"
-                    >
-                    <xsl:matching-substring>
-                        <xsl:sequence select="regex-group(1)"/>
-                    </xsl:matching-substring>
-                    <xsl:non-matching-substring>
-                        <xsl:sequence select="$global-default-instance-id"/>
-                    </xsl:non-matching-substring>
-                </xsl:analyze-string>
+                <xsl:sequence select="$global-default-instance-id"/>
             </xsl:otherwise>
         </xsl:choose>
        
