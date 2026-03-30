@@ -18,7 +18,8 @@
     exclude-result-prefixes="xs math xforms"
     extension-element-prefixes="ixsl" version="3.0">
     
-    <xsl:variable name="xform-functions" select="'if','instance', 'index', 'avg', 'foo', 'current-date', 'random'"/>
+    <!-- TEST-TRACE: register XForms function names for impose() rewriting; helps ch07 -->
+    <xsl:variable name="xform-functions" select="'if','instance', 'index', 'avg', 'foo', 'context', 'current-date', 'random', 'property', 'boolean-from-string', 'count-non-empty', 'power', 'choose', 'is-card-number', 'now', 'local-date', 'local-dateTime', 'days-from-date', 'days-to-date', 'seconds-from-dateTime', 'seconds-to-dateTime', 'seconds', 'months', 'adjust-dateTime-to-timezone'"/>
     
     <xsl:function name="xforms:impose" as="xs:string" visibility="public">
         <xsl:param name="input" as="xs:string" />
@@ -148,6 +149,11 @@
     <xsl:function name="xforms:instance" as="element()?" visibility="public">
         <xsl:param name="instance-id" as="xs:string"/>
         <xsl:sequence select="js:getInstance($instance-id)"/> 
+    </xsl:function>
+    
+    <!-- implement XForms context() function -->
+    <xsl:function name="xforms:context" as="item()*" visibility="public">
+        <xsl:sequence select="."/>
     </xsl:function>
     
     <xd:doc scope="component">

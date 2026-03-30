@@ -93,8 +93,6 @@
             xformXml += '</xf:xform>';
 
             xformDoc = parser.parseFromString(xformXml, "application/xml");
-            console.log("got here");
-            console.log(xformXml);
             var parseErr2 = xformDoc.querySelector("parsererror");
             if (parseErr2) {
               document.getElementById("xForm").textContent = "Generated XForm parse error: " + parseErr2.textContent;
