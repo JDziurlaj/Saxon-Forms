@@ -27,6 +27,26 @@ Saxon-Forms currently supports Saxon-JS 1.1.0 and Saxon-JS 2. To run Saxon-Forms
 - Alternatively, Saxon-Forms can be loaded via a seperate stylsheet by a xsl:call-template or apply-template. See
 [sample2](https://github.com/Saxonica/Saxon-Forms/tree/master/samples/sample2). 
 
+## End-to-end tests (Playwright)
+
+Playwright tests can now run against two different web server modes.
+
+- Vite mode (matches local dev behavior):
+  - `npm run test:e2e:vite`
+  - `npm run test:e2e:ui:vite`
+- Static-server mode (more deterministic, useful for stable CI/regression checks):
+  - `npm run test:e2e:static`
+  - `npm run test:e2e:ui:static`
+
+Default aliases:
+
+- `npm run test:e2e` -> `npm run test:e2e:vite`
+- `npm run test:e2e:ui` -> `npm run test:e2e:ui:vite`
+
+Recommended usage:
+
+- Use `test:e2e:static` when you want the most stable signal.
+- Use `test:e2e:vite` when you want parity with the Vite dev runtime.
 
 
 ## Technical Details

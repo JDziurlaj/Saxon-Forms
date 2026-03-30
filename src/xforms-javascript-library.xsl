@@ -500,5 +500,40 @@
             });
          }
          
+        /* TEST-TRACE: crypto bridge for digest()/hmac(); uses @noble/hashes if loaded;
+           returns empty string when library is unavailable;
+           helps tests/w3c/ch07.spec.ts "7.8.3.*", "7.8.4.*" */
+        var _nobleAlgMap = {
+            'MD5': 'md5', 'SHA-1': 'sha1', 'SHA-256': 'sha256',
+            'SHA-384': 'sha384', 'SHA-512': 'sha512'
+        };
+        var _toBytes = function(s) { return new TextEncoder().encode(s); };
+        
+        var computeDigest = function(data, algorithm, encoding) {
+            if (typeof nobleHashes === 'undefined') return '';
+            var algKey = _nobleAlgMap[algorithm];
+            if (!algKey) return '';
+            var hashFn = nobleHashes[algKey];
+            if (!hashFn) return '';
+            var hashBytes = hashFn(_toBytes(data));
+            if (!encoding || encoding === 'base64') {
+                return btoa(String.fromCharCode.apply(null, hashBytes));
+            }
+            return nobleHashes.bytesToHex(hashBytes);
+        };
+        
+        var computeHmac = function(key, data, algorithm, encoding) {
+            if (typeof nobleHashes === 'undefined' || !nobleHashes.hmac) return '';
+            var algKey = _nobleAlgMap[algorithm];
+            if (!algKey) return '';
+            var hashFn = nobleHashes[algKey];
+            if (!hashFn) return '';
+            var macBytes = nobleHashes.hmac(hashFn, _toBytes(key), _toBytes(data));
+            if (!encoding || encoding === 'base64') {
+                return btoa(String.fromCharCode.apply(null, macBytes));
+            }
+            return nobleHashes.bytesToHex(macBytes);
+        };
+         
     </xsl:variable>
 </xsl:stylesheet>

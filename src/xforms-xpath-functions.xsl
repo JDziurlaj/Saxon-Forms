@@ -12,7 +12,8 @@
     xmlns:math="http://www.w3.org/2005/xpath-functions/math"
     xmlns:xforms="http://www.w3.org/2002/xforms"
     xmlns:fn="http://www.w3.org/2005/xpath-functions"
-    exclude-result-prefixes="xs math fn"
+    xmlns:js="http://saxonica.com/ns/globalJS"
+    exclude-result-prefixes="xs math fn js"
     version="3.0">
 
     <!-- ================================================================
@@ -347,6 +348,54 @@
     <!-- 0-arity overload: XForms says return empty when no argument given -->
     <xsl:function name="xforms:adjust-dateTime-to-timezone" as="xs:string" visibility="public">
         <xsl:sequence select="''"/>
+    </xsl:function>
+
+    <!-- ================================================================
+         7.8.3  digest()
+         Cryptographic hash of data string.
+         Uses @noble/hashes via JS bridge; returns empty string if
+         the crypto library is not loaded.
+         See https://www.w3.org/TR/xforms11/#fn-digest
+         TEST-TRACE: helps ch07 7.8.3.a, 7.8.3.b, 7.8.3.f
+         ================================================================ -->
+    <!-- 3-arg form: digest(data, algorithm, encoding) -->
+    <xsl:function name="xforms:digest" as="xs:string" visibility="public">
+        <xsl:param name="data" as="xs:string"/>
+        <xsl:param name="algorithm" as="xs:string"/>
+        <xsl:param name="encoding" as="xs:string"/>
+        <xsl:sequence select="js:computeDigest($data, $algorithm, $encoding)"/>
+    </xsl:function>
+
+    <!-- 2-arg form: digest(data, algorithm) — default encoding is base64 -->
+    <xsl:function name="xforms:digest" as="xs:string" visibility="public">
+        <xsl:param name="data" as="xs:string"/>
+        <xsl:param name="algorithm" as="xs:string"/>
+        <xsl:sequence select="js:computeDigest($data, $algorithm, 'base64')"/>
+    </xsl:function>
+
+    <!-- ================================================================
+         7.8.4  hmac()
+         Keyed-hash message authentication code.
+         Uses @noble/hashes via JS bridge; returns empty string if
+         the crypto library is not loaded.
+         See https://www.w3.org/TR/xforms11/#fn-hmac
+         TEST-TRACE: helps ch07 7.8.4.a, 7.8.4.b, 7.8.4.f
+         ================================================================ -->
+    <!-- 4-arg form: hmac(key, data, algorithm, encoding) -->
+    <xsl:function name="xforms:hmac" as="xs:string" visibility="public">
+        <xsl:param name="key" as="xs:string"/>
+        <xsl:param name="data" as="xs:string"/>
+        <xsl:param name="algorithm" as="xs:string"/>
+        <xsl:param name="encoding" as="xs:string"/>
+        <xsl:sequence select="js:computeHmac($key, $data, $algorithm, $encoding)"/>
+    </xsl:function>
+
+    <!-- 3-arg form: hmac(key, data, algorithm) — default encoding is base64 -->
+    <xsl:function name="xforms:hmac" as="xs:string" visibility="public">
+        <xsl:param name="key" as="xs:string"/>
+        <xsl:param name="data" as="xs:string"/>
+        <xsl:param name="algorithm" as="xs:string"/>
+        <xsl:sequence select="js:computeHmac($key, $data, $algorithm, 'base64')"/>
     </xsl:function>
 
 </xsl:stylesheet>
