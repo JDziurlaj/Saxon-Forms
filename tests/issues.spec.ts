@@ -160,3 +160,167 @@ test.describe("Issue #25 — Replace Instance (B.12)", () => {
     expect(xml).not.toContain("<item");
   });
 });
+
+// =========================================================
+// #26 — instance() with immediate predicate in @ref
+// Expected: group renders and context resolves to instance('i26')
+// Regression: parser falls back to default instance, causing XTTE0570
+// =========================================================
+test.describe("Issue #26 — instance() predicate in @ref", () => {
+  test("group bound to instance('i26')[not(control)] renders", async ({ page }) => {
+    await waitForIssuesForm(page);
+
+    const marker = page.locator("#out-26-group");
+    await expect(marker).toBeVisible({ timeout: RENDER_TIMEOUT });
+    await expect(marker).toContainText("VISIBLE");
+
+    const title = page.locator("#out-26-title");
+    await expect(title).toBeVisible({ timeout: RENDER_TIMEOUT });
+    await expect(title).toContainText("Predicate Ref");
+  });
+
+  test("load does not emit XTTE0570 instanceXML cardinality failure", async ({ page }) => {
+    const consoleLogs: string[] = [];
+    page.on("console", (msg) => consoleLogs.push(msg.text()));
+
+    await waitForIssuesForm(page);
+    await page.waitForTimeout(500);
+
+    const cardinalityErrors = consoleLogs.filter(
+      (line) =>
+        line.includes("XTTE0570") ||
+        line.includes("Required cardinality of value in 'xsl:variable name=\"Q{}instanceXML\"'")
+    );
+    expect(cardinalityErrors).toEqual([]);
+  });
+});
+
+// =========================================================
+// #27 — Scoped xf:toggle inside xf:repeat
+// Expected: toggling one row only affects that row's switch/cases
+// =========================================================
+test.describe("Issue #27 — Scoped toggle in repeat", () => {
+  test("clicking Edit on row 1 does not toggle row 2", async ({ page }) => {
+    await waitForIssuesForm(page);
+
+    const rows = page.locator("#repeat-27 > div[data-repeat-item='true']");
+    await expect(rows).toHaveCount(2);
+
+    const row1 = rows.nth(0);
+    const row2 = rows.nth(1);
+
+    await expect(row1.locator("button[data-action*='trigger-27-edit']")).toBeVisible();
+    await expect(row2.locator("button[data-action*='trigger-27-edit']")).toBeVisible();
+    await expect(row1.locator("button[data-action*='trigger-27-done']")).toBeHidden();
+    await expect(row2.locator("button[data-action*='trigger-27-done']")).toBeHidden();
+
+    await row1.locator("button[data-action*='trigger-27-edit']").click();
+    await page.waitForTimeout(300);
+
+    await expect(row1.locator("button[data-action*='trigger-27-done']")).toBeVisible();
+    await expect(row2.locator("button[data-action*='trigger-27-edit']")).toBeVisible();
+    await expect(row2.locator("button[data-action*='trigger-27-done']")).toBeHidden();
+  });
+});
+
+// =========================================================
+// #28 — class and custom data-* passthrough
+// Expected: rendered controls keep custom classes and data attributes
+// =========================================================
+test.describe("Issue #28 — class + data-* passthrough", () => {
+  test("trigger keeps custom class and data-testid", async ({ page }) => {
+    await waitForIssuesForm(page);
+
+    const trigger = page.locator("button[data-action*='trigger-28']");
+    await expect(trigger).toBeVisible({ timeout: RENDER_TIMEOUT });
+    await expect(trigger).toHaveClass(/xforms-trigger/);
+    await expect(trigger).toHaveClass(/custom-trigger/);
+    await expect(trigger).toHaveAttribute("data-testid", "issue-28-trigger");
+  });
+
+  test("output keeps custom class and data-testid", async ({ page }) => {
+    await waitForIssuesForm(page);
+
+    const outputWrapper = page.locator("[data-testid='issue-28-output']");
+    await expect(outputWrapper).toBeVisible({ timeout: RENDER_TIMEOUT });
+
+    const outputSpan = page.locator("span[id^='output-28-']");
+    await expect(outputSpan).toBeVisible({ timeout: RENDER_TIMEOUT });
+    await expect(outputSpan).toHaveClass(/xforms-output/);
+    await expect(outputSpan).toHaveClass(/custom-output/);
+  });
+});
+
+// =========================================================
+// #29 — xf:group relevance refresh after insert/delete
+// Expected: group visibility tracks predicate as controls are added/removed
+// =========================================================
+test.describe("Issue #29 — group relevance refresh", () => {
+  test("empty-state group hides after insert and reappears after delete", async ({ page }) => {
+    await waitForIssuesForm(page);
+
+    const group = page.locator("[id^='group-empty-29-']");
+    await expect(group).toBeVisible({ timeout: RENDER_TIMEOUT });
+
+    const insertBtn = page.locator("button[data-action*='trigger-29-insert']");
+    await expect(insertBtn).toBeVisible();
+    await insertBtn.click();
+    await page.waitForTimeout(500);
+
+    await expect(group).toBeHidden();
+    await expect(page.locator("#out-29-count")).toContainText("1");
+
+    const deleteBtn = page.locator("button[data-action*='trigger-29-delete']");
+    await expect(deleteBtn).toBeVisible();
+    await deleteBtn.click();
+    await page.waitForTimeout(500);
+
+    await expect(group).toBeVisible();
+    await expect(page.locator("#out-29-count")).toContainText("0");
+  });
+});
+
+// =========================================================
+// #30 — xf:delete nodeset='.' inside repeat
+// Expected: deleting current row updates repeat DOM and instance count
+// =========================================================
+test.describe("Issue #30 — delete current repeat row", () => {
+  test("clicking delete removes one repeat item", async ({ page }) => {
+    await waitForIssuesForm(page);
+
+    const repeatRows = page.locator("#repeat-30 > div[data-repeat-item='true']");
+    await expect(repeatRows).toHaveCount(2);
+
+    const deleteButtons = page.locator("button[data-action*='trigger-30-delete']");
+    await expect(deleteButtons).toHaveCount(2);
+    await deleteButtons.first().click();
+    await page.waitForTimeout(500);
+
+    await expect(repeatRows).toHaveCount(1);
+
+    const xml = await getInstanceXML(page, "i30");
+    expect((xml.match(/<item/g) || []).length).toBe(1);
+  });
+});
+
+// =========================================================
+// #31 — xf:insert fallback when nodeset is empty and no @context
+// Expected: insert uses instance root fallback and appends entry
+// =========================================================
+test.describe("Issue #31 — insert fallback on empty nodeset", () => {
+  test("clicking insert adds first entry without explicit context", async ({ page }) => {
+    await waitForIssuesForm(page);
+
+    const before = await getInstanceXML(page, "i31");
+    expect((before.match(/<entry/g) || []).length).toBe(0);
+
+    const btn = page.locator("button[data-action*='trigger-31-insert']");
+    await expect(btn).toBeVisible({ timeout: RENDER_TIMEOUT });
+    await btn.click();
+    await page.waitForTimeout(500);
+
+    const after = await getInstanceXML(page, "i31");
+    expect((after.match(/<entry/g) || []).length).toBe(1);
+    await expect(page.locator("#out-31-count")).toContainText("1");
+  });
+});

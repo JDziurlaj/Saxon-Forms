@@ -1,0 +1,161 @@
+import { test, expect, loadAndWait, getRenderedText, getInstanceXML, submitAndCapture, isUnavailable } from "./helpers";
+
+test.describe("W3C Ch2 — Introduction [behavioral]", () => {
+  test("2.1.a — select1 with Cash/Credit and input controls", async ({ page }) => {
+    await loadAndWait(page, "Chapt02/2.1.a.xhtml");
+
+    // 1. select1 control with values "Cash" and "Credit"
+    const select = page.locator('select.xforms-select');
+    await expect(select).toHaveCount(1);
+    const options = select.locator('option');
+    await expect(options).toHaveCount(2);
+    await expect(options.nth(0)).toHaveText("Cash");
+    await expect(options.nth(1)).toHaveText("Credit");
+    // Default instance value is "cc" so "Credit" should be selected
+    await expect(select).toHaveValue("cc");
+
+    // 2. Two input controls: Credit Card Number and Expiration Date
+    const inputs = page.locator('input.xforms-input');
+    await expect(inputs).toHaveCount(2);
+    const text = await getRenderedText(page);
+    expect(text).toContain("Credit Card Number:");
+    expect(text).toContain("Expiration Date:");
+
+    // Select Cash — input controls must remain visible
+    await select.selectOption("cash");
+    await page.waitForTimeout(500);
+    await expect(inputs.nth(0)).toBeVisible();
+    await expect(inputs.nth(1)).toBeVisible();
+
+    // Enter values in input controls
+    await inputs.nth(0).fill("4111111111111111");
+    await inputs.nth(0).blur();
+    await inputs.nth(1).fill("12/2025");
+    await inputs.nth(1).blur();
+    await page.waitForTimeout(500);
+
+    // Instance data must reflect all user interactions
+    const xml = await getInstanceXML(page);
+    expect(xml).toContain("cash");
+    expect(xml).toContain("4111111111111111");
+    expect(xml).toContain("12/2025");
+
+    // 3. Submit Now — must trigger form submission
+    const submitBtn = page.locator('button[data-submit="submit"]');
+    await expect(submitBtn).toBeVisible();
+    await expect(submitBtn).toContainText("Submit Now");
+
+    // Verify Submit fires a POST (echo.sh is intercepted by the shared fixture)
+    const requestPromise = page.waitForRequest(
+      (req: any) => req.url().includes('echo.sh'),
+      { timeout: 5000 }
+    ).catch(() => null);
+    await submitBtn.click();
+    const submissionRequest = await requestPromise;
+
+    // Spec: "this page must be replaced by the form data"
+    expect(submissionRequest, 'Submit Now must trigger form submission').not.toBeNull();
+    // Submitted data must contain selected method and entered values
+    const postBody = submissionRequest?.postData() || '';
+    expect(postBody).toContain('cash');
+    expect(postBody).toContain('4111111111111111');
+    expect(postBody).toContain('12/2025');
+  });
+
+  test("2.2.a — instance with select1 and inputs", async ({ page }) => {
+    await loadAndWait(page, "Chapt02/2.2.a.xhtml");
+    const text = await getRenderedText(page);
+    expect(text).toContain("Cash");
+  });
+
+  test("2.3.a — renders select1 and credit inputs with default Credit selection", async ({ page }) => {
+    await loadAndWait(page, "Chapt02/2.3.a.xhtml");
+    const select = page.locator("select.xforms-select");
+    await expect(select).toHaveCount(1);
+    const options = select.locator("option");
+    await expect(options).toHaveCount(2);
+    await expect(options.nth(0)).toHaveText("Cash");
+    await expect(options.nth(1)).toHaveText("Credit");
+    await expect(select).toHaveValue("cc");
+
+    const inputs = page.locator("input.xforms-input");
+    await expect(inputs).toHaveCount(2);
+    await expect(inputs.nth(0)).toBeVisible();
+    await expect(inputs.nth(1)).toBeVisible();
+  });
+
+  test("2.3.a — selecting Cash makes credit inputs unavailable", async ({ page }) => {
+    await loadAndWait(page, "Chapt02/2.3.a.xhtml");
+
+    const select = page.locator("select.xforms-select");
+    const inputs = page.locator("input.xforms-input");
+
+    await select.selectOption("cash");
+    await page.waitForTimeout(500);
+
+    expect(await isUnavailable(inputs.nth(0))).toBe(true);
+    expect(await isUnavailable(inputs.nth(1))).toBe(true);
+  });
+
+  test("2.3.a — selecting Cash still allows submit", async ({ page }) => {
+    await loadAndWait(page, "Chapt02/2.3.a.xhtml");
+
+    const select = page.locator("select.xforms-select");
+    const submitBtn = page.locator('button[data-submit="submit01"]');
+
+    await select.selectOption("cash");
+    await page.waitForTimeout(500);
+    await expect(submitBtn).toBeVisible();
+    await expect(submitBtn).toContainText("Submit Now");
+
+    const submissionRequest = await submitAndCapture(page, submitBtn, 5000);
+    expect(submissionRequest, "Cash selection should still allow submit").not.toBeNull();
+    const postBody = submissionRequest?.postData() || "";
+    expect(postBody).toContain("cash");
+  });
+
+  test("2.3.a — Credit blocks invalid values and submits only after valid card + gYearMonth", async ({ page }) => {
+    await loadAndWait(page, "Chapt02/2.3.a.xhtml");
+
+    const select = page.locator("select.xforms-select");
+    const cardInput = page.locator("input.xforms-input").nth(0);
+    const expiryInput = page.locator("input.xforms-input").nth(1);
+    const submitBtn = page.locator('button[data-submit="submit01"]');
+
+    await select.selectOption("cc");
+    await page.waitForTimeout(300);
+
+    await cardInput.fill("1234567890123");
+    await cardInput.blur();
+    await expiryInput.fill("2025-12");
+    await expiryInput.blur();
+
+    const invalidSubmission = await submitAndCapture(page, submitBtn, 1500);
+    expect(
+      invalidSubmission,
+      "Credit with an invalid 13-digit card number must not submit"
+    ).toBeNull();
+
+    await cardInput.fill("12345678901234");
+    await cardInput.blur();
+    await expiryInput.fill("2025-12");
+    await expiryInput.blur();
+
+    const validSubmission = await submitAndCapture(page, submitBtn, 5000);
+    expect(
+      validSubmission,
+      "Credit with valid card and gYearMonth expiry should submit"
+    ).not.toBeNull();
+
+    const postBody = validSubmission?.postData() || "";
+    expect(postBody).toContain("cc");
+    expect(postBody).toContain("12345678901234");
+    expect(postBody).toContain("2025-12");
+  });
+
+  test("2.4.a — complete example with select1 and inputs", async ({ page }) => {
+    await loadAndWait(page, "Chapt02/2.4.a.xhtml");
+    const text = await getRenderedText(page);
+    expect(text).toContain("Cash");
+  });
+});
