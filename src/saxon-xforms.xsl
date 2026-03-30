@@ -211,7 +211,9 @@
         <xsl:variable name="models" as="element(xforms:model)*" select="$xform-doc-ns/(xforms:xform|xhtml:html/xhtml:head)/xforms:model"/>
         <xsl:variable name="first-model" as="element(xforms:model)?" select="$models[1]"/>
         <xsl:variable name="first-model-id" as="attribute()?" select="$first-model/@id"/>
-        <xsl:variable name="first-instance" as="element(xforms:instance)" select="$first-model/xforms:instance[1]"/>
+        <!-- TEST-TRACE: allow empty first-instance when model has no instance child;
+             helps tests/w3c/ch08.spec.ts "8.1.8.a" -->
+        <xsl:variable name="first-instance" as="element(xforms:instance)?" select="$first-model/xforms:instance[1]"/>
         <xsl:variable name="first-instance-id" as="attribute()?" select="$first-instance/@id"/>
         <xsl:variable name="default-model-id" as="xs:string" select="if (exists($first-model-id)) then $first-model-id else $global-default-model-id"/>
         <xsl:variable name="default-instance-id" as="xs:string" select="if (exists($first-instance-id)) then $first-instance-id else $global-default-instance-id"/>
@@ -1156,24 +1158,31 @@
         <xd:param name="instance-id">ID of instance to use as context node.</xd:param>    
         <xd:param name="namespace-context">Element containing all namespace declarations</xd:param>  
     </xd:doc>
+    <!-- TEST-TRACE: guard against empty instance (model with no instance child);
+         helps tests/w3c/ch08.spec.ts "8.1.8.a" -->
     <xsl:function name="xforms:evaluate-xpath-with-instance-id">
         <xsl:param name="xpath" as="xs:string"/>
         <xsl:param name="instance-id" as="xs:string"/>
         <xsl:param name="namespace-context" as="element()?"/>
         
-        <xsl:variable name="instanceXML" as="element()" select="xforms:instance($instance-id)"/>
+        <xsl:variable name="instanceXML" as="element()?" select="xforms:instance($instance-id)"/>
         
-        <!-- Use namespace-enriched XForm element as default namespace context -->
-        <xsl:variable name="namespace-context-item" as="element()" select="
-            if (exists($namespace-context))
-            then $namespace-context
-            else (
-                if (exists(js:getXForm()))
-                then js:getXForm()
-                else $instanceXML
-            )"/>
-        
-        <xsl:evaluate xpath="xforms:impose($xpath)" context-item="$instanceXML" namespace-context="$namespace-context-item"/>
+        <xsl:choose>
+            <xsl:when test="exists($instanceXML)">
+                <!-- Use namespace-enriched XForm element as default namespace context -->
+                <xsl:variable name="namespace-context-item" as="element()" select="
+                    if (exists($namespace-context))
+                    then $namespace-context
+                    else (
+                        if (exists(js:getXForm()))
+                        then js:getXForm()
+                        else $instanceXML
+                    )"/>
+                
+                <xsl:evaluate xpath="xforms:impose($xpath)" context-item="$instanceXML" namespace-context="$namespace-context-item"/>
+            </xsl:when>
+            <xsl:otherwise/>
+        </xsl:choose>
         
     </xsl:function>
     
@@ -2268,16 +2277,40 @@
         
         <xsl:variable name="options" as="item()*" select="xforms:evaluate-xpath-with-instance-id($refi,$this-instance-id,())"/>
         
-        <xsl:variable name="xforms-value" as="element(xforms:value)" select="child::xforms:value"/>
-        <xsl:variable name="xforms-label" as="element(xforms:label)" select="child::xforms:label"/>
+        <!-- TEST-TRACE: allow xforms:copy as alternative to xforms:value in itemset;
+             XForms 1.1 9.3.7 defines xf:copy for deep-copy selection;
+             helps tests/w3c/ch09.spec.ts "9.3.7.a", "9.3.7.b", "9.3.6.a" -->
+        <xsl:variable name="xforms-value" as="element(xforms:value)?" select="child::xforms:value"/>
+        <xsl:variable name="xforms-copy" as="element(xforms:copy)?" select="child::xforms:copy"/>
+        <xsl:variable name="xforms-label" as="element(xforms:label)?" select="child::xforms:label"/>
         
         <xsl:for-each select="$options">
+            <xsl:variable name="pos-nodeset" select="concat($refi, '[', position(), ']')"/>
             <option>
-                <xsl:apply-templates select="$xforms-value,$xforms-label">
-                    <xsl:with-param name="nodeset" select="concat($refi, '[', position(), ']')" tunnel="yes"/>
-                    
-                    <xsl:with-param name="instance-context" select="$this-instance-id" tunnel="yes"/>
-                </xsl:apply-templates>
+                <xsl:choose>
+                    <xsl:when test="exists($xforms-value)">
+                        <xsl:apply-templates select="$xforms-value,$xforms-label">
+                            <xsl:with-param name="nodeset" select="$pos-nodeset" tunnel="yes"/>
+                            <xsl:with-param name="instance-context" select="$this-instance-id" tunnel="yes"/>
+                        </xsl:apply-templates>
+                    </xsl:when>
+                    <xsl:when test="exists($xforms-copy)">
+                        <!-- xf:copy: use the copy ref to derive the option value -->
+                        <xsl:variable name="copy-ref" as="xs:string" select="
+                            if (exists($xforms-copy/@ref))
+                            then concat($pos-nodeset, '/', $xforms-copy/@ref)
+                            else $pos-nodeset"/>
+                        <xsl:attribute name="value" select="
+                            string(xforms:evaluate-xpath-with-instance-id($copy-ref, $this-instance-id, ()))"/>
+                        <xsl:attribute name="data-copy-ref" select="$copy-ref"/>
+                        <xsl:if test="exists($xforms-label)">
+                            <xsl:apply-templates select="$xforms-label">
+                                <xsl:with-param name="nodeset" select="$pos-nodeset" tunnel="yes"/>
+                                <xsl:with-param name="instance-context" select="$this-instance-id" tunnel="yes"/>
+                            </xsl:apply-templates>
+                        </xsl:if>
+                    </xsl:when>
+                </xsl:choose>
             </option>
         </xsl:for-each>
         
@@ -2369,7 +2402,11 @@
             <xsl:if test="not($isRelevant)">
                 <xsl:attribute name="style" select="'display:none'"/>
             </xsl:if>
-            <xsl:apply-templates select="child::node()"/>
+            <!-- TEST-TRACE: exclude event-bound action children (same as group fix);
+                 helps tests/w3c/ch09.spec.ts "9.2.1.a2", tests/w3c/ch10.spec.ts "10.5.a", "10.6.a" -->
+            <xsl:apply-templates select="child::node()
+                [not(self::xforms:*[@ev:event][local-name() = ('message','setvalue','insert','delete','setindex','toggle','setfocus','dispatch','rebuild','recalculate','revalidate','refresh','reset','load','send')])]
+                [not(self::xforms:action[@ev:event])]"/>
         </div>
     </xsl:template>
     
@@ -2422,7 +2459,12 @@
             <xsl:if test="not($relevantStatus)">
                 <xsl:attribute name="style" select="'display:none'"/>
             </xsl:if>
-            <xsl:apply-templates select="child::node()"/>
+            <!-- TEST-TRACE: exclude event-bound action children from HTML rendering;
+                 they are already collected by set-actions in the control template;
+                 helps tests/w3c/ch09.spec.ts "9.1.1.a2" and tests/w3c/ch10.spec.ts "10.4.a" -->
+            <xsl:apply-templates select="child::node()
+                [not(self::xforms:*[@ev:event][local-name() = ('message','setvalue','insert','delete','setindex','toggle','setfocus','dispatch','rebuild','recalculate','revalidate','refresh','reset','load','send')])]
+                [not(self::xforms:action[@ev:event])]"/>
         </div>
     </xsl:template>
     
@@ -2780,7 +2822,17 @@
         </xsl:message>-->
 
         <xsl:if test="exists($action-map)">
-            <xsl:sequence select="$action-map" />
+            <xsl:choose>
+                <!-- TEST-TRACE: body-level actions with ev:observer must be registered via JS,
+                     not output as map values (which would fail inside xsl:result-document);
+                     helps tests/w3c/ch10.spec.ts "10.3.a", "10.4.a" -->
+                <xsl:when test="exists(@ev:observer)">
+                    <xsl:sequence select="js:addAction($myid, $action-map)"/>
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:sequence select="$action-map" />
+                </xsl:otherwise>
+            </xsl:choose>
         </xsl:if>
 
         <xsl:sequence use-when="$debugTiming" select="js:endTime($time-id)" />
