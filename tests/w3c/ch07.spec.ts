@@ -118,7 +118,7 @@ test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
 
 test.describe("W3C Chapter 7 — current() function", () => {
   test("7.10.2.a current() in bind calculate (cross-instance lookup)", async ({ page }) => {
-    await loadW3CTest(page, "Chapt07/7.10/7.10.2/7.10.2.a.xhtml");
+    await loadAndWait(page, "Chapt07/7.10/7.10.2/7.10.2.a.xhtml");
     // calculate="../amount * instance('convTable')/rate[@currency=current()/../currency]"
     // amount=100, currency=jpy, rate for jpy=80.23451 → 8023.451
     const text = await getRenderedText(page);
@@ -126,7 +126,7 @@ test.describe("W3C Chapter 7 — current() function", () => {
   });
 
   test("7.10.2.b current() in repeat output value", async ({ page }) => {
-    await loadW3CTest(page, "Chapt07/7.10/7.10.2/7.10.2.b.xhtml");
+    await loadAndWait(page, "Chapt07/7.10/7.10.2/7.10.2.b.xhtml");
     // repeat over mon (01, 02, 03); output value uses current() to look up month names
     const text = await getRenderedText(page);
     expect(text).toContain("Jan");

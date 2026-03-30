@@ -84,7 +84,7 @@ test.describe("W3C Ch8 §8.3 — Selection Controls [smoke]", () => {
 
 test.describe("W3C Chapter 8 — output bind precedence", () => {
   test("8.1.5.b output with @value and @bind — bind takes precedence", async ({ page }) => {
-    await loadW3CTest(page, "Chapt08/8.1/8.1.5/8.1.5.b.xhtml");
+    await loadAndWait(page, "Chapt08/8.1/8.1.5/8.1.5.b.xhtml");
     // Tax output: value="0.024 * /car/price" → 1032
     // Car Year output: value="/car/price" bind="year_bind" → bind wins, shows 2005
     const text = await getRenderedText(page);

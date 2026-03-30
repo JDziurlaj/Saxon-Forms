@@ -280,7 +280,7 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
 
 test.describe("W3C Chapter 9 — group bind relevance", () => {
   test("9.1.1.a1 group with bind relevant=false hides children", async ({ page }) => {
-    await loadW3CTest(page, "Chapt09/9.1/9.1.1/9.1.1.a1.xhtml");
+    await loadAndWait(page, "Chapt09/9.1/9.1.1/9.1.1.a1.xhtml");
     // group1 binds to shipDate with relevant="false()" — Street Name input must NOT be visible
     const streetLabel = page.getByText("Street Name", { exact: true });
     await expect(streetLabel).toBeHidden();
