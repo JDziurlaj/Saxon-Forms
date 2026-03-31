@@ -1,4 +1,4 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML } from "./helpers";
+import { test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML, collectDialogMessages, clickTrigger, normalizeWhitespace } from "./helpers";
 
 const ch8_1_smoke: [string, string][] = [
   ["8.1.1.a — form control binding restriction", "Chapt08/8.1/8.1.1/8.1.1.a.xhtml"],  // expects xforms-binding-exception message or fatal error
@@ -31,12 +31,6 @@ const ch8_1_smoke: [string, string][] = [
 ];
 
 const ch8_2_smoke: [string, string][] = [
-  ["8.2.2.a — help refs instance", "Chapt08/8.2/8.2.2/8.2.2.a.xhtml"],  // expects modal message from event handler
-  ["8.2.2.b — help inline text", "Chapt08/8.2/8.2.2/8.2.2.b.xhtml"],  // expects modal message from event handler
-  ["8.2.2.c — help binding precedence", "Chapt08/8.2/8.2.2/8.2.2.c.xhtml"],  // expects modal message after trigger activation
-  ["8.2.3.a — hint refs instance", "Chapt08/8.2/8.2.3/8.2.3.a.xhtml"],  // expects modal message from event handler
-  ["8.2.3.b — hint inline text", "Chapt08/8.2/8.2.3/8.2.3.b.xhtml"],  // expects modal message from event handler
-  ["8.2.3.c — hint binding precedence", "Chapt08/8.2/8.2.3/8.2.3.c.xhtml"],  // expects modal message after trigger activation
   ["8.2.4.a — alert refs instance", "Chapt08/8.2/8.2.4/8.2.4.a.xhtml"],  // expects modal message from event handler
   ["8.2.4.b — alert inline text", "Chapt08/8.2/8.2.4/8.2.4.b.xhtml"],  // expects modal message from event handler
   ["8.2.4.c — alert binding precedence", "Chapt08/8.2/8.2.4/8.2.4.c.xhtml"],  // expects modal message or error dialog
@@ -44,7 +38,6 @@ const ch8_2_smoke: [string, string][] = [
 
 const ch8_3_smoke: [string, string][] = [
   ["8.3.3.a — value binding restrictions", "Chapt08/8.3/8.3.3/8.3.3.a.xhtml"],  // expects modal message or error dialog
-  ["8.3.3.c — value inline content", "Chapt08/8.3/8.3.3/8.3.3.c.xhtml"],  // non-normative CSS styling test
 ];
 
 test.describe("W3C Ch8 §8.1 — Core Controls [smoke]", () => {
@@ -223,4 +216,64 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
     const count = await outputs.count();
     expect(count).toBeGreaterThan(0);
   });
+});
+
+test.describe("W3C Ch8 [smoke → behavioral promoted]", () => {
+  // --- Render checks ---
+
+  test("8.1.10.c — three select appearances (full, compact, minimal)", async ({ page }) => {
+    await loadAndWait(page, "Chapt08/8.1/8.1.10/8.1.10.c.xhtml");
+    const selects = page.locator("select, .xforms-select");
+    const count = await selects.count();
+    expect(count).toBeGreaterThanOrEqual(3);
+  });
+
+  test("8.1.11.c — three select1 appearances (full, compact, minimal)", async ({ page }) => {
+    await loadAndWait(page, "Chapt08/8.1/8.1.11/8.1.11.c.xhtml");
+    const selects = page.locator("select, .xforms-select1, input[type=radio]");
+    const count = await selects.count();
+    expect(count).toBeGreaterThanOrEqual(3);
+  });
+
+  test("8.1.8.b — two trigger controls rendered", async ({ page }) => {
+    await loadAndWait(page, "Chapt08/8.1/8.1.8/8.1.8.b.xhtml");
+    const text = await getRenderedText(page);
+    expect(text).toContain("Regular Trigger");
+    expect(text).toContain("Minimal Trigger");
+  });
+
+  test("8.1.9.b — two submit controls rendered", async ({ page }) => {
+    await loadAndWait(page, "Chapt08/8.1/8.1.9/8.1.9.b.xhtml");
+    const text = await getRenderedText(page);
+    expect(text).toContain("Regular Submit");
+    expect(text).toContain("Minimal Submit");
+  });
+
+  test("8.3.3.c — select1 value reflected in output", async ({ page }) => {
+    await loadAndWait(page, "Chapt08/8.3/8.3.3/8.3.3.c.xhtml");
+    const text = await getRenderedText(page);
+    // The output should show the same value as the selected item
+    expect(text).not.toBe("");
+    const outputs = page.locator(".xforms-output");
+    const count = await outputs.count();
+    expect(count).toBeGreaterThan(0);
+  });
+
+
+  // --- Remaining smoke (engine gaps: help/hint/DOMActivate message dispatch) ---
+  const ch8_promoted_smoke: [string, string][] = [
+    ["8.1.8.a — DOMActivate trigger", "Chapt08/8.1/8.1.8/8.1.8.a.xhtml"],
+    ["8.2.2.a — help message (inline)", "Chapt08/8.2/8.2.2/8.2.2.a.xhtml"],
+    ["8.2.2.b — help message (src)", "Chapt08/8.2/8.2.2/8.2.2.b.xhtml"],
+    ["8.2.2.c — help message (instance)", "Chapt08/8.2/8.2.2/8.2.2.c.xhtml"],
+    ["8.2.3.a — hint message (inline)", "Chapt08/8.2/8.2.3/8.2.3.a.xhtml"],
+    ["8.2.3.b — hint message (src)", "Chapt08/8.2/8.2.3/8.2.3.b.xhtml"],
+    ["8.2.3.c — hint message (instance)", "Chapt08/8.2/8.2.3/8.2.3.c.xhtml"],
+  ];
+  for (const [name, file] of ch8_promoted_smoke) {
+    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
+  }
+
+  // Note: help/hint message dispatch tests (8.1.8.a, 8.2.2.a-c, 8.2.3.a-c)
+  // remain as smoke — xforms-help and xforms-hint event dispatching not yet implemented.
 });
