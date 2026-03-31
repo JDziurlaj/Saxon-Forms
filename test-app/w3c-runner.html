@@ -103,13 +103,19 @@
           window.__w3cTestFile = testFile;
           window.__w3cTestLoaded = false;
 
+          // TEST-TRACE: set xml:base on source document so resolve-uri() in the XSLT
+          // resolves @src/@resource relative to the XHTML file's directory, not the runner page;
+          // helps tests/w3c/ch03.spec.ts "3.2.2.a", "3.3.2.c", "3.3.2.f", tests/w3c/appendix.spec.ts "h.2"
+          var testBaseUrl = window.location.origin + '/w3c-suite/' + testFile.substring(0, testFile.lastIndexOf('/') + 1);
+          xformDoc.documentElement.setAttributeNS('http://www.w3.org/XML/1998/namespace', 'xml:base', testBaseUrl);
+
           SaxonJS.transform(
             {
               stylesheetLocation: "/sef/saxon-xforms.sef.json",
               sourceNode: xformDoc,
-              //   stylesheetParams: {
-              //     "test-file": testFile
-              //   }
+              stylesheetParams: {
+                "source-base-uri": testBaseUrl
+              }
             },
             "async"
           ).then(function () {

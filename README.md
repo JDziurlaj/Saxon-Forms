@@ -49,6 +49,49 @@ Recommended usage:
 - Use `test:e2e:vite` when you want parity with the Vite dev runtime.
 
 
+## Cryptographic Functions (Optional)
+
+The XForms `digest()` and `hmac()` functions require the
+[@noble/hashes](https://github.com/paulmillr/noble-hashes) library (MIT license,
+audited, zero dependencies). These functions are **optional** — forms that do not
+use `digest()` or `hmac()` work without it. When the library is not loaded,
+these functions return an empty string instead of crashing.
+
+### Quick setup
+
+1. Install the dependency:
+
+   ```bash
+   npm install @noble/hashes
+   ```
+
+2. Build the crypto bundle:
+
+   ```bash
+   node scripts/build-crypto.mjs
+   ```
+
+   This produces `builds/saxon-forms-crypto.js` (~14 KB, 6 KB gzipped).
+
+3. Load the bundle **before** Saxon-Forms in your HTML:
+
+   ```html
+   <script src="saxon-forms-crypto.js"></script>
+   <!-- then load SaxonJS and your XForm as usual -->
+   ```
+
+### CDN alternative
+
+If you prefer not to install locally, you can load the pre-built bundle from
+your own CDN or copy `builds/saxon-forms-crypto.js` alongside your other assets.
+
+### What happens without it
+
+If the crypto bundle is not loaded, `digest()` and `hmac()` return empty strings.
+Forms that use these functions will render normally but any conditional logic
+that depends on hash values (e.g. `ref="self::node()[digest(...) = '...']"`)
+will not match.
+
 ## Technical Details
 
 
