@@ -262,6 +262,7 @@
         <xsl:if test="empty($instance-docs)">
             <xsl:sequence select="js:clearDeferredUpdateFlags()" />    
             <xsl:sequence select="js:clearDirtyInstances()"/>
+            <xsl:sequence select="js:clearPendingMutations()"/>
         </xsl:if>
         
         <!-- register submissions in a map -->
@@ -2527,6 +2528,8 @@
         <xsl:param name="context-position" as="xs:string" required="no" select="''"/>
         <xsl:param name="recalculate" as="xs:boolean" required="no" select="fn:false()" tunnel="yes"/>
         <xsl:param name="refreshRepeats" as="xs:boolean" required="no" select="fn:false()" tunnel="yes"/>
+        <!-- PERF-6b: when set, render only the item at this 1-based position (splice mode) -->
+        <xsl:param name="splice-position" as="xs:integer?" required="no" select="()" tunnel="yes"/>
         
 <!--        <xsl:message>[xforms:repeat] Handling: <xsl:sequence select="fn:serialize(.)"/></xsl:message>-->        
         <xsl:variable name="model-ref" as="xs:string" select="if (exists(@model)) then string(@model) else $model-key"/>
@@ -2585,15 +2588,21 @@
         
         <xsl:variable name="repeat-items" as="element()*">
             <xsl:variable name="this" as="element(xforms:repeat)" select="."/>
-            <xsl:for-each select="$selectedRepeatVar">
-                <xsl:variable name="string-position" as="xs:string" select="string(position())"/>
+            <!-- PERF-6b: when splice-position is set, render only that single item -->
+            <xsl:for-each select="if (exists($splice-position))
+                                   then $selectedRepeatVar[$splice-position]
+                                   else $selectedRepeatVar">
+                <xsl:variable name="item-pos" as="xs:integer" select="if (exists($splice-position)) then $splice-position else position()"/>
+                <xsl:variable name="string-position" as="xs:string" select="string($item-pos)"/>
                 <xsl:variable name="new-context-position" as="xs:string" select="if ($context-position != '') then concat($context-position, '.', $string-position) else $string-position"/>
                 <div data-repeat-item="true">
                     <xsl:apply-templates select="$this/child::node()">
-                        <xsl:with-param name="nodeset" select="concat($refi, '[', position(), ']')" tunnel="yes"/>
-                        <xsl:with-param name="context-nodeset" select="concat($refi, '[', position(), ']')" tunnel="yes"/>
-                        <xsl:with-param name="position" select="position()"/>
+                        <xsl:with-param name="nodeset" select="concat($refi, '[', $item-pos, ']')" tunnel="yes"/>
+                        <xsl:with-param name="context-nodeset" select="concat($refi, '[', $item-pos, ']')" tunnel="yes"/>
+                        <xsl:with-param name="position" select="$item-pos"/>
                         <xsl:with-param name="context-position" select="$new-context-position"/>
+                        <!-- PERF-6b: clear splice-position so nested repeats render all their items -->
+                        <xsl:with-param name="splice-position" select="()" tunnel="yes"/>
                     </xsl:apply-templates>
                 </div>
             </xsl:for-each>
@@ -2640,6 +2649,8 @@
             <xsl:sequence select="js:addRepeatModelContext($myid , $model-ref)" /> 
             <!-- PERF-6a: store resolved instance ID for dirty-repeat guard -->
             <xsl:sequence select="js:setRepeatInstanceId($myid, $this-instance-id)"/>
+            <!-- PERF-6b: store resolved nodeset for splice-path matching -->
+            <xsl:sequence select="js:setRepeatRef($myid, $refi)"/>
         </xsl:if>
         
         <!-- register size of repeat -->
@@ -3510,7 +3521,30 @@
             
             <xsl:variable name="page-element" select="ixsl:page()//*[@id = $this-key]" as="node()?"/>
             
+            <!-- PERF-6b: check for a pending append mutation on this repeat's instance -->
+            <xsl:variable name="pending-append-pos" as="xs:double"
+                select="js:getPendingAppendForInstance($this-repeat-instance-id)"/>
+            
             <xsl:choose>
+                <!-- PERF-6b fast path: single-item append via ixsl:append-content -->
+                <xsl:when test="exists($page-element) and $pending-append-pos > 0">
+                    <xsl:result-document href="#{$this-key}" method="ixsl:append-content">
+                        <xsl:apply-templates select="$this-repeat">
+                            <xsl:with-param name="model-key" select="$this-repeat-model" tunnel="yes"/>
+                            <xsl:with-param name="nodeset" select="$this-repeat-nodeset" tunnel="yes"/>
+                            <xsl:with-param name="recalculate" select="true()" tunnel="yes"/>
+                            <xsl:with-param name="refreshRepeats" select="fn:true()" tunnel="yes"/>
+                            <xsl:with-param name="default-namespace-context" select="$namespace-context-item" tunnel="yes"/>
+                            <xsl:with-param name="splice-position" select="xs:integer($pending-append-pos)" tunnel="yes"/>
+                        </xsl:apply-templates>
+                    </xsl:result-document>
+                    <!-- Update data-count attribute on the repeat container -->
+                    <ixsl:set-attribute name="data-count"
+                        select="string(xs:integer($pending-append-pos))"
+                        object="$page-element"/>
+                    <xsl:sequence select="js:setRepeatSize($this-key, xs:integer($pending-append-pos))"/>
+                </xsl:when>
+                <!-- Full re-render (non-append mutations or no pending mutation) -->
                 <xsl:when test="exists($page-element)">
                     <xsl:result-document href="#{$this-key}" method="ixsl:replace-content">
                         <xsl:apply-templates select="$this-repeat">
@@ -4875,6 +4909,7 @@
         <xsl:sequence select="js:clearDeferredUpdateFlags()"/>
         <!-- TEST-TRACE: PERF-6a – clear dirty-instance set after refresh cycle completes -->
         <xsl:sequence select="js:clearDirtyInstances()"/>
+        <xsl:sequence select="js:clearPendingMutations()"/>
         
         <xsl:message use-when="$debugMode">[outermost-action-handler] END</xsl:message>
     </xsl:template>
@@ -4928,6 +4963,17 @@
     <xsl:template name="DOMActivate">
         <xsl:param name="form-control" as="node()"/>
         <xsl:message use-when="$debugMode">[DOMActivate] START</xsl:message>
+        
+        <!-- TEST-TRACE: update ancestor repeat indices before processing actions so that
+             index() calls inside action handlers (e.g. xf:insert @origin) resolve to the
+             position of the clicked item, not the stale/default index.
+             Helps rabet-v-oscal-ui smoke.spec.ts "each added control has a distinct control ID". -->
+        <xsl:for-each select="$form-control/ancestor::*:div[@data-repeat-item = 'true']">
+            <xsl:variable name="repeat-id" as="xs:string" select="./ancestor::*:div[exists(@data-repeatable-context)][1]/@id"/>
+            <xsl:variable name="item-position" as="xs:integer" select="count(./preceding-sibling::*:div[@data-repeat-item = 'true']) + 1"/>
+            <xsl:message use-when="$debugMode">[DOMActivate] Setting repeat index '<xsl:value-of select="$repeat-id"/>' to value '<xsl:value-of select="$item-position"/>'</xsl:message>
+            <xsl:sequence select="js:setRepeatIndex($repeat-id,$item-position)"/>
+        </xsl:for-each>
         
         <xsl:variable name="actions" select="js:getAction(string($form-control/@data-action))" as="map(*)*"/>
         
@@ -5396,6 +5442,19 @@
             
             <!-- TEST-TRACE: PERF-6a – mark mutated instance so refreshRepeats-JS can skip unaffected repeats -->
             <xsl:sequence select="js:addDirtyInstance($instance-context)"/>
+            <!-- TEST-TRACE: PERF-6b – record pending append so refreshRepeats-JS can use
+                 the splice fast-path instead of full re-render.
+                 An append occurs when we insert after the last existing item. -->
+            <xsl:if test="$effective-position = 'after'
+                          and ($insert-node-location is $binding-nodeset[last()])
+                          and not($instanceXML is $effective-insert-location)">
+                <!-- Use the unqualified $ref (without @at predicate) against the
+                     post-insert instance to get the true new item count. $binding-nodeset
+                     may be filtered by @at (e.g. [last()]) so its count is unreliable. -->
+                <xsl:variable name="post-insert-items" as="node()*"
+                    select="xforms:evaluate-xpath-with-context-node($ref, xforms:instance($instance-context), ())"/>
+                <xsl:sequence select="js:addPendingMutation('append', $instance-context, count($post-insert-items))"/>
+            </xsl:if>
             <xsl:sequence select="js:setDeferredUpdateFlags(('rebuild','recalculate','revalidate','refresh'))"/>
             
             <xsl:call-template name="xforms-event-handler">
@@ -5480,6 +5539,9 @@
             
             <!-- TEST-TRACE: PERF-6a – mark mutated instance so refreshRepeats-JS can skip unaffected repeats -->
             <xsl:sequence select="js:addDirtyInstance($instance-context)"/>
+            <!-- PERF-6b: invalidate any pending insert splices — a delete in the same
+                 action cycle makes the splice position unreliable -->
+            <xsl:sequence select="js:clearPendingMutations()"/>
             <xsl:sequence select="js:setDeferredUpdateFlags(('rebuild','recalculate','revalidate','refresh'))"/>
         
         <xsl:call-template name="xforms-event-handler">
@@ -5798,6 +5860,7 @@
         <xsl:call-template name="xforms-refresh"/>
         <xsl:sequence select="js:clearDeferredUpdateFlag('refresh')"/>
         <xsl:sequence select="js:clearDirtyInstances()"/>
+        <xsl:sequence select="js:clearPendingMutations()"/>
         
         <xsl:message use-when="$debugMode">[action-refresh] END</xsl:message>
     </xsl:template>

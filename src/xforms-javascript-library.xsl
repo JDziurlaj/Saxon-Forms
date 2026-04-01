@@ -26,6 +26,10 @@
         var repeatContextNodesets = {};       
         /* PERF-6a: map repeat ID → resolved instance ID for dirty-instance guard */
         var repeatInstanceIds = {};
+        /* PERF-6b: map repeat ID → resolved nodeset (e.g. "instance('target')/o:control") */
+        var repeatRefs = {};
+        /* PERF-6b: queue of pending structural mutations for splice-based refresh */
+        var pendingMutations = [];
         
         var repeatIndexMap = {};
         var repeatSizeMap = {};
@@ -67,6 +71,8 @@
             repeatModelContexts = {};
             repeatContextNodesets = {};       
             repeatInstanceIds = {};
+            repeatRefs = {};
+            pendingMutations = [];
         
             repeatIndexMap = {};
             repeatSizeMap = {};
@@ -335,6 +341,31 @@
         }
         var getRepeatInstanceId = function(name) {
             return repeatInstanceIds[name] || "";
+        }
+        /* PERF-6b: store/retrieve the repeat's own resolved nodeset */
+        var setRepeatRef = function(name, value) {
+            repeatRefs[name] = value;
+        }
+        var getRepeatRef = function(name) {
+            return repeatRefs[name] || "";
+        }
+        /* PERF-6b: pending structural mutation tracking */
+        var addPendingMutation = function(type, instanceId, newPosition) {
+            pendingMutations.push({type: type, instanceId: instanceId, position: newPosition});
+        }
+        var getPendingAppendForInstance = function(instanceId) {
+            for (var i = 0; i &lt; pendingMutations.length; i++) {
+                if (pendingMutations[i].instanceId === instanceId &amp;&amp; pendingMutations[i].type === "append") {
+                    return pendingMutations[i].position;
+                }
+            }
+            return 0;
+        }
+        var hasPendingMutations = function() {
+            return pendingMutations.length > 0;
+        }
+        var clearPendingMutations = function() {
+            pendingMutations = [];
         }
         
         var getRepeatKeys = function() {
