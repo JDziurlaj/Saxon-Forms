@@ -261,6 +261,7 @@
          <!-- clear deferred update flags only if we're building from scratch -->
         <xsl:if test="empty($instance-docs)">
             <xsl:sequence select="js:clearDeferredUpdateFlags()" />    
+            <xsl:sequence select="js:clearDirtyInstances()"/>
         </xsl:if>
         
         <!-- register submissions in a map -->
@@ -1183,7 +1184,7 @@
          helps tests/w3c/ch08.spec.ts "8.1.8.a" -->
     <xsl:function name="xforms:evaluate-xpath-with-instance-id">
         <xsl:param name="xpath" as="xs:string"/>
-        <xsl:param name="instance-id" as="xs:string"/>
+        <xsl:param name="instance-id" as="xs:string?"/>
         <xsl:param name="namespace-context" as="element()?"/>
         
         <xsl:variable name="instanceXML" as="element()?" select="xforms:instance($instance-id)"/>
@@ -1226,7 +1227,7 @@
     <xsl:function name="xforms:evaluate-string" as="xs:string?">
         <xsl:param name="string" as="xs:string"/>
         <xsl:param name="context" as="xs:string"/>
-        <xsl:param name="instance-id" as="xs:string"/>
+        <xsl:param name="instance-id" as="xs:string?"/>
         
         <xsl:message use-when="$debugMode">[xforms:evaluate-string] Evaluating '<xsl:sequence select="$string"/>' in context '<xsl:sequence select="$context"/>'</xsl:message>
         
@@ -2637,6 +2638,8 @@
 <!--            <xsl:message use-when="$debugMode">[xforms:repeat] setting context nodeset '<xsl:sequence select="$nodeset"/>'</xsl:message>-->
             <xsl:sequence select="js:addRepeatContext($myid , $nodeset)" /> 
             <xsl:sequence select="js:addRepeatModelContext($myid , $model-ref)" /> 
+            <!-- PERF-6a: store resolved instance ID for dirty-repeat guard -->
+            <xsl:sequence select="js:setRepeatInstanceId($myid, $this-instance-id)"/>
         </xsl:if>
         
         <!-- register size of repeat -->
@@ -3216,7 +3219,7 @@
         
         <xsl:message use-when="$debugMode">[getHtmlClass] Evaluating @class attribute: '<xsl:value-of select="$source-class"/>'</xsl:message>
         
-        <xsl:variable name="class" as="xs:string?" select="if (exists($source-class)) then xforms:evaluate-string($source-class,$context-nodeset,$instance-context) else ()"/>
+        <xsl:variable name="class" as="xs:string?" select="if (exists($source-class) and exists($instance-context) and $instance-context ne '') then xforms:evaluate-string($source-class,$context-nodeset,$instance-context) else $source-class"/>
         
         
         <xsl:message use-when="$debugMode">[getHtmlClass] @class = '<xsl:sequence select="$class"/>'</xsl:message>
@@ -3498,6 +3501,13 @@
             <xsl:variable name="this-repeat-nodeset" as="xs:string" select="js:getRepeatContext($this-key)"/>
             <xsl:variable name="this-repeat-model" as="xs:string" select="js:getRepeatModelContext($this-key)"/>
             
+            <!-- TEST-TRACE: PERF-6a – skip repeats bound to instances that were not
+                 mutated in this action cycle.  When no dirty instances are recorded
+                 (e.g. after a full reset) we fall back to refreshing every repeat. -->
+            <xsl:variable name="this-repeat-instance-id" as="xs:string"
+                select="js:getRepeatInstanceId($this-key)"/>
+            <xsl:if test="not(js:hasDirtyInstances()) or js:isDirtyInstance($this-repeat-instance-id)">
+            
             <xsl:variable name="page-element" select="ixsl:page()//*[@id = $this-key]" as="node()?"/>
             
             <xsl:choose>
@@ -3514,6 +3524,8 @@
                 </xsl:when>
                 <xsl:otherwise/>
             </xsl:choose>
+            
+            </xsl:if>
         </xsl:for-each>
         
         <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> END</xsl:message>
@@ -4113,7 +4125,7 @@
                     <!-- TEST-TRACE: wrap doc() in xsl:try so missing @src files don't crash;
                          helps tests/w3c/ch04.spec.ts "4.5.4.a", "4.2.1.c3" -->
                     <xsl:when test="@src">
-                        <xsl:variable name="instance-path" as="xs:anyURI" select="resolve-uri(@src, if (exists($source-base-uri)) then $source-base-uri else base-uri($xforms-doc-global))"/>
+                        <xsl:variable name="instance-path" as="xs:anyURI" select="resolve-uri(@src, if (exists($source-base-uri)) then $source-base-uri else string(base-uri($xforms-doc-global)))"/>
                         <xsl:try>
                             <xsl:sequence select="doc($instance-path)/*"/>
                             <xsl:catch>
@@ -4124,7 +4136,7 @@
                     <!-- TEST-TRACE: handle @resource on xf:instance (same as @src);
                          helps tests/w3c/ch03.spec.ts "3.3.2.c", tests/w3c/appendix.spec.ts "h.2" -->
                     <xsl:when test="@resource">
-                        <xsl:variable name="instance-path" as="xs:anyURI" select="resolve-uri(@resource, if (exists($source-base-uri)) then $source-base-uri else base-uri($xforms-doc-global))"/>
+                        <xsl:variable name="instance-path" as="xs:anyURI" select="resolve-uri(@resource, if (exists($source-base-uri)) then $source-base-uri else string(base-uri($xforms-doc-global)))"/>
                         <xsl:try>
                             <xsl:sequence select="doc($instance-path)/*"/>
                             <xsl:catch>
@@ -4711,7 +4723,7 @@
     </xd:doc>
     <xsl:function name="xforms:HTTPsubmit">
         <xsl:param name="http-response" as="map(*)"/>
-        <xsl:param name="instance-id" as="xs:string"/>
+        <xsl:param name="instance-id" as="xs:string?"/>
         <xsl:param name="submission-map" as="map(*)"/>
         <xsl:param name="actions" as="map(*)*"/>
         <xsl:message>Debug xforms:HTTPsubmit retrieve</xsl:message>
@@ -4861,6 +4873,8 @@
        
         
         <xsl:sequence select="js:clearDeferredUpdateFlags()"/>
+        <!-- TEST-TRACE: PERF-6a – clear dirty-instance set after refresh cycle completes -->
+        <xsl:sequence select="js:clearDirtyInstances()"/>
         
         <xsl:message use-when="$debugMode">[outermost-action-handler] END</xsl:message>
     </xsl:template>
@@ -5140,6 +5154,8 @@
                                 </xsl:call-template>
                             </xsl:when>
                             <xsl:otherwise>
+                                <!-- TEST-TRACE: PERF-6a – mark mutated instance so refreshRepeats-JS can skip unaffected repeats -->
+                                <xsl:sequence select="js:addDirtyInstance($instance-id)"/>
                                 <xsl:sequence select="js:setDeferredUpdateFlags(('recalculate','revalidate','refresh'))" />
                             </xsl:otherwise>
                         </xsl:choose>
@@ -5213,6 +5229,8 @@
         
         <xsl:sequence select="js:setInstance($instance-id,$updatedInstanceXML)"/>
 
+        <!-- TEST-TRACE: PERF-6a – mark mutated instance so refreshRepeats-JS can skip unaffected repeats -->
+        <xsl:sequence select="js:addDirtyInstance($instance-id)"/>
         <xsl:sequence select="js:setDeferredUpdateFlags(('recalculate','revalidate','refresh'))" />    
 
         <!-- 
@@ -5376,6 +5394,8 @@
                 
             </xsl:if>
             
+            <!-- TEST-TRACE: PERF-6a – mark mutated instance so refreshRepeats-JS can skip unaffected repeats -->
+            <xsl:sequence select="js:addDirtyInstance($instance-context)"/>
             <xsl:sequence select="js:setDeferredUpdateFlags(('rebuild','recalculate','revalidate','refresh'))"/>
             
             <xsl:call-template name="xforms-event-handler">
@@ -5458,6 +5478,8 @@
                 
             </xsl:if>
             
+            <!-- TEST-TRACE: PERF-6a – mark mutated instance so refreshRepeats-JS can skip unaffected repeats -->
+            <xsl:sequence select="js:addDirtyInstance($instance-context)"/>
             <xsl:sequence select="js:setDeferredUpdateFlags(('rebuild','recalculate','revalidate','refresh'))"/>
         
         <xsl:call-template name="xforms-event-handler">
@@ -5775,6 +5797,7 @@
         
         <xsl:call-template name="xforms-refresh"/>
         <xsl:sequence select="js:clearDeferredUpdateFlag('refresh')"/>
+        <xsl:sequence select="js:clearDirtyInstances()"/>
         
         <xsl:message use-when="$debugMode">[action-refresh] END</xsl:message>
     </xsl:template>

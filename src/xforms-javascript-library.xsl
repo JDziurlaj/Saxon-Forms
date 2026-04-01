@@ -24,6 +24,8 @@
         var repeats = {};
         var repeatModelContexts = {};
         var repeatContextNodesets = {};       
+        /* PERF-6a: map repeat ID → resolved instance ID for dirty-instance guard */
+        var repeatInstanceIds = {};
         
         var repeatIndexMap = {};
         var repeatSizeMap = {};
@@ -31,6 +33,9 @@
         var elementsContextUsingIndexFunction = {};
         
         var deferredUpdateFlags = {};
+        /* PERF-6a: track which instance IDs were mutated so refreshRepeats-JS
+           can skip repeats bound to unaffected instances. */
+        var dirtyInstances = {};
                 
         var getCurrentDate = function(){
             var today = new Date();
@@ -61,11 +66,13 @@
             repeats = {};
             repeatModelContexts = {};
             repeatContextNodesets = {};       
+            repeatInstanceIds = {};
         
             repeatIndexMap = {};
             repeatSizeMap = {};
             elementsUsingIndexFunction = {};
             elementsContextUsingIndexFunction = {};
+            dirtyInstances = {};
         }
         
         var setModel = function(name, value) {
@@ -197,6 +204,19 @@
         var clearDeferredUpdateFlags = function() {
             Object.keys(deferredUpdateFlags).forEach(clearDeferredUpdateFlag); 
         }
+        /* PERF-6a: dirty-instance helpers */
+        var addDirtyInstance = function(id) {
+            dirtyInstances[id] = true;
+        }
+        var isDirtyInstance = function(id) {
+            return dirtyInstances[id] === true;
+        }
+        var hasDirtyInstances = function() {
+            return Object.keys(dirtyInstances).length > 0;
+        }
+        var clearDirtyInstances = function() {
+            dirtyInstances = {};
+        }
                 
         var getDeferredUpdateFlag = function(name) {
             return deferredUpdateFlags[name];
@@ -308,6 +328,13 @@
         }
         var getRepeatContext = function(name){
             return repeatContextNodesets[name];
+        }
+        /* PERF-6a: store/retrieve the resolved instance ID for each repeat */
+        var setRepeatInstanceId = function(name, value) {
+            repeatInstanceIds[name] = value;
+        }
+        var getRepeatInstanceId = function(name) {
+            return repeatInstanceIds[name] || "";
         }
         
         var getRepeatKeys = function() {
