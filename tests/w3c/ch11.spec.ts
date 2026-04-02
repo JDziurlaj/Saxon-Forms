@@ -1,4 +1,4 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, submitAndCapture, collectDialogMessages, clickTrigger } from "./helpers";
+import {  test, expect, loadTest, loadAndWait, getRenderedText, submitAndCapture, collectDialogMessages, clickTrigger, getFormControlText } from "./helpers";
 
 const ch11_smoke: [string, string][] = [
   ["11.1.e", "Chapt11/11.1/11.1.e.xhtml"],  // depends on form submission lifecycle
@@ -75,7 +75,7 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.1.a — 11.1.a ref attribute of submission element", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("white");
   });
 
@@ -101,7 +101,7 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.1.c — 11.1.c resource attribute of submission element", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.c.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("white");
   });
 
@@ -136,7 +136,7 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.10.b — 11.10.b submission response with the target data node receiving text", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.10/11.10.b.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Thomas");
   });
 
@@ -194,7 +194,7 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.8.a — 11.8.a header element of submission element", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.8/11.8.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("myValue1");
     expect(text).toContain("myValue2");
   });
@@ -216,7 +216,7 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.8.c — 11.8.c header element with similar name elements", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.8/11.8.c.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("myValue3");
     expect(text).toContain("myValue4");
     expect(text).toContain("myValue4");
@@ -300,7 +300,7 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.9.8.a — 11.9.8.a serialization as application/x-www-form-urlencoded", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.9/11.9.8/11.9.8.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Ren%C3%A9");
   });
 });
@@ -316,7 +316,7 @@ test.describe("W3C Ch11 [smoke → behavioral promoted]", () => {
   */
   test("11.1.r — replace=instance puts response into correct instances", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.r.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Henry");
     expect(text).toContain("Acura");
     expect(text).toContain("white");
@@ -329,7 +329,7 @@ test.describe("W3C Ch11 [smoke → behavioral promoted]", () => {
   */
   test("11.1.t — replace=instance with targetref puts response in target", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.t.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Thomas");
     expect(text).toContain("Toyota");
     expect(text).toContain("silver");

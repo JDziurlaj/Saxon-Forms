@@ -34,6 +34,29 @@ export function getRenderedText(page: any): Promise<string> {
   return page.locator("#xForm").innerText();
 }
 
+/**
+ * Like getRenderedText but strips the W3C title and instruction labels
+ * so that assertions don't accidentally match the pass-criteria text.
+ */
+export async function getFormControlText(page: any): Promise<string> {
+  return page.evaluate(() => {
+    const el = document.querySelector("#xForm");
+    if (!el) return "";
+    const clone = el.cloneNode(true) as HTMLElement;
+    // Remove the title group (contains <label class="title">)
+    clone.querySelector(".xforms-group:has(label.title)")?.remove();
+    // Remove the first remaining instruction-only group
+    // (a group whose only content is a <label> with no form controls)
+    for (const g of clone.querySelectorAll(":scope > .xforms-group")) {
+      if (!g.querySelector("input, select, button, textarea, .xforms-output, .xforms-input, .xforms-select, .xforms-repeat")) {
+        g.remove();
+        break;
+      }
+    }
+    return clone.innerText;
+  });
+}
+
 export async function getInstanceXML(page: any, instanceId?: string): Promise<string> {
   return page.evaluate((id: string | undefined) => {
     const g = window as any;

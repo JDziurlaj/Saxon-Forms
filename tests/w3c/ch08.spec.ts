@@ -1,4 +1,4 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML, collectDialogMessages, clickTrigger, normalizeWhitespace } from "./helpers";
+import {  test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML, collectDialogMessages, clickTrigger, normalizeWhitespace, getFormControlText } from "./helpers";
 
 const ch8_1_smoke: [string, string][] = [
   ["8.1.1.a — form control binding restriction", "Chapt08/8.1/8.1.1/8.1.1.a.xhtml"],  // expects xforms-binding-exception message or fatal error
@@ -89,7 +89,7 @@ test.describe("W3C Chapter 8 — output bind precedence", () => {
     await loadAndWait(page, "Chapt08/8.1/8.1.5/8.1.5.b.xhtml");
     // Tax output: value="0.024 * /car/price" → 1032
     // Car Year output: value="/car/price" bind="year_bind" → bind wins, shows 2005
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("1032");
     expect(text).toContain("2005");
   });
@@ -324,7 +324,7 @@ test.describe("W3C Ch8 [smoke → behavioral promoted]", () => {
   */
   test("8.1.8.b — two trigger controls rendered", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.1/8.1.8/8.1.8.b.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Regular Trigger");
     expect(text).toContain("Minimal Trigger");
   });
@@ -335,7 +335,7 @@ test.describe("W3C Ch8 [smoke → behavioral promoted]", () => {
   */
   test("8.1.9.b — two submit controls rendered", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.1/8.1.9/8.1.9.b.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Regular Submit");
     expect(text).toContain("Minimal Submit");
   });

@@ -1,4 +1,4 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, collectDialogMessages, clickTrigger } from "./helpers";
+import {  test, expect, loadTest, loadAndWait, getRenderedText, collectDialogMessages, clickTrigger, getFormControlText } from "./helpers";
 
 test.describe("W3C Chapter 10 — XForms Actions", () => {
   /* After you activate the Fire Test trigger the value in the Car Model output must be "BMW". */
@@ -18,7 +18,7 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   */
   test("10.2.a setvalue with expression or literal", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.2/10.2.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("white");
     expect(text).toContain("excellent");
   });
@@ -31,14 +31,14 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   */
   test("10.2.b setvalue shows white and excellent", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.2/10.2.b.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("white");
   });
 
   /* You must see the correct values for each output control below. */
   test("10.3.a insert action using context attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.3/10.3.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     // Should show numbers from insert operations
     expect(text).toContain("1");
   });
@@ -76,7 +76,7 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   /* You must not see the value "4.00" : */
   test("10.3.j insert action — must not show 4.00", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.3/10.3.j.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).not.toContain("4.00");
   });
 
@@ -187,7 +187,7 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
   */
   test("10.13.b — 10.13.b reset element with model attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.13/10.13.b.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).not.toContain("white");
   });
 
@@ -211,7 +211,7 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
   */
   test("10.17.b — 10.17.b conditional execution of XForms actions using action element", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.17/10.17.b.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).not.toContain("This is the negative test");
   });
 
@@ -244,7 +244,7 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
   /* You must see the value "10" for the Number Of Nodes output : */
   test("10.18.a — 10.18.a iteration of XForms actions", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.18/10.18.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("10");
   });
 
@@ -259,14 +259,14 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
   /* You must see the value "1" for the Number Of Nodes output : */
   test("10.18.c — 10.18.c iteration executed zero times", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.18/10.18.c.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("1");
   });
 
   /* You must see the value "5" for the Number Of Nodes output : */
   test("10.18.d — 10.18.d XForms actions with if and while attributes", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.18/10.18.d.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("5");
   });
 
@@ -288,7 +288,7 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
   /* You must see the value "7" : */
   test("10.3.g — 10.3.g insert action - nodeset indicates root element", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.3/10.3.g.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("7");
   });
 
@@ -298,7 +298,7 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
   */
   test("10.3.h — 10.3.h insert action and repeat element", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.3/10.3.h.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("1");
     expect(text).toContain("3");
     expect(text).toContain("3");

@@ -1,4 +1,4 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML } from "./helpers";
+import {  test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML, getFormControlText } from "./helpers";
 
 const ch9_smoke: [string, string][] = [
   ["9.2.1.a2 — switch receives events", "Chapt09/9.2/9.2.1/9.2.1.a2.xhtml"],  // depends on event dispatch to switch/case
@@ -213,7 +213,7 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     await loadAndWait(page, "Chapt09/9.3/9.3.1/9.3.1.a.xhtml");
     const items = page.locator('[data-repeat-item]');
     await expect(items).toHaveCount(4);
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("windshield wipers");
     expect(text).toContain("tires");
     expect(text).toContain("exhaust");
@@ -235,7 +235,7 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
   test("9.3.1.c — repeat number=1: may see only one item", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.3/9.3.1/9.3.1.c.xhtml");
     // number="1" means processor may display only 1 item at a time
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Items In Cart");
     // At least 1 item visible
     const items = page.locator('[data-repeat-item]');
@@ -249,7 +249,7 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
   */
   test("9.3.1.d — unrolled repeat: both lists show all 4 cart items", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.3/9.3.1/9.3.1.d.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     // Both lists must contain all items
     expect(text).toContain("Items In Cart 1");
     expect(text).toContain("Items In Cart 2");

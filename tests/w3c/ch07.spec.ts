@@ -1,4 +1,4 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML } from "./helpers";
+import {  test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML, getFormControlText } from "./helpers";
 
 const ch7_smoke: [string, string][] = [
   ["7.5.a — compute exception", "Chapt07/7.5/7.5.a.xhtml"],  // expects xforms-compute-exception message or fatal error
@@ -99,7 +99,7 @@ test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
   /* You must see the value "1" for Index. */
   test("7.7.5.a — index() function renders repeat", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.7/7.7.5/7.7.5.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("index");
   });
 
@@ -155,7 +155,7 @@ test.describe("W3C Chapter 7 — current() function", () => {
     await loadAndWait(page, "Chapt07/7.10/7.10.2/7.10.2.a.xhtml");
     // calculate="../amount * instance('convTable')/rate[@currency=current()/../currency]"
     // amount=100, currency=jpy, rate for jpy=80.23451 → 8023.451
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("8023.451");
   });
 
@@ -163,7 +163,7 @@ test.describe("W3C Chapter 7 — current() function", () => {
   test("7.10.2.b current() in repeat output value", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.10/7.10.2/7.10.2.b.xhtml");
     // repeat over mon (01, 02, 03); output value uses current() to look up month names
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Jan");
     expect(text).toContain("Feb");
     expect(text).toContain("Mar");
@@ -188,7 +188,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
   */
   test("7.10.1.a — 7.10.1.a instance() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.10/7.10.1/7.10.1.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("John");
     expect(text).toContain("George");
   });
@@ -204,7 +204,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
   /* You must see the value "Node-A" for the Node Values output. */
   test("7.10.3.b — 7.10.3.b id() function with xml:id", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.10/7.10.3/7.10.3.b.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Node-A");
   });
 
@@ -237,7 +237,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
   /* You must see the value "John" in all three input fields. */
   test("7.4.6.a — 7.4.6.a binding examples", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.4/7.4.6/7.4.6.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("John");
   });
 
@@ -248,7 +248,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
   */
   test("7.6.1.a — 7.6.1.a boolean-from-string() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.6/7.6.1/7.6.1.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("true");
     expect(text).toContain("false");
   });
@@ -259,7 +259,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
   */
   test("7.6.2.a — 7.6.2.a is-card-number() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.6/7.6.2/7.6.2.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("true");
     expect(text).toContain("false");
   });
@@ -346,7 +346,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
   /* You must see the value "1.1" for the Version output. */
   test("7.8.2.a — 7.8.2.a property() function with version property", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.8/7.8.2/7.8.2.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("1.1");
   });
 
@@ -444,7 +444,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
   /* You must see the value "14" for the Test 1 output. */
   test("7.9.10.a — 7.9.10.a months() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.10/7.9.10.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("14");
     expect(text).toContain("-19");
     expect(text).toContain("NaN");
@@ -475,7 +475,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
   /* You must see the value "11688" for the Test 1 output. */
   test("7.9.4.a — 7.9.4.a days-from-date() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.4/7.9.4.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("11688");
     expect(text).toContain("-1");
   });
@@ -483,21 +483,21 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
   /* You must see the value "4" for the Test output. */
   test("7.9.4.b — 7.9.4.b days-from-date() function ignores hours, minutes, and seconds components", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.4/7.9.4.b.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("4");
   });
 
   /* You must see the value "NaN" for the Test output. */
   test("7.9.4.c — 7.9.4.c days-from-date() function negative test", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.4/7.9.4.c.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("NaN");
   });
 
   /* You must see the value "2002-01-01" for the Test 1 output. */
   test("7.9.5.a — 7.9.5.a days-to-date() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.5/7.9.5.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("2002-01-01");
     expect(text).toContain("1969-12-31");
   });
@@ -505,7 +505,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
   /* You must see either the value "3.1536E7" or the value "31536000" for the Test 1 output. */
   test("7.9.6.a — 7.9.6.a seconds-from-dateTime() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.6/7.9.6.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("0.001");
     expect(text).toContain("NaN");
   });
@@ -513,7 +513,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
   /* You must see the value "1970-01-01T00:00:00Z" for the Test 1 output. */
   test("7.9.7.a — 7.9.7.a seconds-to-dateTime() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.7/7.9.7.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("1970-01-01T00:00:00Z");
   });
 
@@ -523,7 +523,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
   */
   test("7.9.8.a — 7.9.8.a adjust-dateTime-to-timezone() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.8/7.9.8.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("2007-10-07T02:22:00-07:00");
     expect(text).toContain("2007-10-02T14:26:43-07:00");
   });
@@ -531,7 +531,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
   /* You must see the value "0" for the Test 1 output. */
   test("7.9.9.a — 7.9.9.a seconds() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.9/7.9.9.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("0");
     expect(text).toContain("297001.5");
     expect(text).toContain("NaN");

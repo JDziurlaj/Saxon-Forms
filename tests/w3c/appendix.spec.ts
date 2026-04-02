@@ -1,18 +1,18 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText } from "./helpers";
+import {  test, expect, loadTest, loadAndWait, getRenderedText, getFormControlText } from "./helpers";
 
 test.describe("W3C Appendix B — Data Mutation Patterns", () => {
   /* You must see an empty person name followed by the person name of "Jane Doe" : */
   test("B.1 Prepend Element Copy", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.1/b.1.a.xhtml");
     // Expected: empty person name + "Jane Doe"
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Jane Doe");
   });
 
   /* You must see an empty person name after the person name of "Jane Doe" : */
   test("B.2 Append Element Copy", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.2/b.2.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Jane Doe");
   });
 
@@ -20,7 +20,7 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
   test("B.3 Duplicate Element", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.3/b.3.a.xhtml");
     // Duplicates paragraph[2] — should see 3 paragraphs, last is copy of second
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Primis abhorreant delicatissimi");
   });
 
@@ -28,14 +28,14 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
   test("B.4 Set Attribute", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.4/b.4.a.xhtml");
     // Expected: item[2] should have rating="classified"
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("classified");
   });
 
   /* You must see only one item product("SKU-0815") : */
   test("B.5 Remove Element", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.5/b.5.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     // Deletes item[2] (SKU-4711) — only item[1] (SKU-0815) should remain
     expect(text).toContain("SKU-0815");
     expect(text).not.toContain("SKU-4711");
@@ -67,7 +67,7 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
   test("B.8 Copy Nodeset", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.8/b.8.a.xhtml");
     // Copies 3 persons from prototypes into empty <people> — should see all 3 names
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Jane Doe");
     expect(text).toContain("John Doe");
     expect(text).toContain("Joe Sixpack");
@@ -76,7 +76,7 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
   /* You must see the string "classified" for each key '0': */
   test("B.9 Copy Attribute List", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.9/b.9.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("classified");
   });
 
@@ -95,7 +95,7 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
   test("B.11 Replace Attribute — both keys show 0", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.11/b.11.a.xhtml");
     // After replace, both item keys should be "0"
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("0");
   });
 
@@ -111,7 +111,7 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
   /* You must see Track ids "251", "331" and "461" : */
   test("B.13 Move Element — track ids 251, 331, 461", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.13/b.13.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("251");
     expect(text).toContain("331");
     expect(text).toContain("461");
@@ -120,7 +120,7 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
   /* You must see "classified" for key '42' : */
   test("B.14 Move Attribute — classified on key 42", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.14/b.14.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("classified");
   });
 

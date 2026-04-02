@@ -1,4 +1,4 @@
-import { test, expect, loadAndWait, getRenderedText, getInstanceXML, submitAndCapture, isUnavailable } from "./helpers";
+import {  test, expect, loadAndWait, getInstanceXML, submitAndCapture, isUnavailable, getFormControlText } from "./helpers";
 
 test.describe("W3C Ch2 — Introduction [behavioral]", () => {
   /*
@@ -24,7 +24,7 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
     // 2. Two input controls: Credit Card Number and Expiration Date
     const inputs = page.locator('input.xforms-input');
     await expect(inputs).toHaveCount(2);
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Credit Card Number:");
     expect(text).toContain("Expiration Date:");
 
@@ -78,7 +78,7 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
   */
   test("2.2.a — instance with select1 and inputs", async ({ page }) => {
     await loadAndWait(page, "Chapt02/2.2.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Cash");
   });
 
@@ -181,7 +181,7 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
   */
   test("2.4.a — complete example with select1 and inputs", async ({ page }) => {
     await loadAndWait(page, "Chapt02/2.4.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Cash");
   });
 });

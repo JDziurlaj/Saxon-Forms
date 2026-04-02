@@ -1,4 +1,4 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText } from "./helpers";
+import {  test, expect, loadTest, loadAndWait, getRenderedText, getFormControlText } from "./helpers";
 
 const ch4_smoke: [string, string][] = [
   ["4.2.1.a — model-construct events", "Chapt04/4.2/4.2.1/4.2.1.a.xhtml"],  // expects modal message from event handler
@@ -83,21 +83,21 @@ test.describe("W3C Ch4 [behavioral promoted]", () => {
   /* You must see the value "14": */
   test("4.2.1.c1 — 4.2.1.c1 initial instance defined in external source", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.2/4.2.1/4.2.1.c1.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("14");
   });
 
   /* You must see the value "100": */
   test("4.2.1.c2 — 4.2.1.c2 inline source takes precedence over external source for initial instance data", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.2/4.2.1/4.2.1.c2.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("100");
   });
 
   /* You must not see the value "Mitsubishi": */
   test("4.2.2.b — 4.2.2.b xforms-model-construct-done", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.2/4.2.2/4.2.2.b.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).not.toContain("Mitsubishi");
   });
 
@@ -129,7 +129,7 @@ test.describe("W3C Ch4 [behavioral promoted]", () => {
   */
   test("4.4.1.a — 4.4.1.a xforms-insert event", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.4/4.4.1/4.4.1.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("before");
     expect(text).toContain("2006-01-01");
   });
@@ -140,7 +140,7 @@ test.describe("W3C Ch4 [behavioral promoted]", () => {
   */
   test("4.4.2.a — 4.4.2.a xforms-delete action", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.4/4.4.2/4.4.2.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("1");
     expect(text).toContain("2006-12-25");
   });

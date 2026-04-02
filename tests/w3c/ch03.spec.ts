@@ -1,4 +1,4 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML, submitAndCapture, collectDialogMessages } from "./helpers";
+import {  test, expect, loadTest, loadAndWait, getInstanceXML, submitAndCapture, collectDialogMessages, getFormControlText } from "./helpers";
 
 const ch3_smoke: [string, string][] = [
   ["3.2.1.a — foreign elements", "Chapt03/3.2/3.2.1/3.2.1.a.xhtml"],
@@ -64,28 +64,28 @@ test.describe("W3C Ch3 — Document Structure [behavioral]", () => {
   /* You must see the value "silver": */
   test("3.2.3.c — context attribute: output shows silver", async ({ page }) => {
     await loadAndWait(page, "Chapt03/3.2/3.2.3/3.2.3.c.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("silver");
   });
 
   /* You must see the value "silver": */
   test("3.2.3.d — model attribute: output shows silver", async ({ page }) => {
     await loadAndWait(page, "Chapt03/3.2/3.2.3/3.2.3.d.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("silver");
   });
 
   /* You must see the value "BMW": */
   test("3.2.4.d — select1 with nodeset: shows BMW", async ({ page }) => {
     await loadAndWait(page, "Chapt03/3.2/3.2.4/3.2.4.d.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("BMW");
   });
 
   /* You must see a value of "Mazda": */
   test("3.3.a — model element: output shows Mazda", async ({ page }) => {
     await loadAndWait(page, "Chapt03/3.3/3.3.a.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Mazda");
   });
 
@@ -110,7 +110,7 @@ test.describe("W3C Ch3 — Document Structure [behavioral]", () => {
   */
   test("3.3.2.e — instance @resource: Wendy", async ({ page }) => {
     await loadAndWait(page, "Chapt03/3.3/3.3.2/3.3.2.e.xhtml");
-    const text = await getRenderedText(page);
+    const text = await getFormControlText(page);
     expect(text).toContain("Wendy");
   });
 
