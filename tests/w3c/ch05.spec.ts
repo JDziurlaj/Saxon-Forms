@@ -1,6 +1,12 @@
 import { test, expect, loadAndWait, getEventModelResults, expectDatatypeEvents, clickTrigger, normalizeWhitespace, collectDialogMessages, expectDialogAfterTrigger } from "./helpers";
 
 test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
+  /*
+     When you activate the Valid Values trigger you must see an "xforms-valid" output for all the
+     data types. When you activate the Invalid Values trigger you must see an "XFORMS-INVALID"
+     output for all the data types except string, which will either have an output of xforms-valid
+     or no output.
+  */
   test("5.1.a — primitive types: valid and invalid triggers produce expected event outputs", async ({ page }) => {
     await loadAndWait(page, "Chapt05/5.1/5.1.a.xhtml");
 
@@ -48,6 +54,12 @@ test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
     ]);
   });
 
+  /*
+     When you activate the Valid Values trigger you must see an "xforms-valid" output for all the
+     data types. When you activate the Invalid Values trigger you must see an "XFORMS-INVALID"
+     output for all the data types except normalizedString and token, which will either have an
+     output of xforms-valid or no output.
+  */
   test("5.1.b — derived types: valid and invalid triggers produce expected event outputs", async ({ page }) => {
     await loadAndWait(page, "Chapt05/5.1/5.1.b.xhtml");
 
@@ -106,6 +118,11 @@ test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
     ]);
   });
 
+  /*
+     When you activate the Valid Values trigger you must see an "xforms-valid" output for all the
+     data types. When you activate the Invalid Values trigger you must see an "XFORMS-INVALID"
+     output for all the data types, except for xsd:string.
+  */
   test("5.1.c — basic primitive support: valid and invalid triggers produce expected event outputs", async ({ page }) => {
     await loadAndWait(page, "Chapt05/5.1/5.1.c.xhtml");
 
@@ -145,6 +162,11 @@ test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
     ]);
   });
 
+  /*
+     When you activate the Valid Values trigger you must see an "xforms-valid" output for all the
+     data types. When you activate the Invalid Values trigger you must see an "XFORMS-INVALID"
+     output for all the data types.
+  */
   test("5.1.d — basic derived support: valid and invalid triggers produce expected event outputs", async ({ page }) => {
     await loadAndWait(page, "Chapt05/5.1/5.1.d.xhtml");
 
@@ -172,6 +194,11 @@ test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
     expectDatatypeEvents(eventResults, "XFORMS-INVALID", integerFamily);
   });
 
+  /*
+     When you activate the Valid Value trigger you must see an "xforms-valid" output for the date
+     data type. When you activate the Invalid Value trigger you must see an "XFORMS-INVALID" output
+     for the date data type.
+  */
   test("5.1.e — xsi:type date: valid and invalid triggers produce expected event outputs", async ({ page }) => {
     await loadAndWait(page, "Chapt05/5.1/5.1.e.xhtml");
 
@@ -184,6 +211,14 @@ test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
     expectDatatypeEvents(eventResults, "XFORMS-INVALID", ["date"]);
   });
 
+  /*
+     When the form first displays you should not see any valid or invalid messages. If an
+     implementation fires validity events on form initialization (incorrectly) then you may see
+     XFORMS-INVALID output for all types (except string) below. This is not being tested but is an
+     error. When you activate the Run Test trigger below you must see an 'xforms-valid' output for
+     all the data types. If the data type does not accept empty content you will see an
+     'XFORMS-INVALID' output. An 'XFORMS-INVALID' output is a failure for this test case.
+  */
   test("5.2.1.a — empty primitive values remain valid (no invalid events)", async ({ page }) => {
     await loadAndWait(page, "Chapt05/5.2/5.2.1/5.2.1.a.xhtml");
 
@@ -211,6 +246,14 @@ test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
     ]);
   });
 
+  /*
+     When the form first displays you should not see any valid or invalid messages. If an
+     implementation fires validity events on form initialization (incorrectly) then you may see
+     XFORMS-INVALID output for all types (except string) below. This is not being tested but is an
+     error. When you activate the Run Test trigger below you must see an 'xforms-valid' output for
+     all the data types. If the data type does not accept empty content you will see an
+     'XFORMS-INVALID' output. An 'XFORMS-INVALID' output is a failure for this test case.
+  */
   test("5.2.1.b — empty derived values remain valid (no invalid events)", async ({ page }) => {
     await loadAndWait(page, "Chapt05/5.2/5.2.1/5.2.1.b.xhtml");
 
@@ -244,6 +287,14 @@ test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
     ]);
   });
 
+  /*
+     When the form first displays you should not see any valid or invalid messages. If an
+     implementation fires validity events on form initialization (incorrectly) then you may see
+     XFORMS-INVALID output for all types (except string) below. This is not being tested but is an
+     error. When you activate the Run Test trigger below you must see an 'xforms-valid' output for
+     all the data types. If the data type does not accept empty content you will see an
+     'XFORMS-INVALID' output. An 'XFORMS-INVALID' output is a failure for this test case.
+  */
   test("5.2.1.c — empty basic-processor datatypes remain valid (no invalid events)", async ({ page }) => {
     await loadAndWait(page, "Chapt05/5.2/5.2.1/5.2.1.c.xhtml");
 
@@ -314,6 +365,7 @@ test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
     ).toBe(true);
   });
 
+  /* You must have seen the message "You entered a valid dayTimeDuration". */
   test("5.2.4.a — dayTimeDuration emits the required valid-message output", async ({ page }) => {
     const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt05/5.2/5.2.4/5.2.4.a.xhtml");
@@ -326,6 +378,7 @@ test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
     ).toBe(true);
   });
 
+  /* You must have seen the message "You entered a valid yearMonthDuration". */
   test("5.2.5.a — yearMonthDuration emits the required valid-message output", async ({ page }) => {
     const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt05/5.2/5.2.5/5.2.5.a.xhtml");
@@ -338,6 +391,11 @@ test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
     ).toBe(true);
   });
 
+  /*
+     When you activate the Valid Email Test triggers you must see the message "You entered a valid
+     email". When you activate the Invalid Email Test triggers you must see the message "You entered
+     an invalid email".
+  */
   test("5.2.6.a — email triggers emit required valid/invalid messages", async ({ page }) => {
     const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt05/5.2/5.2.6/5.2.6.a.xhtml");
@@ -374,6 +432,11 @@ test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
     await expect(emailInput).toHaveValue("editors{at}example{dot}info");
   });
 
+  /*
+     When you activate the Valid card-number Test triggers you must see the message "You entered a
+     valid card-number". When you activate the Invalid card-number Test triggers you must see the
+     message "You entered an invalid card-number".
+  */
   test("5.2.7.a — card-number triggers emit required valid/invalid messages", async ({ page }) => {
     const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt05/5.2/5.2.7/5.2.7.a.xhtml");
@@ -410,6 +473,10 @@ test.describe("W3C Ch5 — Datatypes [behavioral]", () => {
     await expect(cardInput).toHaveValue("0112E581321345589144");
   });
 
+  /*
+     When you activate the Valid card-number Test trigger below you must see the message "You
+     entered a valid card-number".
+  */
   test("5.2.7.b — credit-card example emits required valid card-number message", async ({ page }) => {
     const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt05/5.2/5.2.7/5.2.7.b.xhtml");

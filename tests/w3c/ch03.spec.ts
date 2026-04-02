@@ -38,18 +38,21 @@ test.describe("W3C Ch3 — Document Structure [smoke]", () => {
 });
 
 test.describe("W3C Ch3 — Document Structure [behavioral]", () => {
+  /* You must see a value of "Honda": */
   test("3.1.a — XForms namespace: output shows Honda", async ({ page }) => {
     await loadAndWait(page, "Chapt03/3.1/3.1.a.xhtml");
     const output = page.locator('.xforms-output');
     await expect(output).toHaveText("Honda");
   });
 
+  /* You must see a value of "Mazda": */
   test("3.2.1.b — foreign attributes: output shows Mazda", async ({ page }) => {
     await loadAndWait(page, "Chapt03/3.2/3.2.1/3.2.1.b.xhtml");
     const output = page.locator('.xforms-output');
     await expect(output).toHaveText("Mazda");
   });
 
+  /* You must see the value "120": */
   test("3.2.3.a — ref attribute: outputs show 120 and 1994", async ({ page }) => {
     await loadAndWait(page, "Chapt03/3.2/3.2.3/3.2.3.a.xhtml");
     const outputs = page.locator('.xforms-output');
@@ -58,30 +61,39 @@ test.describe("W3C Ch3 — Document Structure [behavioral]", () => {
     expect(texts).toContain("1994");
   });
 
+  /* You must see the value "silver": */
   test("3.2.3.c — context attribute: output shows silver", async ({ page }) => {
     await loadAndWait(page, "Chapt03/3.2/3.2.3/3.2.3.c.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("silver");
   });
 
+  /* You must see the value "silver": */
   test("3.2.3.d — model attribute: output shows silver", async ({ page }) => {
     await loadAndWait(page, "Chapt03/3.2/3.2.3/3.2.3.d.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("silver");
   });
 
+  /* You must see the value "BMW": */
   test("3.2.4.d — select1 with nodeset: shows BMW", async ({ page }) => {
     await loadAndWait(page, "Chapt03/3.2/3.2.4/3.2.4.d.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("BMW");
   });
 
+  /* You must see a value of "Mazda": */
   test("3.3.a — model element: output shows Mazda", async ({ page }) => {
     await loadAndWait(page, "Chapt03/3.3/3.3.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("Mazda");
   });
 
+  /*
+     You must see three output fields. The Name output field must have the value "Wendy", the Age
+     output field must have the value "20", and the Education output field must have the value
+     "college".
+  */
   test("3.3.2.b — instance inline: Wendy, 20, college", async ({ page }) => {
     await loadAndWait(page, "Chapt03/3.3/3.3.2/3.3.2.b.xhtml");
     const outputs = page.locator('.xforms-output');
@@ -91,6 +103,11 @@ test.describe("W3C Ch3 — Document Structure [behavioral]", () => {
     expect(texts).toContain("college");
   });
 
+  /*
+     You must see three output fields. The Name output field must have the value "Wendy", the Age
+     output field must have the value "20", and the Education output field must have the value
+     "college".
+  */
   test("3.3.2.e — instance @resource: Wendy", async ({ page }) => {
     await loadAndWait(page, "Chapt03/3.3/3.3.2/3.3.2.e.xhtml");
     const text = await getRenderedText(page);

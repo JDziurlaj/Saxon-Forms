@@ -22,6 +22,10 @@ test.describe("W3C Ch7 — XPath Expressions [smoke]", () => {
 });
 
 test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
+  /*
+     You must see a value of "Seth" for First Name, a value of "Peters" for Last Name, and a value
+     of "speters@example.com" for Email Address.
+  */
   test("7.2.a — outermost binding: Seth, Peters, speters@example.com", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.2/7.2.a.xhtml");
     // Scoped: check the actual input/output control values
@@ -38,6 +42,10 @@ test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
     expect(xml).toContain(">speters@example.com<");
   });
 
+  /*
+     You must see a value of "Curtiss" for First Name, a value of "Hewie" for Last Name, and a value
+     of "chewie@example.com" for Email Address.
+  */
   test("7.2.b — non-outermost binding: Curtiss, Hewie, chewie@example.com", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.2/7.2.b.xhtml");
     const fnInput = page.locator('input[data-ref*="first"]');
@@ -48,6 +56,10 @@ test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
     await expect(emailOutput).toHaveText("chewie@example.com");
   });
 
+  /*
+     You must see a value of "6" for the first Subtotal output, a value of "20" for the second
+     Subtotal output, and a value of "42" for the third Subtotal output.
+  */
   test("7.2.d — computed expression: subtotals 6, 20, 42", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.2/7.2.d.xhtml");
     // Scoped: check each output element by position
@@ -57,6 +69,10 @@ test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
     await expect(outputs.nth(2)).toHaveText("42");
   });
 
+  /*
+     You must see a value of "4" for the first Total output, a value of "5" for the second Total
+     output, and a value of "6" for the third Total output.
+  */
   test("7.2.e — context size and position: outputs computed values", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.2/7.2.e.xhtml");
     // Scoped: verify 3 output elements are rendered with computed values
@@ -69,6 +85,10 @@ test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
     }
   });
 
+  /*
+     The Car Make input control must contain the value "Mazda" and you must be unable to change the
+     value.
+  */
   test("7.2.f — namespace declarations: Mazda in input", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.2/7.2.f.xhtml");
     const input = page.locator('input.xforms-input');
@@ -76,12 +96,18 @@ test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
     // Note: W3C expects readonly. Saxon-Forms does not set HTML readonly attr.
   });
 
+  /* You must see the value "1" for Index. */
   test("7.7.5.a — index() function renders repeat", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.7/7.7.5/7.7.5.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("index");
   });
 
+  /*
+     You must see a value of "-1" for the compare('apple','orange') output control. You must see a
+     value of "0" for the compare('apple','apple') output control. You must see a value of "1" for
+     the compare('orange','apple') output control.
+  */
   test("7.7.8.a — compare() returns -1, 0, 1 in output controls", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.7/7.7.8/7.7.8.a.xhtml");
     // Scoped: check output elements contain the comparison results
@@ -92,6 +118,7 @@ test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
     expect(texts).toContain("1");
   });
 
+  /* You must see the value "Yes" for the Adult output and the value "Unsafe" for the Safety output. */
   test("7.8.1.a — if() shows Yes and Unsafe in output controls", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.8/7.8.1/7.8.1.a.xhtml");
     // Scoped: check the specific output elements
@@ -100,6 +127,12 @@ test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
     await expect(outputs.nth(1)).toHaveText("Unsafe");
   });
 
+  /*
+     You must initially see the value "Unknown" for the Bad Fruit picked output and four triggers
+     labeled "apple", "orange", "mandarine", and "tomato". When you activate one of these triggers,
+     you must see one of these values for the Bad Fruit picked output: "apple", "orange",
+     "mandarine", or "tomato".
+  */
   test("7.10.4.a — context(): click apple trigger updates bad-fruit output", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.10/7.10.4/7.10.4.a.xhtml");
     // Scoped: check the bad-fruit output starts as "Unknown"
@@ -117,6 +150,7 @@ test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
 });
 
 test.describe("W3C Chapter 7 — current() function", () => {
+  /* You must see the value "8023.451" for the Converted Amount output. */
   test("7.10.2.a current() in bind calculate (cross-instance lookup)", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.10/7.10.2/7.10.2.a.xhtml");
     // calculate="../amount * instance('convTable')/rate[@currency=current()/../currency]"
@@ -125,6 +159,7 @@ test.describe("W3C Chapter 7 — current() function", () => {
     expect(text).toContain("8023.451");
   });
 
+  /* You must see the value "Jan Feb Mar" for the Months output. */
   test("7.10.2.b current() in repeat output value", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.10/7.10.2/7.10.2.b.xhtml");
     // repeat over mon (01, 02, 03); output value uses current() to look up month names
@@ -147,6 +182,10 @@ test.describe("W3C Chapt07 [smoke gaps]", () => {
 });
 
 test.describe("W3C Ch7 [behavioral promoted]", () => {
+  /*
+     You must see the value "John" for the First Name output. You must see the value "George" for
+     the Second Name output.
+  */
   test("7.10.1.a — 7.10.1.a instance() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.10/7.10.1/7.10.1.a.xhtml");
     const text = await getRenderedText(page);
@@ -154,6 +193,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(text).toContain("George");
   });
 
+  /* You must see the values "Node-A", "Node-B", and "Node-C" for the Node Values output. */
   test("7.10.3.a — 7.10.3.a id() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.10/7.10.3/7.10.3.a.xhtml");
     const outputs = page.locator('.xforms-output');
@@ -161,12 +201,14 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(count).toBeGreaterThan(0);
   });
 
+  /* You must see the value "Node-A" for the Node Values output. */
   test("7.10.3.b — 7.10.3.b id() function with xml:id", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.10/7.10.3/7.10.3.b.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("Node-A");
   });
 
+  /* You must see the values "Node-A", "Node-B", and "Node-C" for the Node Values output. */
   test("7.10.3.c — 7.10.3.c id() function with xsi:type", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.10/7.10.3/7.10.3.c.xhtml");
     const outputs = page.locator('.xforms-output');
@@ -174,6 +216,10 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(count).toBeGreaterThan(0);
   });
 
+  /*
+     You must see the values "Garfield", "Heathcliff", "Felix", and "Tom" output from the Nodeset
+     output control.
+  */
   test("7.11.1.a — 7.11.1.a choose() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.11/7.11.1/7.11.1.a.xhtml");
     const outputs = page.locator('.xforms-output');
@@ -181,18 +227,25 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(count).toBeGreaterThan(0);
   });
 
+  /* After you activate the Insert A Date trigger you must see the correct value as output. */
   test("7.11.2.a — 7.11.2.a event() function with inserted-nodes property", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.11/7.11.2/7.11.2.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /* You must see the value "John" in all three input fields. */
   test("7.4.6.a — 7.4.6.a binding examples", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.4/7.4.6/7.4.6.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("John");
   });
 
+  /*
+     You must see the value "true" for the Safe Driver, Experienced Driver and Insured Driver
+     outputs. You must see the value "false" for the License Points, Accidents, Moving Violations,
+     and Junk Instance Data outputs.
+  */
   test("7.6.1.a — 7.6.1.a boolean-from-string() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.6/7.6.1/7.6.1.a.xhtml");
     const text = await getRenderedText(page);
@@ -200,6 +253,10 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(text).toContain("false");
   });
 
+  /*
+     You must see the value "true" for the Test 1, Test 2, and Test 3 output controls. You must see
+     the value "false" for the Test 4, Test 5, and Test 6 output controls.
+  */
   test("7.6.2.a — 7.6.2.a is-card-number() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.6/7.6.2/7.6.2.a.xhtml");
     const text = await getRenderedText(page);
@@ -207,12 +264,14 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(text).toContain("false");
   });
 
+  /* You must see a value of "4" for Average A. */
   test("7.7.1.a — 7.7.1.a avg() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.7/7.7.1/7.7.1.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /* Average A and Average B must show a value of "NaN". */
   test("7.7.1.b — 7.7.1.b avg() function negative test", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.7/7.7.1/7.7.1.b.xhtml");
     const outputs = page.locator('.xforms-output');
@@ -220,30 +279,35 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(count).toBeGreaterThan(0);
   });
 
+  /* You must see a value of "2" for Minimum. */
   test("7.7.2.a — 7.7.2.a min() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.7/7.7.2/7.7.2.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /* You must see a value of "NaN" for Minimum A and Minimum B. */
   test("7.7.2.b — 7.7.2.b min() function negative test", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.7/7.7.2/7.7.2.b.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /* You must see a value of "6" for Maximum. */
   test("7.7.3.a — 7.7.3.a max() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.7/7.7.3/7.7.3.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /* You must see a value of "NaN" for Maximum A and Maximum B. */
   test("7.7.3.b — 7.7.3.b max() function negative test", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.7/7.7.3/7.7.3.b.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /* You must see a value of "2" for the Set 1 output and a value of "0" for the Set 2 output. */
   test("7.7.4.a — 7.7.4.a count-non-empty() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.7/7.7.4/7.7.4.a.xhtml");
     const outputs = page.locator('.xforms-output');
@@ -251,30 +315,46 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(count).toBeGreaterThan(0);
   });
 
+  /* You must see a value of "NaN" for Index. */
   test("7.7.5.b — 7.7.5.b index() function negative test", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.7/7.7.5/7.7.5.b.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     You must see a value of "8" for the power(2,3) output control. You must see a value of "NaN"
+     for the power(-1, 0.5) output control.
+  */
   test("7.7.6.a — 7.7.6.a power() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.7/7.7.6/7.7.6.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     You must see three random numbers between 0.0 and 1.0 for the outputs Test 1, Test 2, and Test
+     3. The Test 3 output is set to be seeded with a source of randomness determined by the
+     implementation.
+  */
   test("7.7.7.a — 7.7.7.a random() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.7/7.7.7/7.7.7.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /* You must see the value "1.1" for the Version output. */
   test("7.8.2.a — 7.8.2.a property() function with version property", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.8/7.8.2/7.8.2.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("1.1");
   });
 
+  /*
+     You must see either the values "basic", "full", or an output beginning with "basic" or "full"
+     for the Conformance Level output control. You must determine if the correct value is displayed
+     for your implementation of XForms.
+  */
   test("7.8.2.b — 7.8.2.b property() function with conformance-level property", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.8/7.8.2/7.8.2.b.xhtml");
     const outputs = page.locator('.xforms-output');
@@ -282,48 +362,78 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(count).toBeGreaterThan(0);
   });
 
+  /* You must see no value for the Invalid Property output. */
   test("7.8.2.d — 7.8.2.d property() function with invalid QNamebutnotNCNAME property", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.8/7.8.2/7.8.2.d.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     You must see the group label "PASS" for all Tests. If the function does not return the correct
+     value you will see a group label with the word "FAIL" and the incorrect value.
+  */
   test("7.8.3.a — 7.8.3.a digest() function using sha1, md5, and sha256", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.8/7.8.3/7.8.3.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     This case tests the digest() attribute using the optional SHA-384 and SHA-512 hash algorithms.
+     You must see the group label "PASS" for all Tests. If the function does not return the correct
+     value you will see a group label with the word "FAIL" and the incorrect value.
+  */
   test("7.8.3.b — 7.8.3.b digest() function using sha384 and sha512 (non-normative)", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.8/7.8.3/7.8.3.b.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     You must see the group label "PASS" for all Tests. If the function does not return the correct
+     value you will see a group label with the word "FAIL" and the incorrect value.
+  */
   test("7.8.3.f — 7.8.3.f digest() function default encoding base64", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.8/7.8.3/7.8.3.f.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     You must see the group label "PASS" for all Tests. If the function does not return the correct
+     value you will see a group label with the word "FAIL" and the incorrect value.
+  */
   test("7.8.4.a — 7.8.4.a hmac() function using sha1, md5, and sha256", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.8/7.8.4/7.8.4.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     You must see the group label "PASS" for all Tests. If the function does not return the correct
+     value you will see a group label with the word "FAIL" and the incorrect value.
+  */
   test("7.8.4.b — 7.8.4.b hmac() function using sha384 and sha512 (non-normative)", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.8/7.8.4/7.8.4.b.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     You must see the group label "PASS" for all Tests. If the function does not return the correct
+     value you will see a group label with the word "FAIL" and the incorrect value.
+  */
   test("7.8.4.f — 7.8.4.f hmac() function using default encoding base64", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.8/7.8.4/7.8.4.f.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     You must see one of two values for the Local Date output: either the date based on your local
+     time zone information or only the date portion of the results from the now() function.
+  */
   test("7.9.1.a — 7.9.1.a local-date() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.1/7.9.1.a.xhtml");
     const outputs = page.locator('.xforms-output');
@@ -331,6 +441,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(count).toBeGreaterThan(0);
   });
 
+  /* You must see the value "14" for the Test 1 output. */
   test("7.9.10.a — 7.9.10.a months() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.10/7.9.10.a.xhtml");
     const text = await getRenderedText(page);
@@ -339,6 +450,10 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(text).toContain("NaN");
   });
 
+  /*
+     You must see either the time based on local time zone information or only the time portion of
+     the result of the now() function for the Local dateTime output.
+  */
   test("7.9.2.a — 7.9.2.a local-dateTime() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.2/7.9.2.a.xhtml");
     const outputs = page.locator('.xforms-output');
@@ -346,12 +461,18 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(count).toBeGreaterThan(0);
   });
 
+  /*
+     You must see the current system date and time. The format of the output is data for the year,
+     month, day, hour, minute, and second. There may be optional timezone information at the end of
+     the value.
+  */
   test("7.9.3.a — 7.9.3.a now() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.3/7.9.3.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /* You must see the value "11688" for the Test 1 output. */
   test("7.9.4.a — 7.9.4.a days-from-date() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.4/7.9.4.a.xhtml");
     const text = await getRenderedText(page);
@@ -359,18 +480,21 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(text).toContain("-1");
   });
 
+  /* You must see the value "4" for the Test output. */
   test("7.9.4.b — 7.9.4.b days-from-date() function ignores hours, minutes, and seconds components", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.4/7.9.4.b.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("4");
   });
 
+  /* You must see the value "NaN" for the Test output. */
   test("7.9.4.c — 7.9.4.c days-from-date() function negative test", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.4/7.9.4.c.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("NaN");
   });
 
+  /* You must see the value "2002-01-01" for the Test 1 output. */
   test("7.9.5.a — 7.9.5.a days-to-date() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.5/7.9.5.a.xhtml");
     const text = await getRenderedText(page);
@@ -378,6 +502,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(text).toContain("1969-12-31");
   });
 
+  /* You must see either the value "3.1536E7" or the value "31536000" for the Test 1 output. */
   test("7.9.6.a — 7.9.6.a seconds-from-dateTime() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.6/7.9.6.a.xhtml");
     const text = await getRenderedText(page);
@@ -385,12 +510,17 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(text).toContain("NaN");
   });
 
+  /* You must see the value "1970-01-01T00:00:00Z" for the Test 1 output. */
   test("7.9.7.a — 7.9.7.a seconds-to-dateTime() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.7/7.9.7.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("1970-01-01T00:00:00Z");
   });
 
+  /*
+     You must see the value "2007-10-07T02:22:00-07:00"(assuming Pacific Standard Time with daylight
+     savings time) for the Test 1 output.
+  */
   test("7.9.8.a — 7.9.8.a adjust-dateTime-to-timezone() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.8/7.9.8.a.xhtml");
     const text = await getRenderedText(page);
@@ -398,6 +528,7 @@ test.describe("W3C Ch7 [behavioral promoted]", () => {
     expect(text).toContain("2007-10-02T14:26:43-07:00");
   });
 
+  /* You must see the value "0" for the Test 1 output. */
   test("7.9.9.a — 7.9.9.a seconds() function", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.9/7.9.9/7.9.9.a.xhtml");
     const text = await getRenderedText(page);

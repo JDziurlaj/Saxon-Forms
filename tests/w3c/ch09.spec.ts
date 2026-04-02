@@ -17,6 +17,10 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
   // 9.1 group
   // -----------------------------------------------------------------
 
+  /*
+     You must not be able to see the Street Name and City input controls or they must be somehow
+     unavailable to you.
+  */
   test("9.1.1.a1 — group relevant=false hides Street Name and City", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.1/9.1.1/9.1.1.a1.xhtml");
     // group1 binds to shipDate with relevant="false()" → Street Name hidden
@@ -27,6 +31,12 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     await expect(cityLabel).toBeHidden();
   });
 
+  /*
+     When you activate the Show Out Case trigger you must see "You are now in the Out case" output
+     to the screen and a Show In Case trigger. When you activate the Show In Case trigger you must
+     see "You are now in the In case" output to the screen and a Show Out Case trigger. When either
+     switch is activated you must see an xforms-disabled message and an xforms-enabled message.
+  */
   test("9.1.1.a2 — group inside switch/case toggles between In and Out", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.1/9.1.1/9.1.1.a2.xhtml");
     // Initial state: "In case" is selected — label and trigger visible
@@ -46,6 +56,11 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     await expect(page.getByRole("button", { name: "Show Out Case" })).toBeVisible();
   });
 
+  /*
+     The first element in each of the two groups is a label element. This label should act as a
+     label for the entire group. The group labeled "Shipping Address" must include the inputs Street
+     Name and City. The group labeled "Shipping Date" must include the inputs Day and Month.
+  */
   test("9.1.1.b — Shipping Address group has Street Name and City; Shipping Date has Day and Month", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.1/9.1.1/9.1.1.b.xhtml");
     // Group labels visible
@@ -59,6 +74,11 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     await expect(page.getByText("Month:")).toBeVisible();
   });
 
+  /*
+     When you activate the Set Focus To Group 2 trigger it will set the focus to the second group.
+     The focus (your cursor) must be inside the Street Name 2 input control of the Billing Address
+     group.
+  */
   test("9.1.1.c — Set Focus To Group 2 moves focus to Street Name 2", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.1/9.1.1/9.1.1.c.xhtml");
     // Both groups visible
@@ -76,6 +96,10 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
   // 9.2 switch / case
   // -----------------------------------------------------------------
 
+  /*
+     When you activate the In Case trigger it must be replaced by the Out Case trigger. When you
+     activate the Out Case trigger it must be replaced by the In Case trigger.
+  */
   test("9.2.1.a1 — switch toggles between Case In and Case Out triggers", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.2/9.2.1/9.2.1.a1.xhtml");
     // Initial: "Case In" trigger visible, "Case Out" hidden
@@ -95,6 +119,12 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     await expect(caseOutBtn).toBeHidden();
   });
 
+  /*
+     When you activate the Send Name trigger, the input control and the trigger will be replaced by
+     an output that says "Hello" followed by whatever value was in the input control when it was
+     activated and an Edit trigger. When activated, the output and the Edit trigger must be replaced
+     by the input field and the Send Name trigger.
+  */
   test("9.2.1.b — Send Name shows Hello output; Edit restores input", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.2/9.2.1/9.2.1.b.xhtml");
     // Initial state: input with "Bill" + "Send Name" trigger
@@ -124,6 +154,10 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     await expect(sendBtn).toBeVisible();
   });
 
+  /*
+     You must see the output "Name : Janel" below. You must NOT be able to see an output labeled
+     "Eye Color" or it must be somehow unavailable to you.
+  */
   test("9.2.2.a — case: first case auto-selected, shows Name Janel, Eye Color hidden", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.2/9.2.2/9.2.2.a.xhtml");
     // Name output visible with "Janel"
@@ -135,6 +169,10 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     await expect(eyeColorLabel).toBeHidden();
   });
 
+  /*
+     You must see the output "Eye Color : Blue" below. You must NOT be able to see an output labeled
+     "Name" or it must be somehow unavailable to you.
+  */
   test("9.2.2.b — case selected=true on second case shows Eye Color Blue, Name hidden", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.2/9.2.2/9.2.2.b.xhtml");
     // Eye Color output visible with "Blue"
@@ -147,6 +185,10 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     await expect(nameLabel).toBeHidden();
   });
 
+  /*
+     You must see the output "Name : Janel" below. You must NOT be able to see an output labeled
+     "Eye Color" or it must be somehow unavailable to you.
+  */
   test("9.2.2.c — both cases selected=true: first wins, shows Name Janel, Eye Color hidden", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.2/9.2.2/9.2.2.c.xhtml");
     // First case wins — Name output visible with "Janel"
@@ -163,6 +205,10 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
   // 9.3 repeat
   // -----------------------------------------------------------------
 
+  /*
+     You must see the values "winshield wipers", "tires", "exhaust", and "air freshener" output
+     below.
+  */
   test("9.3.1.a — repeat outputs windshield wipers, tires, exhaust, air freshener", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.3/9.3.1/9.3.1.a.xhtml");
     const items = page.locator('[data-repeat-item]');
@@ -174,6 +220,7 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     expect(text).toContain("air freshener");
   });
 
+  /* The value of the Initial Index output must be "3". */
   test("9.3.1.b — repeat startindex=3: Initial Index output is 3", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.3/9.3.1/9.3.1.b.xhtml");
     // The index output must show "3"
@@ -184,6 +231,7 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     await expect(items).toHaveCount(4);
   });
 
+  /* You may see only one car part item for the Items In Cart output. */
   test("9.3.1.c — repeat number=1: may see only one item", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.3/9.3.1/9.3.1.c.xhtml");
     // number="1" means processor may display only 1 item at a time
@@ -195,6 +243,10 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     expect(count).toBeGreaterThan(0);
   });
 
+  /*
+     You must see two lists of items, Items In Cart 1 and Items In Cart 2. Both lists must contain
+     the values "winshield wipers", "tires", "exhaust", and "air freshener".
+  */
   test("9.3.1.d — unrolled repeat: both lists show all 4 cart items", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.3/9.3.1/9.3.1.d.xhtml");
     const text = await getRenderedText(page);
@@ -210,6 +262,11 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     }
   });
 
+  /*
+     You must see three items (named a, b, and c) and a price for each item (3.00, 32.25, and 132.99
+     respectively). You must be able to add and remove items. When you add an item its initial name
+     will be an empty input control and initial price will be 0.00.
+  */
   test("9.3.1.e — repeat shows 3 line items (a/3.00, b/32.25, c/132.99) with insert and delete", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.3/9.3.1/9.3.1.e.xhtml");
     // Initially 3 repeat items
@@ -233,6 +290,14 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     await expect(items).toHaveCount(3);
   });
 
+  /*
+     You must see three sets of the statement "You are in the In case" and Go To Out Case triggers.
+     When you activate a Go To Out Case trigger, the corresponding statement must change to "You are
+     in the Out case" and the trigger must be replaced by a Go To In Case trigger. The other two
+     statements and triggers must not change. Activating a Go To In Case trigger must restore the
+     statement and trigger to their original state and also not change the other two statements or
+     triggers.
+  */
   test("9.3.1.f — switch inside repeat: 3 In-case statements, toggle one without affecting others", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.3/9.3.1/9.3.1.f.xhtml");
     // 3 repeat items
@@ -259,6 +324,10 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     await expect(page.locator('.xforms-output', { hasText: "You are in the In case" })).toHaveCount(3);
   });
 
+  /*
+     When you activate the Show Out Case trigger it must be replaced by the Show In Case trigger.
+     When you activate the Show In Case trigger it must be replaced by the Show Out Case trigger.
+  */
   test("9.3.4.a — switch inside repeat toggles between Show Out/In Case", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.3/9.3.4/9.3.4.a.xhtml");
     // Initial: "Show Out Case" trigger visible
@@ -279,6 +348,10 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
 });
 
 test.describe("W3C Chapter 9 — group bind relevance", () => {
+  /*
+     You must not be able to see the Street Name and City input controls or they must be somehow
+     unavailable to you.
+  */
   test("9.1.1.a1 group with bind relevant=false hides children", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.1/9.1.1/9.1.1.a1.xhtml");
     // group1 binds to shipDate with relevant="false()" — Street Name input must NOT be visible
@@ -300,18 +373,33 @@ test.describe("W3C Chapt09 [smoke gaps]", () => {
 });
 
 test.describe("W3C Ch9 [behavioral promoted]", () => {
+  /*
+     Activating different triggers will place the the switch element into different cases. When in
+     the In case, you must see a Go To Out Case trigger. When in the Out case, you must see a Go To
+     Exit Case trigger and a Go To In Case trigger. When in the Exit case, you must see a Go To Out
+     Case trigger.
+  */
   test("9.2.3.1.b — 9.2.3.1.b case element child of the toggle element precedence testing", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.2/9.2.3/9.2.3.1/9.2.3.1.b.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     You must see two select controls that both contain the values "Vanilla", "Strawberry", and
+     "Chocolate".
+  */
   test("9.3.6.a — 9.3.6.a itemset element example", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.3/9.3.6/9.3.6.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe('');
   });
 
+  /*
+     When you select a flavor from the select control below you must see the output "Icecream Order
+     : " and the selected flavor. If no flavor is selected (including if the chosen flavor is
+     deselected) the output control, including label, must not be visible on the page.
+  */
   test("9.3.7.a — 9.3.7.a copy element", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.3/9.3.7/9.3.7.a.xhtml");
     const text = await getRenderedText(page);

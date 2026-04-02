@@ -69,12 +69,20 @@ test.describe("W3C Ch11 — Submit [smoke]", () => {
 });
 
 test.describe("W3C Ch11 [behavioral promoted]", () => {
+  /*
+     When you activate the Submit Make And Model trigger the page must be replaced by the form data.
+     The form data must contain the values "Acura" and "Integra", but not the value "white".
+  */
   test("11.1.a — 11.1.a ref attribute of submission element", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("white");
   });
 
+  /*
+     When you activate the Submit trigger the page must be replaced by the form data. You must see
+     the value "white" in the form data. You must not see the values "Acura", "1994", or "120".
+  */
   test("11.1.b — 11.1.b bind attribute of submission element", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.b.xhtml");
     // submission bind="color_bind" → only /car/color should be submitted
@@ -87,30 +95,56 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     expect(body).not.toContain("120");
   });
 
+  /*
+     When you activate the Submit Make And Model trigger the page must be replaced by the form data.
+     The form data must contain the values "Acura" and "Integra", but not the value "white".
+  */
   test("11.1.c — 11.1.c resource attribute of submission element", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.c.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("white");
   });
 
+  /*
+     When you activate the Submit With Standalone true submit control you must see a standalone
+     declaration in the form data. It may appear as the value " standalone="yes" " or "
+     standalone="true" ". When you activate the Submit With Standalone false submit control you must
+     see a standalone declaration in the form data. It may appear as the value " standalone="no" "
+     or " standalone="false" ". When you activate the Submit Without Standalone submit control you
+     must not see a standalone declaration in the form data.
+  */
   test("11.1.p — 11.1.p standalone attribute of submission element", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.p.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     When you activate the Submit submit control the page must be replaced by the form data. You
+     must see the namespace " <my:car xmlns:my="http://www.fakenamespace.org"> " in the form data.
+     You must NOT see any other namespaces in the form data.
+  */
   test("11.1.v — 11.1.v includenamespaceprefixes attribute of submission element", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.v.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     You must see the value "Thomas" for the Car Owner output control. When you activate the Replace
+     Instance submit control the value must change to "Janel".
+  */
   test("11.10.b — 11.10.b submission response with the target data node receiving text", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.10/11.10.b.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("Thomas");
   });
 
+  /*
+     After you activate the Submit Now submit control you must see an xforms-submit-serialize
+     message. The page must also be replaced by the form data, where you must see the value
+     <data>MyNewData</data>. You must not see the values "Toyota" or "Prius".
+  */
   test("11.3.b — 11.3.b xforms-submit-serialize event with submission-body property", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.3/11.3.b.xhtml");
     const submitBtn = page.getByRole("button", { name: "Submit Now" });
@@ -121,6 +155,11 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     expect(body).not.toContain("Prius");
   });
 
+  /*
+     When you activate the Submit Now submit control the page must be replaced by the form data.
+     Among the variables you must see a header named "myHeader". You must not see a header named
+     "wrongData".
+  */
   test("11.8.1.a — 11.8.1.a name element with value attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.8/11.8.1/11.8.1.a.xhtml");
     const submitBtn = page.getByRole("button", { name: "Submit Now" });
@@ -132,6 +171,11 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     }
   });
 
+  /*
+     When you activate the Submit Now submit control the page must be replaced by the form data.
+     Among the variables you must see a header named "myHeader" with a value of "three". You must
+     not see a value of "wrongValue".
+  */
   test("11.8.2.a — 11.8.2.a value element with value attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.8/11.8.2/11.8.2.a.xhtml");
     const submitBtn = page.getByRole("button", { name: "Submit Now" });
@@ -143,6 +187,11 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     }
   });
 
+  /*
+     When you activate the Submit Now submit control the page must be replaced by the form data.
+     Among the variables you must see two headers named "myHeader1" and "myHeader2". myHeader1 must
+     have the value "myValue1" and myHeader2 must have the value "myValue2".
+  */
   test("11.8.a — 11.8.a header element of submission element", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.8/11.8.a.xhtml");
     const text = await getRenderedText(page);
@@ -150,12 +199,21 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     expect(text).toContain("myValue2");
   });
 
+  /*
+     When you activate the Submit Now submit control the page must be replaced by the form data.
+     Among the variables you must see three headers named "myHeader".
+  */
   test("11.8.b — 11.8.b header element with nodeset attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.8/11.8.b.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     When you activate the Submit Now submit control the page must be replaced by the form data.
+     Among the variables you must see one header named "myHeader". myHeader must have the values
+     "myValue1,myValue2,myValue1,myValue2,myValue3,myValue4,myValue4" in that order.
+  */
   test("11.8.c — 11.8.c header element with similar name elements", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.8/11.8.c.xhtml");
     const text = await getRenderedText(page);
@@ -164,48 +222,82 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     expect(text).toContain("myValue4");
   });
 
+  /*
+     When you activate the Use Get Method submit control the page must be replaced by the form data.
+     The value "blue" must appear in the request URI but must not appear in the form data.
+  */
   test("11.9.1.a — 11.9.1.a get submission method", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.9/11.9.1/11.9.1.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     When you activate the Use Post Method submit control the page must be replaced by the form
+     data. The value "blue" must appear in the form data.
+  */
   test("11.9.2.a — 11.9.2.a post submission method", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.9/11.9.2/11.9.2.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     When you activate the Use Multipart-Post Method submit control the page must be replaced by the
+     form data. The value "blue" must appear in the form data.
+  */
   test("11.9.2.b — 11.9.2.b multipart-post submission method", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.9/11.9.2/11.9.2.b.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     When you activate the Use Form-Data-Post Method submit control the page must be replaced by the
+     form data. The value "blue" must appear in the form data.
+  */
   test("11.9.2.c — 11.9.2.c form-data-post submission method", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.9/11.9.2/11.9.2.c.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     When you activate the Use Urlencoded-Post Method submit control the page must be replaced by
+     the form data. The value "blue" must appear in the form data.
+  */
   test("11.9.2.d — 11.9.2.d urlencoded-post submission method", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.9/11.9.2/11.9.2.d.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     When you activate the Use Put Method submit control the page must be replaced by the form data.
+     The value "blue" must appear in the form data.
+  */
   test("11.9.3.a — 11.9.3.a put submission method", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.9/11.9.3/11.9.3.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     When you activate the Use Delete Method submit control the page must be replaced by the form
+     data. The value "blue" must appear in the request URI but must not appear in the form data.
+  */
   test("11.9.4.a — 11.9.4.a delete submission method", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.9/11.9.4/11.9.4.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     When you activate the Submit Data submit control the page must be replaced by the form data.
+     The data must contain the value "Ren%C3%A9". The form data must be in
+     application/x-www-form-urlencoded format according to the W3C specification at this link:
+     XForms 1.1 specification
+  */
   test("11.9.8.a — 11.9.8.a serialization as application/x-www-form-urlencoded", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.9/11.9.8/11.9.8.a.xhtml");
     const text = await getRenderedText(page);
@@ -216,6 +308,12 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
 test.describe("W3C Ch11 [smoke → behavioral promoted]", () => {
   // --- Render checks (no submit needed) ---
 
+  /*
+     You must see the values "Henry", "Acura", and "white" in the First Instance. You must see the
+     values "Thomas", "Toyota", and "silver" in the Second Instance. When you activate the Replace
+     Instance submit control the values in the First Instance must stay the same. The values in the
+     second instance must change to "Janel", "Saturn", and "red".
+  */
   test("11.1.r — replace=instance puts response into correct instances", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.r.xhtml");
     const text = await getRenderedText(page);
@@ -224,6 +322,11 @@ test.describe("W3C Ch11 [smoke → behavioral promoted]", () => {
     expect(text).toContain("white");
   });
 
+  /*
+     You must see the values "Thomas", "Toyota", and "silver" in the output controls. When you
+     activate the Replace Instance submit control the values must change to "Janel", "Saturn", and
+     "red".
+  */
   test("11.1.t — replace=instance with targetref puts response in target", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.t.xhtml");
     const text = await getRenderedText(page);
@@ -234,6 +337,10 @@ test.describe("W3C Ch11 [smoke → behavioral promoted]", () => {
 
   // --- Submit + check POST body ---
 
+  /*
+     When you activate the Submit trigger the page must be replaced by the form data. The form data
+     must contain the values "Subaru" and "Impreza WRX STi", and "2005".
+  */
   test("11.1.d — method=post sends instance XML", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.d.xhtml");
     const btn = page.getByRole("button", { name: "Submit" });
@@ -242,6 +349,10 @@ test.describe("W3C Ch11 [smoke → behavioral promoted]", () => {
     expect(body).toContain("Subaru");
   });
 
+  /*
+     When you activate the Submit With Serialization submit control the page must be replaced by the
+     form data. The value "blue" must not appear in the request URI header or in the form data.
+  */
   test("11.1.j — serialization=none sends empty body", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.j.xhtml");
     const btn = page.getByRole("button", { name: /Submit With Serialization/ });
@@ -253,6 +364,11 @@ test.describe("W3C Ch11 [smoke → behavioral promoted]", () => {
     }
   });
 
+  /*
+     When you activate the Show submit control the page must be replaced by the form data. You must
+     see the values <data>, <test1 x=""/>, <test2 x="a"/>, and </data>. You must not see the values
+     <test3 x=""/> or <test4 x="a"/>.
+  */
   test("11.2.b — method=post with XML response", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.2/11.2.b.xhtml");
     const btn = page.getByRole("button", { name: "Show" });
@@ -261,12 +377,20 @@ test.describe("W3C Ch11 [smoke → behavioral promoted]", () => {
     expect(body).toContain("test1");
   });
 
+  /*
+     After you activate the Submit Here submit control you must see an xforms-submit-error message
+     and see the value "validation-error" as output from the Error Name output control.
+  */
   test("11.2.d — method=post response replaces instance", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.2/11.2.d.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     After you activate the Submit Here submit control you must see an xforms-submit-error message
+     and see the value "validation-error" as output from the Error Name output control.
+  */
   test("11.2.e — method=get sends URL-encoded data", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.2/11.2.e.xhtml");
     const text = await getRenderedText(page);
@@ -275,21 +399,36 @@ test.describe("W3C Ch11 [smoke → behavioral promoted]", () => {
 
   // --- Submit-done/error message tests ---
 
+  /*
+     When you activate the Submit (validate=true) submit control you must see an xforms-submit-error
+     message. When you activate the Submit (validate=false) submit control you must not see a
+     message.
+  */
   test("11.1.h — submit form renders", async ({ page }) => {
     await loadTest(page, "Chapt11/11.1/11.1.h.xhtml");
     // Note: xforms-submit-done message not dispatched as modal dialog
   });
 
+  /*
+     When you activate the Submit Twice submit control, you may see four messages: xforms-submit,
+     xforms-submit-done, xforms-submit, and xforms-submit-done. You must NOT see an
+     xforms-submit-error message.
+  */
   test("11.2.a — submit form renders", async ({ page }) => {
     await loadTest(page, "Chapt11/11.2/11.2.a.xhtml");
     // Note: xforms-submit-done message not dispatched as modal dialog
   });
 
+  /*
+     After you activate the Submit Now submit control you must see an xforms-submit-error message
+     and see the value "no-data" as output from the Error Name output control.
+  */
   test("11.2.c — replace=instance renders", async ({ page }) => {
     await loadTest(page, "Chapt11/11.2/11.2.c.xhtml");
     // Note: xforms-submit-done message not dispatched as modal dialog
   });
 
+  /* When you activate the Submit Now submit control you must see an xforms-submit-done message. */
   test("11.4.a — validate=false allows invalid submit", async ({ page }) => {
     const msgs = collectDialogMessages(page);
     await loadAndWait(page, "Chapt11/11.4/11.4.a.xhtml");
@@ -299,18 +438,33 @@ test.describe("W3C Ch11 [smoke → behavioral promoted]", () => {
     expect(msgs.some(m => /submit-done/i.test(m))).toBe(true);
   });
 
+  /*
+     When you activate the Submit Now submission control the instance data of the form will be
+     submitted but the page will not be replaced by the form data. If the submission is successful,
+     the protocol response code will be displayed in the Response Status Code output. If there are
+     any header names or values returned they will be displayed in the Response Headers output.
+  */
   test("11.4.b — validate=true blocks invalid submit", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.4/11.4.b.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     When you activate the Use Put Method submit control the value "blue" will be submitted to a
+     local file called "myfile.txt".
+  */
   test("11.9.3.b — POST body for multipart submission", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.9/11.9.3/11.9.3.b.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
   });
 
+  /*
+     The local file, deleteme.txt, must be deleted when you activate the Submit control. If you
+     activate the Load submit control after activating the Submit control you must get a You pass
+     message.
+  */
   test("11.9.4.b — POST body for form-data submission", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.9/11.9.4/11.9.4.b.xhtml");
     const text = await getRenderedText(page);

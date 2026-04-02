@@ -12,6 +12,11 @@ test.describe("W3C Ch6 — Model Item Properties [smoke]", () => {
 });
 
 test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
+  /*
+     You must see the value "Roland" in the First Name input control and the value "Orlando" in the
+     Last Name input control. You must only be able to change the value in the Last Name input
+     control.
+  */
   test("6.1.2.a — readonly: values rendered, readonly MIP parsed", async ({ page }) => {
     await loadAndWait(page, "Chapt06/6.1/6.1.2/6.1.2.a.xhtml");
     const fnInput = page.locator('input[data-ref*="first-name"]');
@@ -26,6 +31,11 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     // attribute. W3C expects first-name readonly, last-name editable.
   });
 
+  /*
+     You must see the value "Roland" in the First Name input control and the value "Orlando" in the
+     Last Name input control. You must not be able to change the value in either of the input
+     controls.
+  */
   test("6.1.2.b — readonly inheritance: values rendered", async ({ page }) => {
     await loadAndWait(page, "Chapt06/6.1/6.1.2/6.1.2.b.xhtml");
     const fnInput = page.locator('input[data-ref*="first-name"]');
@@ -36,6 +46,10 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     // enforce HTML readonly attribute; see 6.1.2.a note.
   });
 
+  /*
+     The Submit First Name submit control must not replace this page with the form data until you
+     have entered a value into the First Name input field.
+  */
   test("6.1.3.a — required renders input control", async ({ page }) => {
     await loadAndWait(page, "Chapt06/6.1/6.1.3/6.1.3.a.xhtml");
     // Check the actual input exists and is visible
@@ -43,6 +57,10 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     await expect(fnInput).toBeVisible();
   });
 
+  /*
+     You must only be able to enter a value into the Last Name input field. The Title and First Name
+     input fields must be hidden or unavailable.
+  */
   test("6.1.4.a — relevant=false() hides Title and First Name", async ({ page }) => {
     await loadAndWait(page, "Chapt06/6.1/6.1.4/6.1.4.a.xhtml");
     // first-name bind has relevant="false()" — its children must be hidden
@@ -55,6 +73,10 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     await expect(lnInput).toBeVisible();
   });
 
+  /*
+     You must see the output "Discount : 100" after you activate the Enter 1500 trigger, but not
+     when you activate the Enter 250 trigger.
+  */
   test("6.1.4.b — relevant: Enter 1500 shows discount, Enter 250 hides it", async ({ page }) => {
     await loadAndWait(page, "Chapt06/6.1/6.1.4/6.1.4.b.xhtml");
     // Verify initial state: amount input and 2 triggers rendered
@@ -67,6 +89,11 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     await page.waitForTimeout(500);
   });
 
+  /*
+     You must only be able to enter a value into the Person A, Favorite Color A, and Person B input
+     fields. The Favorite Color B, Person C, and Favorite Color C input fields must be hidden or
+     unavailable.
+  */
   test("6.1.4.c — relevant propagation hides Color B, Person C, Color C", async ({ page }) => {
     await loadAndWait(page, "Chapt06/6.1/6.1.4/6.1.4.c.xhtml");
     const colorB = page.getByText("Favorite Color B:", { exact: true });
@@ -78,6 +105,10 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     await expect(personAInput).toBeVisible();
   });
 
+  /*
+     You must see an xforms-valid message when you activate the Valid Value trigger. You must see an
+     xforms-invalid message when you activate the Invalid Value trigger.
+  */
   test("6.1.6.a — constraint: Valid Value sets To=25, instance updated", async ({ page }) => {
     await loadAndWait(page, "Chapt06/6.1/6.1.6/6.1.6.a.xhtml");
     // From input should have initial value "10"
@@ -93,6 +124,10 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
 });
 
 test.describe("W3C Ch6 [behavioral promoted]", () => {
+  /*
+     You must see the output "Discount : 750" after you have activated the Enter 1500 trigger. You
+     must see the output "Discount : 1000" after you have activated the Enter 2000 trigger.
+  */
   test("6.1.5.a — 6.1.5.a calculate property", async ({ page }) => {
     await loadAndWait(page, "Chapt06/6.1/6.1.5/6.1.5.a.xhtml");
     const outputs = page.locator('.xforms-output');
@@ -100,6 +135,11 @@ test.describe("W3C Ch6 [behavioral promoted]", () => {
     expect(count).toBeGreaterThan(0);
   });
 
+  /*
+     The First Name input control is bound to an atomic datatype. When you activate the Use Joe
+     trigger you must see an xforms-valid message. When you activate the Use Empty String trigger
+     you must see an xforms-invalid message.
+  */
   test("6.2.1.a — 6.2.1.a atomic datatype", async ({ page }) => {
     await loadAndWait(page, "Chapt06/6.2/6.2.1/6.2.1.a.xhtml");
     const inputs = page.locator('input.xforms-input');

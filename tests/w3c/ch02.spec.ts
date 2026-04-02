@@ -1,6 +1,13 @@
 import { test, expect, loadAndWait, getRenderedText, getInstanceXML, submitAndCapture, isUnavailable } from "./helpers";
 
 test.describe("W3C Ch2 — Introduction [behavioral]", () => {
+  /*
+     You must see a select1 control with the values "Cash" and "Credit" as well as two input
+     controls on the page. When you activate the Submit Now submit control this page must be
+     replaced by the form data. You must see the value "cc" if you had selected Credit or the value
+     "cash" if you had selected Cash. You must also see the values, if any, you entered in the
+     Credit Card Number and Expiration Date input controls.
+  */
   test("2.1.a — select1 with Cash/Credit and input controls", async ({ page }) => {
     await loadAndWait(page, "Chapt02/2.1.a.xhtml");
 
@@ -62,12 +69,25 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
     expect(postBody).toContain('12/2025');
   });
 
+  /*
+     You must see a select1 control with the values "Cash" and "Credit" as well as two input
+     controls on the page. When you activate the Submit Now submit control this page must be
+     replaced by the form data. You must see the value "cc" if you had selected Credit or the value
+     "cash" if you had selected Cash. You must also see the values, if any, you entered in the
+     Credit Card Number and Expiration Date input controls.
+  */
   test("2.2.a — instance with select1 and inputs", async ({ page }) => {
     await loadAndWait(page, "Chapt02/2.2.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).toContain("Cash");
   });
 
+  /*
+     You must see a select1 control with the values "Cash" and "Credit" as well as two input
+     controls on the page. The Credit Card Number and Expiration Date input controls are set to be
+     relevant only when Credit is selected. If you have selected Cash then you must be able to
+     submit the form and the input controls must have become unavailable.
+  */
   test("2.3.a — renders select1 and credit inputs with default Credit selection", async ({ page }) => {
     await loadAndWait(page, "Chapt02/2.3.a.xhtml");
     const select = page.locator("select.xforms-select");
@@ -153,6 +173,12 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
     expect(postBody).toContain("2025-12");
   });
 
+  /*
+     You must see a select1 control with the values "Cash" and "Credit" as well as two input
+     controls on the page. The Credit Card Number and Expiration Date input controls are set to be
+     relevant only when Credit is selected. If you have selected Cash then you must be able to
+     submit the form and the input controls must have become unavailable.
+  */
   test("2.4.a — complete example with select1 and inputs", async ({ page }) => {
     await loadAndWait(page, "Chapt02/2.4.a.xhtml");
     const text = await getRenderedText(page);
