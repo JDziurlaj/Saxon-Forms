@@ -1,4 +1,4 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML } from "./helpers";
+import { test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML, submitAndCapture, collectDialogMessages, expectDialogAfterTrigger } from "./helpers";
 
 const ch6_smoke: [string, string][] = [
   ["6.1.1.a — type", "Chapt06/6.1/6.1.1/6.1.1.a.xhtml"],  // expects modal message from event handler
@@ -23,10 +23,16 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     await expect(fnInput).toHaveValue("Roland");
     const lnInput = page.locator('input[data-ref*="last-name"]');
     await expect(lnInput).toHaveValue("Orlando");
+    // First Name is readonly per bind readonly="true()": typing must not change value
+    await fnInput.fill("Changed");
+    await fnInput.blur();
+    await page.waitForTimeout(300);
+    await expect(fnInput).toHaveValue("Roland");
     // Instance data
     const xml = await getInstanceXML(page);
     expect(xml).toContain(">Roland<");
     expect(xml).toContain(">Orlando<");
+    expect(xml).not.toContain(">Changed<");
     // Note: Saxon-Forms parses readonly MIP but does not set HTML readonly
     // attribute. W3C expects first-name readonly, last-name editable.
   });
@@ -42,6 +48,19 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     await expect(fnInput).toHaveValue("Roland");
     const lnInput = page.locator('input[data-ref*="last-name"]');
     await expect(lnInput).toHaveValue("Orlando");
+    // Both controls must be readonly due to ancestor readonly="true()"
+    await fnInput.fill("ChangedFirst");
+    await fnInput.blur();
+    await lnInput.fill("ChangedLast");
+    await lnInput.blur();
+    await page.waitForTimeout(300);
+    await expect(fnInput).toHaveValue("Roland");
+    await expect(lnInput).toHaveValue("Orlando");
+    const xml = await getInstanceXML(page);
+    expect(xml).toContain(">Roland<");
+    expect(xml).toContain(">Orlando<");
+    expect(xml).not.toContain(">ChangedFirst<");
+    expect(xml).not.toContain(">ChangedLast<");
     // Note: W3C expects both readonly (parent inherits). Saxon-Forms does not
     // enforce HTML readonly attribute; see 6.1.2.a note.
   });
@@ -51,10 +70,31 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
      have entered a value into the First Name input field.
   */
   test("6.1.3.a — required renders input control", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt06/6.1/6.1.3/6.1.3.a.xhtml");
-    // Check the actual input exists and is visible
     const fnInput = page.locator('input[data-ref*="first-name"]');
+    const submitBtn = page.getByRole("button", { name: "Submit First Name", exact: true });
     await expect(fnInput).toBeVisible();
+    await expect(fnInput).toHaveValue("");
+    await expect(submitBtn).toBeVisible();
+
+    // Empty first-name is required: submit must be blocked and raise required-field dialog
+    const blockedSubmission = await submitAndCapture(page, submitBtn, 1500);
+    expect(blockedSubmission).toBeNull();
+    expect(
+      dialogMessages.some((message) =>
+        /Required field is empty:\s*instance\('saxon-forms-default-instance'\)\/first-name/i.test(message)
+      )
+    ).toBe(true);
+
+    // After entering First Name, submit should proceed
+    await fnInput.fill("Roland");
+    await fnInput.blur();
+    await page.waitForTimeout(300);
+    const allowedSubmission = await submitAndCapture(page, submitBtn, 5000);
+    expect(allowedSubmission).not.toBeNull();
+    const postBody = allowedSubmission?.postData() || "";
+    expect(postBody).toContain("Roland");
   });
 
   /*
@@ -110,16 +150,19 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
      xforms-invalid message when you activate the Invalid Value trigger.
   */
   test("6.1.6.a — constraint: Valid Value sets To=25, instance updated", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt06/6.1/6.1.6/6.1.6.a.xhtml");
-    // From input should have initial value "10"
     const fromInput = page.locator('input[data-ref*="from"]');
-    await expect(fromInput).toHaveValue("10");
-    // Click "Valid Value" trigger — verify trigger is clickable
-    await page.getByRole('button', { name: 'Valid Value', exact: true }).click();
-    await page.waitForTimeout(500);
-    // To input should be visible after interaction
     const toInput = page.locator('input[data-ref*="to"]');
+    await expect(fromInput).toHaveValue("10");
     await expect(toInput).toBeVisible();
+    await expect(toInput).toHaveValue("");
+
+    await expectDialogAfterTrigger(page, dialogMessages, "Valid Value", /^xforms-valid$/i);
+    await expect(toInput).toHaveValue("25");
+
+    await expectDialogAfterTrigger(page, dialogMessages, "Invalid Value", /^xforms-invalid$/i);
+    await expect(toInput).toHaveValue("5");
   });
 });
 
@@ -141,9 +184,16 @@ test.describe("W3C Ch6 [behavioral promoted]", () => {
      you must see an xforms-invalid message.
   */
   test("6.2.1.a — 6.2.1.a atomic datatype", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt06/6.2/6.2.1/6.2.1.a.xhtml");
-    const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
+    const firstNameInput = page.getByRole("textbox").first();
+    await expect(firstNameInput).toBeVisible();
+    await expect(firstNameInput).toHaveValue("Frank");
+
+    await expectDialogAfterTrigger(page, dialogMessages, "Use Joe", /^xforms-valid$/i);
+    await expect(firstNameInput).toHaveValue("Joe");
+
+    await expectDialogAfterTrigger(page, dialogMessages, "Use Empty String", /^xforms-invalid$/i);
+    await expect(firstNameInput).toHaveValue("");
   });
 });

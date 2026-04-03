@@ -2,7 +2,6 @@ import {  test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML, 
 
 const ch9_smoke: [string, string][] = [
   ["9.2.1.a2 — switch receives events", "Chapt09/9.2/9.2.1/9.2.1.a2.xhtml"],  // depends on event dispatch to switch/case
-  ["9.3.5.a — repeating via attributes", "Chapt09/9.3/9.3.5/9.3.5.a.xhtml"],  // non-normative test
   ["9.3.7.b — copy binding exception", "Chapt09/9.3/9.3.7/9.3.7.b.xhtml"],  // expects xforms-binding-exception message or fatal error
 ];
 
@@ -344,6 +343,25 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     await page.waitForTimeout(500);
     await expect(showOutBtn).toBeVisible();
     await expect(showInBtn).toBeHidden();
+  });
+
+  /*
+     Part 1 and Part 2 must each render the list of car parts (windshield wipers, tires, exhaust,
+     air freshener). Part 3 must render "Items in cart :" and the same four items.
+  */
+  test("9.3.5.a — repeating via attributes renders all three item lists", async ({ page }) => {
+    await loadAndWait(page, "Chapt09/9.3/9.3.5/9.3.5.a.xhtml");
+    await expect(page.getByText("Part 1: If the XForms processor under test supports repeat-* attribute usage", { exact: false })).toBeVisible();
+    await expect(page.getByText("Part 2: If the XForms processor under test supports repeat-* attribute usage", { exact: false })).toBeVisible();
+    await expect(page.getByText("Part 3: If the XForms processor under test supports repeat-* attribute usage", { exact: false })).toBeVisible();
+    await expect(page.getByText("Items in cart :", { exact: false })).toBeVisible();
+
+    const outputs = page.locator(".xforms-output");
+    await expect(outputs).toHaveCount(6);
+    const itemValues = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+    expect(itemValues[0]).toBe("windshield wipers tires exhaust air freshener");
+    expect(itemValues[1]).toBe("windshield wipers tires exhaust air freshener");
+    expect(itemValues.slice(2)).toEqual(["windshield wipers", "tires", "exhaust", "air freshener"]);
   });
 });
 

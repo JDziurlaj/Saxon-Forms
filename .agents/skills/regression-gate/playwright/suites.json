@@ -1,0 +1,99 @@
+{
+  "default_suite_id": "issues-spec",
+  "mandatory_suite_ids": [
+    "w3c-conformance"
+  ],
+  "suites": {
+    "issues-spec": {
+      "description": "Core upstream issue regressions for insert/delete/ref behavior",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/issues.spec.ts",
+      "baseline_path": ".agents/skills/regression-gate/baselines/issues-spec.json",
+      "regression_policy": "waivable-with-justification"
+    },
+    "saxon-forms": {
+      "description": "General Saxon-Forms behavior smoke/regression checks",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/saxon-forms.spec.ts",
+      "baseline_path": ".agents/skills/regression-gate/baselines/saxon-forms.json",
+      "regression_policy": "waivable-with-justification"
+    },
+    "w3c-ch02": {
+      "description": "W3C Chapter 2 behavioral coverage",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/w3c/ch02.spec.ts",
+      "baseline_path": ".agents/skills/regression-gate/baselines/w3c-ch02.json",
+      "regression_policy": "mandatory-no-regressions"
+    },
+    "w3c-ch03": {
+      "description": "W3C Chapter 3 processing model coverage",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/w3c/ch03.spec.ts",
+      "baseline_path": ".agents/skills/regression-gate/baselines/w3c-ch03.json",
+      "regression_policy": "mandatory-no-regressions"
+    },
+    "w3c-ch04": {
+      "description": "W3C Chapter 4 model item property coverage",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/w3c/ch04.spec.ts",
+      "baseline_path": ".agents/skills/regression-gate/baselines/w3c-ch04.json",
+      "regression_policy": "mandatory-no-regressions"
+    },
+    "w3c-ch05": {
+      "description": "W3C Chapter 5 data types coverage",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/w3c/ch05.spec.ts",
+      "baseline_path": ".agents/skills/regression-gate/baselines/w3c-ch05.json",
+      "regression_policy": "mandatory-no-regressions"
+    },
+    "w3c-ch06": {
+      "description": "W3C Chapter 6 submission coverage",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/w3c/ch06.spec.ts",
+      "baseline_path": ".agents/skills/regression-gate/baselines/w3c-ch06.json",
+      "regression_policy": "mandatory-no-regressions"
+    },
+    "w3c-ch07": {
+      "description": "W3C Chapter 7 user interface coverage",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/w3c/ch07.spec.ts",
+      "baseline_path": ".agents/skills/regression-gate/baselines/w3c-ch07.json",
+      "regression_policy": "mandatory-no-regressions"
+    },
+    "w3c-ch08": {
+      "description": "W3C Chapter 8 recalculation and actions coverage",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/w3c/ch08.spec.ts",
+      "baseline_path": ".agents/skills/regression-gate/baselines/w3c-ch08.json",
+      "regression_policy": "mandatory-no-regressions"
+    },
+    "w3c-ch09": {
+      "description": "W3C Chapter 9 repeat/switch coverage",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/w3c/ch09.spec.ts",
+      "baseline_path": ".agents/skills/regression-gate/baselines/w3c-ch09.json",
+      "regression_policy": "mandatory-no-regressions"
+    },
+    "w3c-ch10": {
+      "description": "W3C Chapter 10 event handling coverage",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/w3c/ch10.spec.ts",
+      "baseline_path": ".agents/skills/regression-gate/baselines/w3c-ch10.json",
+      "regression_policy": "mandatory-no-regressions"
+    },
+    "w3c-appendix": {
+      "description": "W3C Appendix B data mutation patterns",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/w3c/appendix.spec.ts",
+      "baseline_path": ".agents/skills/regression-gate/baselines/w3c-appendix.json",
+      "regression_policy": "mandatory-no-regressions"
+    },
+    "w3c-conformance": {
+      "description": "All W3C per-chapter and appendix specs",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/w3c",
+      "baseline_path": ".agents/skills/regression-gate/baselines/w3c-conformance.json",
+      "regression_policy": "mandatory-no-regressions"
+    }
+  }
+}

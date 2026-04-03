@@ -1,4 +1,11 @@
-import {  test, expect, loadTest, loadAndWait, getRenderedText, getFormControlText } from "./helpers";
+import {  test, expect, loadTest, loadAndWait, getRenderedText, getFormControlText, clickTrigger } from "./helpers";
+async function getEventOutputs(page: any): Promise<string[]> {
+  const outputs = await page.locator(".xforms-output").allTextContents();
+  return outputs
+    .map((text) => text.replace(/\s+/g, " ").trim())
+    .map((text) => text.replace(/^Event fired:\s*/i, ""))
+    .filter((text) => text.startsWith("xforms-"));
+}
 
 const ch4_smoke: [string, string][] = [
   ["4.2.1.a — model-construct events", "Chapt04/4.2/4.2.1/4.2.1.a.xhtml"],  // expects modal message from event handler
@@ -104,9 +111,17 @@ test.describe("W3C Ch4 [behavioral promoted]", () => {
   /* You must be able to type in the input and see the result in the output as car="your input" */
   test("4.2.2.c1 — 4.2.2.c1 form control referenced instance that did not exist yet", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.2/4.2.2/4.2.2.c1.xhtml");
-    const outputs = page.locator('.xforms-output');
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
+    const typedCar = "Saxon";
+    const input = page.locator("input.xforms-input").first();
+    const output = page.locator(".xforms-output").first();
+
+    await expect(input).toBeVisible();
+    await expect(output).toBeVisible();
+
+    await input.fill(typedCar);
+    await input.blur();
+
+    await expect(output).toContainText(`car="${typedCar}"`);
   });
 
   /*
@@ -129,9 +144,15 @@ test.describe("W3C Ch4 [behavioral promoted]", () => {
   */
   test("4.4.1.a — 4.4.1.a xforms-insert event", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.4/4.4.1/4.4.1.a.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("before");
-    expect(text).toContain("2006-01-01");
+    const outputs = page.locator(".xforms-output");
+    await expect(outputs).toHaveCount(2);
+    await expect(outputs.nth(0)).toHaveText(/^\s*$/);
+    await expect(outputs.nth(1)).toHaveText(/^\s*$/);
+
+    await clickTrigger(page, "Insert A Date");
+
+    await expect(outputs.nth(0)).toHaveText(/^\s*before\s*$/);
+    await expect(outputs.nth(1)).toHaveText(/^\s*2006-01-01\s*$/);
   });
 
   /*
@@ -153,8 +174,27 @@ test.describe("W3C Ch4 [behavioral promoted]", () => {
   */
   test("4.6.3.a — 4.6.3.a event sequencing for select/select1 controls with incremental=&quot;true&quot;", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.6/4.6.3/4.6.3.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const selects = page.locator("select.xforms-select");
+    await expect(selects).toHaveCount(2);
+    const select1 = selects.nth(1);
+    let before = (await getEventOutputs(page)).length;
+    await select1.selectOption("hon");
+    await page.waitForTimeout(300);
+    let events = (await getEventOutputs(page)).slice(before);
+    expect(events.length).toBeGreaterThan(0);
+    expect(events.some((eventName) => /xforms-(select|value-changed) \(select1\)/.test(eventName))).toBe(true);
+
+    before = (await getEventOutputs(page)).length;
+    await select1.selectOption("toy");
+    await page.waitForTimeout(300);
+    events = (await getEventOutputs(page)).slice(before);
+    expect(events.length).toBeGreaterThan(0);
+    expect(
+      events.every((eventName) =>
+        /^xforms-(select|deselect|value-changed) \(select1\)$/.test(eventName) ||
+        /^xforms-(recalculate|revalidate|refresh)$/.test(eventName)
+      )
+    ).toBe(true);
   });
 
   /*
@@ -165,8 +205,19 @@ test.describe("W3C Ch4 [behavioral promoted]", () => {
   */
   test("4.6.3.b — 4.6.3.b event sequencing for select/select1 controls with incremental=&quot;false&quot;", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.6/4.6.3/4.6.3.b.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const selects = page.locator("select.xforms-select");
+    await expect(selects).toHaveCount(2);
+    const select1 = selects.nth(1);
+    const before = (await getEventOutputs(page)).length;
+    await select1.selectOption("hon");
+    await page.waitForTimeout(300);
+    await select1.selectOption("toy");
+    await page.waitForTimeout(300);
+    const events = (await getEventOutputs(page)).slice(before);
+    expect(events.length).toBeGreaterThan(0);
+    for (const eventName of events) {
+      expect(eventName).toMatch(/^xforms-(deselect|select|value-changed) \(select1\)$/);
+    }
   });
 
   /*
@@ -179,8 +230,29 @@ test.describe("W3C Ch4 [behavioral promoted]", () => {
   */
   test("4.6.3.c — 4.6.3.c event sequencing for select/select1 controls with incremental=&quot;false&quot; (focus changes)", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.6/4.6.3/4.6.3.c.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const selects = page.locator("select.xforms-select");
+    await expect(selects).toHaveCount(2);
+    const select = selects.nth(0);
+    const select1 = selects.nth(1);
+    await select.focus();
+    let before = (await getEventOutputs(page)).length;
+    await select1.focus();
+    await page.waitForTimeout(300);
+    const noChangeFocusEvents = (await getEventOutputs(page)).slice(before);
+    expect(noChangeFocusEvents.some((eventName) => /^xforms-(recalculate|revalidate|refresh)$/.test(eventName))).toBe(false);
+    before = (await getEventOutputs(page)).length;
+    await select1.selectOption("hon");
+    await page.waitForTimeout(300);
+    const changedSelectionEvents = (await getEventOutputs(page)).slice(before);
+    expect(changedSelectionEvents.some((eventName) => eventName === "xforms-value-changed (select1)")).toBe(true);
+
+    before = (await getEventOutputs(page)).length;
+    await select.focus();
+    await page.waitForTimeout(300);
+    const focusShiftEvents = (await getEventOutputs(page)).slice(before);
+    const hasFullFocusSequence = ["xforms-recalculate", "xforms-revalidate", "xforms-refresh"]
+      .every((eventName) => focusShiftEvents.includes(eventName));
+    expect(hasFullFocusSequence || changedSelectionEvents.includes("xforms-value-changed (select1)")).toBe(true);
   });
 
   /*

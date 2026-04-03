@@ -1,35 +1,44 @@
-import {  test, expect, loadTest, loadAndWait, getRenderedText, getFormControlText } from "./helpers";
+import { test, expect, loadTest, loadAndWait, getRenderedText, getFormControlText, normalizeWhitespace } from "./helpers";
 
 test.describe("W3C Appendix B — Data Mutation Patterns", () => {
   /* You must see an empty person name followed by the person name of "Jane Doe" : */
   test("B.1 Prepend Element Copy", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.1/b.1.a.xhtml");
-    // Expected: empty person name + "Jane Doe"
-    const text = await getFormControlText(page);
-    expect(text).toContain("Jane Doe");
+    const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
+    expect(outputs).toEqual([
+      "",
+      "Jane Doe",
+    ]);
   });
 
   /* You must see an empty person name after the person name of "Jane Doe" : */
   test("B.2 Append Element Copy", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.2/b.2.a.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("Jane Doe");
+    const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
+    expect(outputs[0]).toBe("Jane Doe");
+    expect(outputs.slice(1)).toContain("");
   });
 
   /* You must see three paragraphs, the last is a duplicate of the second : */
   test("B.3 Duplicate Element", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.3/b.3.a.xhtml");
-    // Duplicates paragraph[2] — should see 3 paragraphs, last is copy of second
-    const text = await getFormControlText(page);
-    expect(text).toContain("Primis abhorreant delicatissimi");
+    const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
+    expect(outputs).toEqual([
+      "Lorem ipsum verterem voluptaria",
+      "Primis abhorreant delicatissimi",
+      "Primis abhorreant delicatissimi",
+    ]);
   });
 
   /* You must see the string "classified" after each key : */
   test("B.4 Set Attribute", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.4/b.4.a.xhtml");
-    // Expected: item[2] should have rating="classified"
-    const text = await getFormControlText(page);
-    expect(text).toContain("classified");
+    const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
+    expect(outputs).toEqual([
+      "23 classified",
+      "42 classified",
+      "68 classified",
+    ]);
   });
 
   /* You must see only one item product("SKU-0815") : */
@@ -44,23 +53,15 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
   /* You must not see the string "classified" after key '23' : */
   test("B.6 Remove Attribute", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.6/b.6.a.xhtml");
-    // @rating should be deleted — output shows "key : 23" without "classified" after it
-    // Check the rendered output value, not the instruction text (which contains "classified")
-    const outputs = page.locator(".hlist");
-    const outputText = await outputs.allInnerTexts();
-    const dataText = outputText.join(" ");
-    expect(dataText).toContain("23");
-    expect(dataText).not.toContain("classified");
+    const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
+    expect(outputs).toEqual(["23"]);
   });
 
   /* You must not see a Track ID : */
   test("B.7 Remove Nodeset", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.7/b.7.a.xhtml");
-    // All <track> elements should be removed — no track IDs should appear in output
-    const outputs = page.locator(".hlist");
-    const count = await outputs.count();
-    // No .hlist outputs should exist (the repeat should be empty)
-    expect(count).toBe(0);
+    const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
+    expect(outputs).toEqual([]);
   });
 
   /* You must see the strings "Jane Doe", "John Doe", and "Joe Sixpack" : */
@@ -76,45 +77,44 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
   /* You must see the string "classified" for each key '0': */
   test("B.9 Copy Attribute List", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.9/b.9.a.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("classified");
+    const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
+    expect(outputs[0]).toBe("0 classified");
+    expect(outputs.slice(1)).toContain("");
   });
 
   /* You must see an empty string for a person name : */
   test("B.10 Replace Element", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.10/b.10.a.xhtml");
-    // insert prototype (empty name) after person[1], then delete person[1] (John Doe)
-    // Result: single person with empty name — "John Doe" should NOT appear in data output
-    const outputs = page.locator(".hlist");
-    const outputText = await outputs.allInnerTexts();
-    const dataText = outputText.join(" ");
-    expect(dataText).not.toContain("John Doe");
+    const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
+    expect(outputs).toEqual([""]);
   });
 
   /* You must see the value '0' for both item keys : */
   test("B.11 Replace Attribute — both keys show 0", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.11/b.11.a.xhtml");
-    // After replace, both item keys should be "0"
-    const text = await getFormControlText(page);
-    expect(text).toContain("0");
+    const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
+    expect(outputs).toEqual([
+      "0",
+      "0",
+    ]);
   });
 
   /* You must not see item product ("SKU-0815") or item product ("SKU-4711") : */
   test("B.12 Replace Instance with Insert", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.12/b.12.a.xhtml");
-    // Instance root replaced with empty <shoppingcart/> — no product items in output
-    const outputs = page.locator(".hlist");
-    const count = await outputs.count();
-    expect(count).toBe(0);
+    const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
+    expect(outputs).toEqual([]);
   });
 
   /* You must see Track ids "251", "331" and "461" : */
   test("B.13 Move Element — track ids 251, 331, 461", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.13/b.13.a.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("251");
-    expect(text).toContain("331");
-    expect(text).toContain("461");
+    const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
+    expect(outputs).toEqual([
+      "251",
+      "331",
+      "461",
+    ]);
   });
 
   /* You must see "classified" for key '42' : */
@@ -127,9 +127,8 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
   /* You must see an empty paragraph : */
   test("B.15 Insert into Heterogeneous Nodeset — empty paragraph", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.15/b.15.a.xhtml");
-    // After insert, should see an empty paragraph element rendered
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
+    expect(outputs.filter((value) => value !== "")).toEqual([]);
   });
 });
 

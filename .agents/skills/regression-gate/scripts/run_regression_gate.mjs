@@ -1,0 +1,415 @@
+#!/usr/bin/env node
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { spawnSync } from "child_process";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const skillRoot = path.resolve(__dirname, "..");
+const repoRoot = path.resolve(skillRoot, "../../..");
+
+const suitesPath = path.join(skillRoot, "playwright", "suites.json");
+const evaluatorPath = path.join(skillRoot, "scripts", "evaluate_playwright_baseline.mjs");
+const fetchW3CPath = path.join(repoRoot, "scripts", "fetch-w3c-suite.sh");
+const sefPath = path.join(repoRoot, "sef", "saxon-xforms.sef.json");
+const testAppSefPath = path.join(repoRoot, "test-app", "sef", "saxon-xforms.sef.json");
+const runsRoot = path.join(skillRoot, "runs");
+
+const playwrightTimeoutMs = Number(process.env.REGRESSION_GATE_PLAYWRIGHT_TIMEOUT_MS || 1200000);
+
+function usage() {
+  console.log(
+    [
+      "Usage:",
+      "  node .agents/skills/regression-gate/scripts/run_regression_gate.mjs [options]",
+      "",
+      "Options:",
+      "  --suite <suite-id>     Primary suite ID (defaults to default_suite_id in suites.json)",
+      "  --grep <regex>         Optional Playwright -g regex for targeted run on primary suite",
+      "  --skip-targeted        Skip targeted run even if --grep is provided",
+      "  --help                 Show this help",
+      "",
+      "Environment variables:",
+      "  REGRESSION_GATE_PLAYWRIGHT_TIMEOUT_MS   Timeout per Playwright run (default: 1200000)"
+    ].join("\n")
+  );
+}
+
+function parseArgs(argv) {
+  let suiteId = null;
+  let grepPattern = null;
+  let skipTargeted = false;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--suite") {
+      suiteId = argv[i + 1];
+      if (!suiteId) throw new Error("Missing value for --suite <suite-id>");
+      i++;
+      continue;
+    }
+    if (arg === "--grep") {
+      grepPattern = argv[i + 1];
+      if (!grepPattern) throw new Error("Missing value for --grep <regex>");
+      i++;
+      continue;
+    }
+    if (arg === "--skip-targeted") {
+      skipTargeted = true;
+      continue;
+    }
+    if (arg === "--help" || arg === "-h") {
+      usage();
+      process.exit(0);
+    }
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+
+  return { suiteId, grepPattern, skipTargeted };
+}
+
+function run(command, args, options = {}) {
+  const {
+    cwd = repoRoot,
+    allowFailure = false,
+    stdio = "inherit",
+    timeoutMs = 0
+  } = options;
+  const result = spawnSync(command, args, {
+    cwd,
+    stdio,
+    encoding: "utf8",
+    timeout: timeoutMs > 0 ? timeoutMs : undefined
+  });
+  if (result.error) {
+    throw new Error(`Failed to run ${command}: ${result.error.message}`);
+  }
+  if (!allowFailure && result.status !== 0) {
+    throw new Error(`Command failed (${result.status}): ${command} ${args.join(" ")}`);
+  }
+  return result;
+}
+
+function timestampUtcCompact() {
+  return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
+function resolveSuitePath(value) {
+  if (!value) return value;
+  return path.isAbsolute(value) ? value : path.resolve(repoRoot, value);
+}
+
+function toRepoRelative(displayPath) {
+  const rel = path.relative(repoRoot, displayPath);
+  if (!rel.startsWith("..") && !path.isAbsolute(rel)) {
+    return rel.split(path.sep).join("/");
+  }
+  return displayPath;
+}
+
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function loadSuiteRegistry() {
+  if (!fs.existsSync(suitesPath)) {
+    throw new Error(`Suite registry not found: ${toRepoRelative(suitesPath)}`);
+  }
+  const raw = readJson(suitesPath);
+  const suites = raw?.suites || {};
+  const normalizedSuites = {};
+  for (const [suiteId, suiteConfig] of Object.entries(suites)) {
+    normalizedSuites[suiteId] = {
+      ...suiteConfig,
+      config_path: resolveSuitePath(suiteConfig.config_path),
+      test_path: resolveSuitePath(suiteConfig.test_path),
+      baseline_path: resolveSuitePath(suiteConfig.baseline_path)
+    };
+  }
+  return {
+    default_suite_id: raw.default_suite_id,
+    mandatory_suite_ids: Array.isArray(raw.mandatory_suite_ids) ? raw.mandatory_suite_ids : [],
+    suites: normalizedSuites
+  };
+}
+
+function runPlaywrightToJsonReport({ suite, workers, runDir }) {
+  const reportPath = path.join(runDir, "playwright-report.json");
+  const stderrPath = path.join(runDir, "playwright-stderr.log");
+  const reportFd = fs.openSync(reportPath, "w");
+  const stderrFd = fs.openSync(stderrPath, "w");
+  const result = spawnSync(
+    "npx",
+    [
+      "--prefix",
+      repoRoot,
+      "playwright",
+      "test",
+      "--workers",
+      String(workers),
+      "--config",
+      suite.config_path,
+      suite.test_path,
+      "--reporter=json"
+    ],
+    {
+      cwd: repoRoot,
+      stdio: ["ignore", reportFd, stderrFd],
+      encoding: "utf8",
+      timeout: playwrightTimeoutMs
+    }
+  );
+  fs.closeSync(reportFd);
+  fs.closeSync(stderrFd);
+
+  if (result.error) {
+    if (result.error.code === "ETIMEDOUT") {
+      throw new Error(
+        `Playwright timed out for suite ${suite.id} after ${playwrightTimeoutMs}ms. ` +
+          "Increase REGRESSION_GATE_PLAYWRIGHT_TIMEOUT_MS if needed."
+      );
+    }
+    throw new Error(`Playwright failed for suite ${suite.id}: ${result.error.message}`);
+  }
+  if (!fs.existsSync(reportPath) || fs.statSync(reportPath).size === 0) {
+    throw new Error(
+      `No Playwright JSON report produced for suite ${suite.id}. ` +
+        `Check ${toRepoRelative(stderrPath)} for details.`
+    );
+  }
+  return { result, reportPath, stderrPath };
+}
+
+function ensureW3CDataIfNeeded(queueIds) {
+  const needsW3CData = queueIds.some((suiteId) => suiteId.startsWith("w3c-"));
+  if (!needsW3CData) return;
+
+  run("bash", [fetchW3CPath]);
+  const linkPath = path.join(repoRoot, "test-app", "w3c-suite");
+  const targetPath = path.join(repoRoot, "public-test", "w3c-suite");
+
+  if (!fs.existsSync(targetPath)) {
+    throw new Error(`W3C source directory missing: ${toRepoRelative(targetPath)}`);
+  }
+  if (!fs.existsSync(linkPath)) {
+    fs.symlinkSync(targetPath, linkPath, process.platform === "win32" ? "junction" : "dir");
+  }
+}
+
+function compileEngine() {
+  const compileResult = run(
+    "npx",
+    [
+      "xslt3",
+      "-t",
+      `-xsl:${path.join(repoRoot, "src", "saxon-xforms.xsl")}`,
+      `-export:${sefPath}`,
+      "-nogo",
+      "-ns:##html5"
+    ],
+    { allowFailure: true }
+  );
+  if (compileResult.status !== 0 && !fs.existsSync(sefPath)) {
+    throw new Error(
+      "Stylesheet compilation failed and no existing SEF is available at " +
+        `${toRepoRelative(sefPath)}`
+    );
+  }
+  fs.copyFileSync(sefPath, testAppSefPath);
+  return compileResult.status === 0 ? "ok" : "failed-used-existing-sef";
+}
+
+function getChangedFiles() {
+  const result = run("git", ["--no-pager", "diff", "--name-only"], {
+    allowFailure: true,
+    stdio: "pipe"
+  });
+  if (result.status !== 0) return [];
+  return String(result.stdout || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const suiteRegistry = loadSuiteRegistry();
+  const suiteMap = suiteRegistry.suites;
+  const allSuiteIds = Object.keys(suiteMap);
+  if (allSuiteIds.length === 0) {
+    throw new Error(`No suites found in ${toRepoRelative(suitesPath)}`);
+  }
+
+  const primarySuiteId = args.suiteId || suiteRegistry.default_suite_id || allSuiteIds[0];
+  if (!suiteMap[primarySuiteId]) {
+    throw new Error(`Unknown suite ID: ${primarySuiteId}`);
+  }
+
+  const queueIds = [primarySuiteId];
+  for (const mandatoryId of suiteRegistry.mandatory_suite_ids) {
+    if (!suiteMap[mandatoryId]) {
+      throw new Error(`mandatory_suite_ids contains unknown suite: ${mandatoryId}`);
+    }
+    if (!queueIds.includes(mandatoryId)) {
+      queueIds.push(mandatoryId);
+    }
+  }
+
+  const queue = queueIds.map((suiteId) => ({ id: suiteId, ...suiteMap[suiteId] }));
+
+  const missingBaselines = queue
+    .filter((suite) => !fs.existsSync(suite.baseline_path))
+    .map((suite) => ({
+      suite_id: suite.id,
+      baseline_path: toRepoRelative(suite.baseline_path),
+      init_command: `npm run test:baseline -- --suite ${suite.id}`
+    }));
+  if (missingBaselines.length > 0) {
+    console.log(
+      JSON.stringify(
+        {
+          status: "uninitialized-baseline",
+          missing_baselines: missingBaselines,
+          suggestion: "Initialize missing baselines, then rerun gate."
+        },
+        null,
+        2
+      )
+    );
+    process.exit(4);
+  }
+
+  const workers = Math.max(1, Math.floor((os.cpus()?.length || 1) * 0.75));
+  const changedFiles = getChangedFiles();
+
+  ensureW3CDataIfNeeded(queueIds);
+  const compileStatus = compileEngine();
+
+  let targetedSummary = {
+    status: "skipped",
+    reason: args.grepPattern ? "skip-targeted requested" : "no --grep provided",
+    exit_code: null
+  };
+
+  if (args.grepPattern && !args.skipTargeted) {
+    const primarySuite = queue.find((suite) => suite.id === primarySuiteId);
+    const targetedResult = run(
+      "npx",
+      [
+        "--prefix",
+        repoRoot,
+        "playwright",
+        "test",
+        "--workers",
+        String(workers),
+        "--config",
+        primarySuite.config_path,
+        primarySuite.test_path,
+        "-g",
+        args.grepPattern
+      ],
+      { allowFailure: true, timeoutMs: playwrightTimeoutMs }
+    );
+    targetedSummary = {
+      status: targetedResult.status === 0 ? "ok" : "failed",
+      reason: null,
+      exit_code: targetedResult.status
+    };
+  }
+
+  let hardFail = false;
+  let softFail = false;
+  const suiteResults = [];
+
+  for (const suite of queue) {
+    const runDir = path.join(runsRoot, suite.id, timestampUtcCompact());
+    fs.mkdirSync(runDir, { recursive: true });
+
+    const { result: playwrightResult, reportPath } = runPlaywrightToJsonReport({
+      suite,
+      workers,
+      runDir
+    });
+
+    const comparisonPath = path.join(runDir, "comparison.json");
+    const compareResult = run(
+      "node",
+      [
+        evaluatorPath,
+        "--report",
+        reportPath,
+        "--baseline",
+        suite.baseline_path,
+        "--out",
+        comparisonPath,
+        "--promote-if-better"
+      ],
+      { allowFailure: true, stdio: "pipe" }
+    );
+
+    let comparisonSummary = null;
+    if (fs.existsSync(comparisonPath)) {
+      comparisonSummary = readJson(comparisonPath);
+    }
+
+    if (compareResult.status !== 0) {
+      if (suite.regression_policy === "mandatory-no-regressions") {
+        hardFail = true;
+      } else {
+        softFail = true;
+        fs.writeFileSync(
+          path.join(runDir, "justification-required.txt"),
+          [
+            "Required justification for waiver:",
+            "1) Why this regression is acceptable now",
+            "2) Blast radius / impacted behaviors",
+            "3) Mitigation in place",
+            "4) Rollback plan"
+          ].join("\n") + "\n"
+        );
+      }
+    }
+
+    suiteResults.push({
+      suite_id: suite.id,
+      policy: suite.regression_policy,
+      config_path: toRepoRelative(suite.config_path),
+      test_path: toRepoRelative(suite.test_path),
+      baseline_path: toRepoRelative(suite.baseline_path),
+      run_dir: toRepoRelative(runDir),
+      playwright_exit_code: playwrightResult.status,
+      comparison_exit_code: compareResult.status,
+      baseline_promoted: comparisonSummary?.baseline_promoted ?? false,
+      no_regressions: comparisonSummary?.no_regressions ?? null,
+      current_stats: comparisonSummary?.current_stats ?? null,
+      new_regressions: comparisonSummary?.new_regressions ?? []
+    });
+  }
+
+  const summary = {
+    created_at: new Date().toISOString(),
+    primary_suite_id: primarySuiteId,
+    suite_queue: queueIds,
+    workers,
+    changed_files: changedFiles,
+    compile_status: compileStatus,
+    targeted: targetedSummary,
+    suites: suiteResults,
+    policy_result: hardFail ? "hard-fail" : softFail ? "soft-fail" : "pass"
+  };
+
+  console.log(JSON.stringify(summary, null, 2));
+
+  if (hardFail) process.exit(2);
+  if (softFail) process.exit(3);
+  process.exit(0);
+}
+
+try {
+  main();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+}

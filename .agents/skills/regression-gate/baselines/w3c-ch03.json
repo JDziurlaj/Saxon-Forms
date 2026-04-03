@@ -1,0 +1,14 @@
+{
+  "suite_id": "w3c-ch03",
+  "test_path": "/mnt/c/Users/John/Documents/GitHub/Saxon-Forms-fork/tests/w3c/ch03.spec.ts",
+  "config_path": "/mnt/c/Users/John/Documents/GitHub/Saxon-Forms-fork/playwright.config.ts",
+  "last_updated": "2026-04-03T19:37:23.071Z",
+  "stats": {
+    "total": 37,
+    "passed": 37,
+    "failed": 0,
+    "flaky": 0,
+    "skipped": 0
+  },
+  "allowed_failures": []
+}

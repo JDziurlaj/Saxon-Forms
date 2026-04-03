@@ -561,3 +561,86 @@ Source: <https://www.w3.org/MarkUp/Forms/Test/XForms1.1/Edition1/>
 - `Chapt11/11.9/11.9.o.xhtml`
 - `Chapt11/11.9/11.9.p.xhtml`
 - `Chapt11/11.9/11.9.q.xhtml`
+
+
+## Engine Gaps
+
+The following categories of W3C test failures reflect known limitations in the Saxon-Forms engine.
+These are tracked here to guide future development.
+
+**430 of 472 tests pass (91%).** 42 failures remain, categorized below.
+
+### Model-event message dispatch (10 tests)
+
+`xforms:message` elements that listen for model-level events (`xforms-rebuild`, `xforms-reset`,
+`xforms-recalculate`, `xforms-revalidate`, `xforms-help`, `xforms-hint`) do not produce
+modal dialogs when the event fires. The event itself may dispatch correctly, but the
+`xforms:message` handler does not invoke `alert()` / modal output.
+
+Affected tests: 10.13.a (reset), 10.8.1.a/b (rebuild), 8.1.8.a (DOMActivate message),
+8.2.2.a–c (help), 8.2.3.a–c (hint).
+
+### Submission features (4 tests)
+
+- **`submission/@bind`** — The `bind` attribute on `xforms:submission` is parsed but does not
+  filter the submitted instance data to only the bound node. The entire instance is sent.
+  Affected: 11.1.b.
+- **`xforms-submit-serialize` event** — The `submission-body` property set by an
+  `xforms-submit-serialize` handler is not honoured; the original instance data is submitted.
+  Affected: 11.3.b.
+- **`xforms:header/xforms:name/xforms:value`** — Custom HTTP headers defined via child elements
+  of `xforms:submission` are not added to the outgoing request.
+  Affected: 11.8.1.a, 11.8.2.a.
+
+### External instance loading (8 tests)
+
+Instance data loaded via `xforms:instance/@src` or `@resource` pointing to an external file
+fails in some test configurations. This primarily affects Ch03 and Ch04 tests that reference
+external XML instance documents.
+
+Affected: 3.2.2.a, 3.3.2.c/d/f/g/h, 4.2.1.a/c3/d.
+
+### XPath 3.1 vs 1.0 type coercion (2 tests)
+
+XForms 1.1 assumes XPath 1.0 semantics where empty strings implicitly become `NaN` in numeric
+contexts. Saxon-JS uses XPath 3.1, which raises `FORG0001` when an empty string is used in
+arithmetic. This crashes forms that use `calculate` expressions on initially-empty nodes.
+
+Affected: 6.1.5.a (calculate with empty amount), 6.1.4.b (relevant with calculate).
+
+### Processing model event sequencing (5 tests)
+
+Several Ch04 tests depend on precise event sequencing during `xforms-model-construct` and
+`xforms-model-construct-done` (e.g. modal messages dispatched during initialization).
+Saxon-Forms does not generate modal dialogs for messages dispatched during model construction.
+
+Affected: 4.2.1.c1, 4.2.2.a/b/c1, 4.2.3.a, 4.5.1.a5, 4.5.2.a, 4.5.4.a.
+
+### Container control edge cases (6 tests)
+
+- **`xf:group` focus management** — `setfocus` targeting a group does not advance focus to the
+  first focusable control within. Affected: 9.1.1.c.
+- **`xf:switch` selected-state edge cases** — Initial `selected="true"` on non-first case, and
+  both cases with `selected="true"`, not handled correctly. Affected: 9.2.2.b, 9.2.2.c.
+- **`xf:repeat` startindex** — `startindex` attribute not applied on initial render.
+  Affected: 9.3.1.b.
+- **Switch inside repeat** — Independent switch state per repeat iteration not maintained.
+  Affected: 9.3.1.f.
+- **Group inside switch toggle** — Group visibility inside switch/case not updating on toggle.
+  Affected: 9.1.1.a2.
+
+### Miscellaneous (7 tests)
+
+- **Cancelled event propagation** — `dispatch` with `cancelable="true"` + `ev:preventDefault`
+  does not prevent the default action. Affected: 10.8.f.
+- **Conditional action negative test** — `if` condition on action not suppressing execution
+  in a specific pattern. Affected: 10.17.b.
+- **`id()` with `xsi:type`** — The `id()` function does not resolve IDs from `xsi:type`
+  annotations. Affected: 7.10.3.c.
+- **`min()`/`max()` negative tests** — Empty-nodeset edge cases for `min()` and `max()`.
+  Affected: 7.7.2.b, 7.7.3.b.
+- **Insert with @context precision** — Insert action context attribute does not produce
+  expected result in a specific pattern. Affected: 10.3.j.
+- **Appendix H.2** — Renders empty. Affected: h.2.
+- **`digest()` without crypto** — 7.5.b uses `digest()` in a binding-exception test;
+  when crypto bundle is not loaded, the form crashes instead of raising the exception.

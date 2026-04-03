@@ -1,0 +1,23 @@
+{
+  "suite_id": "w3c-ch07",
+  "test_path": "/mnt/c/Users/John/Documents/GitHub/Saxon-Forms-fork/tests/w3c/ch07.spec.ts",
+  "config_path": "/mnt/c/Users/John/Documents/GitHub/Saxon-Forms-fork/playwright.config.ts",
+  "last_updated": "2026-04-03T19:40:25.832Z",
+  "stats": {
+    "total": 64,
+    "passed": 56,
+    "failed": 8,
+    "flaky": 0,
+    "skipped": 0
+  },
+  "allowed_failures": [
+    "W3C Ch7 [behavioral promoted] › 7.10.3.c — 7.10.3.c id() function with xsi:type",
+    "W3C Ch7 [behavioral promoted] › 7.7.2.b — 7.7.2.b min() function negative test",
+    "W3C Ch7 [behavioral promoted] › 7.7.3.b — 7.7.3.b max() function negative test",
+    "W3C Ch7 [behavioral promoted] › 7.7.5.b — 7.7.5.b index() function negative test",
+    "W3C Ch7 [behavioral promoted] › 7.9.8.a — 7.9.8.a adjust-dateTime-to-timezone() function",
+    "W3C Ch7 — XPath Expressions [behavioral] › 7.2.e — context size and position: outputs computed values",
+    "W3C Ch7 — XPath Expressions [behavioral] › 7.2.f — namespace declarations: Mazda in input",
+    "W3C Chapter 7 — current() function › 7.10.2.b current() in repeat output value"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "suite_id": "w3c-ch10",
+  "test_path": "/mnt/c/Users/John/Documents/GitHub/Saxon-Forms-fork/tests/w3c/ch10.spec.ts",
+  "config_path": "/mnt/c/Users/John/Documents/GitHub/Saxon-Forms-fork/playwright.config.ts",
+  "last_updated": "2026-04-03T19:43:02.851Z",
+  "stats": {
+    "total": 70,
+    "passed": 51,
+    "failed": 19,
+    "flaky": 0,
+    "skipped": 0
+  },
+  "allowed_failures": [
+    "W3C Ch10 [behavioral promoted] › 10.13.b — 10.13.b reset element with model attribute",
+    "W3C Ch10 [behavioral promoted] › 10.18.a — 10.18.a iteration of XForms actions",
+    "W3C Ch10 [behavioral promoted] › 10.18.d — 10.18.d XForms actions with if and while attributes",
+    "W3C Ch10 [behavioral promoted] › 10.3.b — 10.3.b insert action with bind and model attributes",
+    "W3C Ch10 [behavioral promoted] › 10.3.h — 10.3.h insert action and repeat element",
+    "W3C Ch10 [behavioral promoted] › 10.4.f — 10.4.f delete action and repeat element",
+    "W3C Ch10 [behavioral promoted] › 10.6.1.b — 10.6.1.b case element child of the toggle element precedence testing",
+    "W3C Ch10 [behavioral promoted] › 10.7.a — 10.7.a setfocus element",
+    "W3C Ch10 [behavioral promoted] › 10.8.f — 10.8.f dispatch element dispatches cancelled predefined event",
+    "W3C Ch10 [behavioral promoted] › 10.a — 10.a action syntax example",
+    "W3C Ch10 [smoke → behavioral promoted] › 10.8.1.b — dispatch rebuild renders",
+    "W3C Ch10 [smoke → behavioral promoted] › 10.8.2.b — dispatch custom-event with target",
+    "W3C Ch10 [smoke → behavioral promoted] › 10.8.2.c — dispatch custom-event with bubbles and cancelable",
+    "W3C Chapter 10 — XForms Actions › 10.3.a insert action using context attribute",
+    "W3C Chapter 10 — XForms Actions › 10.3.c insert action using origin attribute",
+    "W3C Chapter 10 — XForms Actions › 10.3.d insert action using at attribute",
+    "W3C Chapter 10 — XForms Actions › 10.3.j insert action — must not show 4.00",
+    "W3C Chapter 10 — XForms Actions › 10.4.d delete action using at attribute",
+    "W3C Chapter 10 — XForms Actions › 10.4.e delete element rules"
+  ]
+}

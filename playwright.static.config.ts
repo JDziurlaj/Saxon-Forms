@@ -5,14 +5,14 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  reporter: "dot",
+  reporter: "html",
   use: {
     baseURL: "http://localhost:5174",
     trace: "on-first-retry",
     bypassCSP: true,
     launchOptions: {
       args: ["--disable-web-security"],
-    }
+    },
   },
   projects: [
     {
@@ -21,7 +21,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev",
+    command: "npx http-server test-app -p 5174 -c-1",
     url: "http://localhost:5174",
     reuseExistingServer: !process.env.CI,
   },

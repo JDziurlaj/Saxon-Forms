@@ -1,0 +1,19 @@
+{
+  "suite_id": "w3c-appendix",
+  "test_path": "/mnt/c/Users/John/Documents/GitHub/Saxon-Forms-fork/tests/w3c/appendix.spec.ts",
+  "config_path": "/mnt/c/Users/John/Documents/GitHub/Saxon-Forms-fork/playwright.config.ts",
+  "last_updated": "2026-04-03T19:43:45.486Z",
+  "stats": {
+    "total": 27,
+    "passed": 23,
+    "failed": 4,
+    "flaky": 0,
+    "skipped": 0
+  },
+  "allowed_failures": [
+    "W3C Appendix B — Data Mutation Patterns › B.1 Prepend Element Copy",
+    "W3C Appendix B — Data Mutation Patterns › B.13 Move Element — track ids 251, 331, 461",
+    "W3C Appendix B — Data Mutation Patterns › B.3 Duplicate Element",
+    "W3C Appendix B — Data Mutation Patterns › B.4 Set Attribute"
+  ]
+}

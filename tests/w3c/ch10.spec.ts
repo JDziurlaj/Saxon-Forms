@@ -4,9 +4,11 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   /* After you activate the Fire Test trigger the value in the Car Model output must be "BMW". */
   test("10.1.a action element renders triggers", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.1/10.1.a.xhtml");
-    const triggers = page.locator('button.xforms-trigger');
-    const count = await triggers.count();
-    expect(count).toBeGreaterThan(0);
+    const carModel = page.locator("input.xforms-input");
+    await expect(carModel).toHaveValue("Porche");
+    await page.getByRole("button", { name: "Fire Test", exact: true }).click();
+    await page.waitForTimeout(300);
+    await expect(carModel).toHaveValue("BMW");
   });
 
   /*
@@ -18,9 +20,23 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   */
   test("10.2.a setvalue with expression or literal", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.2/10.2.a.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("white");
-    expect(text).toContain("excellent");
+    const outputs = page.locator(".xforms-output");
+    await expect(outputs).toHaveCount(3);
+    await expect(outputs.nth(0)).toHaveText(/^white$/i);
+    await expect(outputs.nth(1)).toHaveText(/^excellent$/i);
+    await expect(outputs.nth(2)).toHaveText(/^Toyota$/i);
+
+    await page.getByRole("button", { name: "Set Color", exact: true }).click();
+    await page.waitForTimeout(300);
+    await expect(outputs.nth(0)).toHaveText(/^blue$/i);
+
+    await page.getByRole("button", { name: "Set Condition", exact: true }).click();
+    await page.waitForTimeout(300);
+    await expect(outputs.nth(1)).toHaveText(/^fair$/i);
+
+    await page.getByRole("button", { name: "Set Make", exact: true }).click();
+    await page.waitForTimeout(300);
+    await expect(outputs.nth(2)).toHaveText(/^Toyota$/i);
   });
 
   /*
@@ -31,24 +47,34 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   */
   test("10.2.b setvalue shows white and excellent", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.2/10.2.b.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("white");
+    const outputs = page.locator(".xforms-output");
+    await expect(outputs).toHaveCount(2);
+    await expect(outputs.nth(0)).toHaveText(/^white$/i);
+    await expect(outputs.nth(1)).toHaveText(/^excellent$/i);
+
+    await page.getByRole("button", { name: "Set color", exact: true }).click();
+    await page.waitForTimeout(300);
+    await expect(outputs.nth(0)).toHaveText(/^blue$/i);
+
+    await page.getByRole("button", { name: "Set condition", exact: true }).click();
+    await page.waitForTimeout(300);
+    await expect(outputs.nth(1)).toHaveText(/^\s*$/);
   });
 
   /* You must see the correct values for each output control below. */
   test("10.3.a insert action using context attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.3/10.3.a.xhtml");
-    const text = await getFormControlText(page);
-    // Should show numbers from insert operations
-    expect(text).toContain("1");
+    const outputs = page.locator(".xforms-output");
+    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+    expect(values.slice(4, 10)).toEqual(["4", "5", "6", "6", "6", "6"]);
   });
 
   /* You must see the correct values for each output control below. */
   test("10.3.c insert action using origin attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.3/10.3.c.xhtml");
-    const outputs = page.locator('.xforms-output');
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
+    const outputs = page.locator(".xforms-output");
+    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+    expect(values).toEqual(["1", "2", "3", "0", "3"]);
   });
 
   /*
@@ -57,9 +83,29 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   */
   test("10.3.d insert action using at attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.3/10.3.d.xhtml");
-    const outputs = page.locator('.xforms-output');
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
+    const triggers = page.locator("button.xforms-trigger");
+    await expect(triggers).toHaveCount(7);
+    const triggerLabels = (await triggers.allInnerTexts()).map((label) => label.replace(/\s+/g, " ").trim());
+    const expectedByTriggerIndex: string[][] = [
+      ["1", "2", "3", "4", "5", "5", "6", "0"],
+      ["1", "2", "5", "3", "4", "5", "6", "0"],
+      ["1", "2", "3", "5", "4", "5", "6", "0"],
+      ["1", "5", "2", "3", "4", "5", "6", "0"],
+      ["1", "2", "3", "4", "5", "5", "6", "0"],
+      ["1", "2", "3", "4", "5", "5", "6", "0"],
+      ["1", "2", "3", "4", "5", "5", "0"],
+    ];
+
+    for (let index = 0; index < expectedByTriggerIndex.length; index++) {
+      await triggers.nth(index).click();
+      await page.waitForTimeout(300);
+      const outputs = page.locator(".xforms-output");
+      const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+      expect.soft(
+        values,
+        `Unexpected sequence for ${triggerLabels[index]}`
+      ).toEqual(expectedByTriggerIndex[index]);
+    }
   });
 
   /*
@@ -83,16 +129,17 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   /* You must see only the number 10: */
   test("10.4.a delete action using context attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.4/10.4.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const outputs = page.locator(".xforms-output");
+    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+    expect(values).toEqual(["10", "4", "1", "2"]);
   });
 
   /* You must see the correct values for each output control below. */
   test("10.4.d delete action using at attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.4/10.4.d.xhtml");
-    const outputs = page.locator('.xforms-output');
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
+    const outputs = page.locator(".xforms-output");
+    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+    expect(values).toEqual(["1", "2", "4", "6", "8", "9", "10", "11", "13", "14", "17"]);
   });
 
   /*
@@ -102,10 +149,29 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
      list are deleted the Current index must be the number 0.
   */
   test("10.4.e delete element rules", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.4/10.4.e.xhtml");
-    const outputs = page.locator('.xforms-output');
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
+    const getCurrentIndex = async (): Promise<number> => {
+      const text = await getFormControlText(page);
+      const indexMatch = text.match(/Current index\s*:\s*(\d+)/i);
+      expect(indexMatch).not.toBeNull();
+      return Number(indexMatch?.[1] ?? NaN);
+    };
+
+    for (let deletion = 1; deletion <= 6; deletion++) {
+      const beforeCount = dialogMessages.length;
+      await page.getByRole("button", { name: "Delete Item At Index", exact: true }).click();
+      await page.waitForTimeout(300);
+      const newMessages = dialogMessages.slice(beforeCount);
+      expect.soft(newMessages.some((message) => /xforms-delete/i.test(message))).toBe(true);
+
+      const currentIndex = await getCurrentIndex();
+      if (deletion < 6) {
+        expect.soft(currentIndex).toBe(1);
+      } else {
+        expect(currentIndex).toBe(0);
+      }
+    }
   });
 
   /*
@@ -135,18 +201,18 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
 
   /* After you activate the Rebuild trigger you must see an xforms-rebuild message. */
   test("10.8.a dispatch dispatches xforms-rebuild", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.8/10.8.a.xhtml");
-    const triggers = page.locator('button.xforms-trigger');
-    const count = await triggers.count();
-    expect(count).toBeGreaterThan(0);
+    await clickTrigger(page, "Rebuild");
+    expect(dialogMessages.some((message) => /xforms-rebuild/i.test(message))).toBe(true);
   });
 
   /* After you activate the Fire Custom Event trigger you must see a custom-event message. */
   test("10.8.b dispatch dispatches custom-event", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.8/10.8.b.xhtml");
-    const triggers = page.locator('button.xforms-trigger');
-    const count = await triggers.count();
-    expect(count).toBeGreaterThan(0);
+    await clickTrigger(page, "Fire Custom Event");
+    expect(dialogMessages.some((message) => /custom-event/i.test(message))).toBe(true);
   });
 });
 
@@ -186,9 +252,23 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
      message.
   */
   test("10.13.b — 10.13.b reset element with model attribute", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.13/10.13.b.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).not.toContain("white");
+    let text = await getFormControlText(page);
+    expect(text).toMatch(/Car Type\s*:\s*BMW/i);
+    expect(text).toMatch(/Car Color\s*:\s*red/i);
+
+    const beforeTypeResetMessages = dialogMessages.length;
+    await clickTrigger(page, "Reset Car Type Value");
+    text = await getFormControlText(page);
+    expect.soft(text).toMatch(/Car Type\s*:\s*Mercedes/i);
+    expect(dialogMessages.slice(beforeTypeResetMessages)).toHaveLength(0);
+
+    const beforeColorResetMessages = dialogMessages.length;
+    await clickTrigger(page, "Reset Car Color Value");
+    text = await getFormControlText(page);
+    expect(text).toMatch(/Car Color\s*:\s*white/i);
+    expect(dialogMessages.slice(beforeColorResetMessages).some((message) => /xforms-reset/i.test(message))).toBe(true);
   });
 
   /*
@@ -199,9 +279,16 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
   */
   test("10.17.a — 10.17.a conditional execution of XForms actions", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.17/10.17.a.xhtml");
-    const outputs = page.locator('.xforms-output');
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
+
+    await clickTrigger(page, "Enter Correct Answers");
+    let text = await getFormControlText(page);
+    expect(text).toMatch(/2\s*x\s*1\s*=\s*2\b/i);
+    expect(text).toMatch(/2\s*x\s*5\s*=\s*10\b/i);
+
+    await clickTrigger(page, "Enter Incorrect Answers");
+    text = await getFormControlText(page);
+    expect(text).toMatch(/2\s*x\s*1\s*=\s*0\b/i);
+    expect(text).toMatch(/2\s*x\s*5\s*=\s*0\b/i);
   });
 
   /*
@@ -251,16 +338,19 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
   /* After you activate the Run Test trigger the Number Of Nodes output must show the value "10". */
   test("10.18.b — 10.18.b iteration of XForms actions using action element", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.18/10.18.b.xhtml");
-    const outputs = page.locator('.xforms-output');
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
+    let text = await getFormControlText(page);
+    expect(text).toMatch(/Number\s*Of\s*Nodes\s*:\s*1\b/i);
+
+    await clickTrigger(page, "Run Test");
+    text = await getFormControlText(page);
+    expect(text).toMatch(/Number\s*Of\s*Nodes\s*:\s*10\b/i);
   });
 
   /* You must see the value "1" for the Number Of Nodes output : */
   test("10.18.c — 10.18.c iteration executed zero times", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.18/10.18.c.xhtml");
     const text = await getFormControlText(page);
-    expect(text).toContain("1");
+    expect(text).toMatch(/Number\s*Of\s*Nodes\s*:\s*1\b/i);
   });
 
   /* You must see the value "5" for the Number Of Nodes output : */
@@ -273,16 +363,23 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
   /* You must see a value of "6" for the Total Sum output and a value of "4" for the Counter output. */
   test("10.18.e — 10.18.e iteration of XForms actions - Summing Selected Results example", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.18/10.18.e.xhtml");
-    const outputs = page.locator('.xforms-output');
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
+    let text = await getFormControlText(page);
+    expect(text).toMatch(/Total\s*Sum\s*:/i);
+    expect(text).toMatch(/Counter\s*:/i);
+
+    await clickTrigger(page, "Get Sum");
+    text = await getFormControlText(page);
+    expect(text).toMatch(/Total\s*Sum\s*:\s*6\b/i);
+    expect(text).toMatch(/Counter\s*:\s*4\b/i);
   });
 
   /* You must see the correct values for each output control below. */
   test("10.3.b — 10.3.b insert action with bind and model attributes", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.3/10.3.b.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const firstGroup = page.locator(".xforms-group").filter({ hasText: "You must see the numbers 4, 5, 6, and 6" });
+    const outputs = firstGroup.locator(".xforms-output");
+    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+    expect(values).toEqual(["4", "5", "6", "6"]);
   });
 
   /* You must see the value "7" : */
@@ -298,32 +395,38 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
   */
   test("10.3.h — 10.3.h insert action and repeat element", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.3/10.3.h.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("1");
-    expect(text).toContain("3");
-    expect(text).toContain("3");
-    expect(text).toContain("1");
+    let text = await getFormControlText(page);
+    expect(text).toMatch(/Before\s*-\s*You must see the value\s*"1"\s*:\s*1\b/i);
+    expect(text).toMatch(/Before\s*-\s*You must see the value\s*"3"\s*:\s*3\b/i);
+
+    await clickTrigger(page, "Perform Insert");
+    text = await getFormControlText(page);
+    expect(text).toMatch(/After\s*-\s*You must see the value\s*"3"\s*:\s*3\b/i);
+    expect(text).toMatch(/After\s*-\s*You must see the value\s*"1"\s*:\s*1\b/i);
   });
 
   /* You must see only the numbers 4 and 5 : */
   test("10.4.b — 10.4.b delete action using context and bind attributes", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.4/10.4.b.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const outputs = page.locator(".xforms-output");
+    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+    expect(values).toEqual(["4", "5", "7", "8", "9", "11", "12", "13"]);
   });
 
   /* You must see the number 3 : */
   test("10.4.c — 10.4.c delete action using context attribute terminates with no effect", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.4/10.4.c.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const outputs = page.locator(".xforms-output");
+    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+    expect(values).toEqual(["3", "6", "3"]);
   });
 
   /* You must see the correct values for each output control below. */
   test("10.4.f — 10.4.f delete action and repeat element", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.4/10.4.f.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const outputs = page.locator(".xforms-output");
+    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+    expect(values).toEqual(["0", "2", "1", "2", "1"]);
   });
 
   /*
@@ -334,8 +437,12 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
   */
   test("10.6.1.b — 10.6.1.b case element child of the toggle element precedence testing", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.6/10.6.1/10.6.1.b.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    await expect(page.getByRole("button", { name: "Go To Out Case", exact: true })).toBeVisible();
+    await clickTrigger(page, "Go To Out Case");
+    await expect(page.getByRole("button", { name: "Go To Exit Case", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Go To In Case", exact: true })).toBeVisible();
+    await clickTrigger(page, "Go To Exit Case");
+    await expect(page.getByRole("button", { name: "Go To Out Case", exact: true })).toBeVisible();
   });
 
   /*
@@ -371,9 +478,29 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
   */
   test("10.7.a — 10.7.a setfocus element", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.7/10.7.a.xhtml");
-    const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
+    const inputs = page.locator("input.xforms-input");
+    await expect(inputs).toHaveCount(4);
+    const shippingInput = inputs.nth(0);
+    const firstItemInput = inputs.nth(1);
+    const thirdItemInput = inputs.nth(3);
+
+    await expect(firstItemInput).toHaveValue(/brake pad/i);
+    await expect(thirdItemInput).toHaveValue(/fan belt/i);
+
+    await firstItemInput.focus();
+    await expect(firstItemInput).toBeFocused();
+    await clickTrigger(page, "Set Focus To Shipping");
+    await expect.soft(shippingInput).toBeFocused();
+
+    await thirdItemInput.focus();
+    await expect(thirdItemInput).toBeFocused();
+    await clickTrigger(page, "Set Focus To First Item");
+    await expect(firstItemInput).toBeFocused();
+
+    await shippingInput.focus();
+    await expect(shippingInput).toBeFocused();
+    await clickTrigger(page, "Set Focus To Third Item");
+    await expect(thirdItemInput).toBeFocused();
   });
 
   /* When you activate the Reset trigger the value in the input control must NOT change to "Audi". */
@@ -390,9 +517,12 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
   */
   test("10.a — 10.a action syntax example", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.a.xhtml");
-    const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
+    const carModel = page.locator("input.xforms-input");
+    await expect(carModel).toHaveValue("Del Sol");
+    await carModel.fill("Audi");
+    await expect(carModel).toHaveValue("Audi");
+    await clickTrigger(page, "Reset");
+    await expect(carModel).toHaveValue("Del Sol");
   });
 });
 
@@ -407,8 +537,10 @@ test.describe("W3C Ch10 [smoke → behavioral promoted]", () => {
   test("10.16.c — message element shows Hello world", async ({ page }) => {
     const msgs = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.16/10.16.c.xhtml");
+    const beforeCount = msgs.length;
     await clickTrigger(page, "See Message");
-    expect(msgs.some(m => /Hello.*world/i.test(m))).toBe(true);
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages).toContain("Hello, world!");
   });
 
   /*
@@ -425,8 +557,12 @@ test.describe("W3C Ch10 [smoke → behavioral promoted]", () => {
      custom-event message you have failed this test case.
   */
   test("10.8.1.b — dispatch rebuild renders", async ({ page }) => {
-    await loadTest(page, "Chapt10/10.8/10.8.1/10.8.1.b.xhtml");
-    // Note: xforms-rebuild message dispatch not yet generating modal
+    const msgs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.8/10.8.1/10.8.1.b.xhtml");
+    const beforeCount = msgs.length;
+    await clickTrigger(page, "Rebuild");
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages).toEqual(["custom-event"]);
   });
 
   /*
@@ -445,8 +581,11 @@ test.describe("W3C Ch10 [smoke → behavioral promoted]", () => {
   test("10.8.2.a — dispatch custom-event", async ({ page }) => {
     const msgs = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.8/10.8.2/10.8.2.a.xhtml");
+    const beforeCount = msgs.length;
     await clickTrigger(page, "Fire Custom Event");
-    expect(msgs.some(m => /custom-event/i.test(m))).toBe(true);
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.length).toBeGreaterThan(0);
+    expect(newMessages.every((message) => message === "custom-event")).toBe(true);
   });
 
   /*
@@ -456,8 +595,10 @@ test.describe("W3C Ch10 [smoke → behavioral promoted]", () => {
   test("10.8.2.b — dispatch custom-event with target", async ({ page }) => {
     const msgs = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.8/10.8.2/10.8.2.b.xhtml");
+    const beforeCount = msgs.length;
     await clickTrigger(page, "Fire Custom Event");
-    expect(msgs.some(m => /custom-event/i.test(m))).toBe(true);
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages).toEqual(["custom-event"]);
   });
 
   /*
@@ -467,8 +608,10 @@ test.describe("W3C Ch10 [smoke → behavioral promoted]", () => {
   test("10.8.2.c — dispatch custom-event with bubbles and cancelable", async ({ page }) => {
     const msgs = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.8/10.8.2/10.8.2.c.xhtml");
+    const beforeCount = msgs.length;
     await clickTrigger(page, "Fire Custom Event");
-    expect(msgs.some(m => /custom-event/i.test(m))).toBe(true);
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages).toEqual(["custom-event"]);
   });
 
   /*
@@ -478,17 +621,21 @@ test.describe("W3C Ch10 [smoke → behavioral promoted]", () => {
   test("10.8.d — dispatch bubbling event fires child and parent", async ({ page }) => {
     const msgs = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.8/10.8.d.xhtml");
+    const beforeCount = msgs.length;
     await clickTrigger(page, "Fire Custom Event");
-    expect(msgs.some(m => /Child Element/i.test(m))).toBe(true);
-    expect(msgs.some(m => /Parent/i.test(m))).toBe(true);
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.some((message) => message === "Child Element")).toBe(true);
+    expect(newMessages.some((message) => message === "Parent Element")).toBe(true);
   });
 
   /* When you activate the Fire Custom Event trigger you must not see a custom-event message. */
   test("10.8.e — dispatch non-bubbling event does NOT fire parent", async ({ page }) => {
     const msgs = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.8/10.8.e.xhtml");
+    const beforeCount = msgs.length;
     await clickTrigger(page, "Fire Custom Event");
-    expect(msgs.some(m => /custom-event/i.test(m))).toBe(false);
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages).toEqual([]);
   });
 
   /*
@@ -497,11 +644,21 @@ test.describe("W3C Ch10 [smoke → behavioral promoted]", () => {
   */
   test("10.6.1.a — toggle between In Case and Out Case", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.6/10.6.1/10.6.1.a.xhtml");
-    // Initially should see one case's trigger
-    const text = await getRenderedText(page);
-    const hasIn = text.includes("In Case");
-    const hasOut = text.includes("Out Case");
-    expect(hasIn || hasOut).toBe(true);
+    const inCaseTrigger = page.getByRole("button", { name: "In Case", exact: true });
+    const outCaseTrigger = page.getByRole("button", { name: "Out Case", exact: true });
+
+    await expect(inCaseTrigger).toBeVisible();
+    await expect(outCaseTrigger).toHaveCount(0);
+
+    await inCaseTrigger.click();
+    await page.waitForTimeout(300);
+    await expect(outCaseTrigger).toBeVisible();
+    await expect(inCaseTrigger).toHaveCount(0);
+
+    await outCaseTrigger.click();
+    await page.waitForTimeout(300);
+    await expect(inCaseTrigger).toBeVisible();
+    await expect(outCaseTrigger).toHaveCount(0);
   });
 
   /*
@@ -511,8 +668,17 @@ test.describe("W3C Ch10 [smoke → behavioral promoted]", () => {
   test("10.b — action with insert fires rebuild", async ({ page }) => {
     const msgs = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.b.xhtml");
+    const carModels = page.locator("input.xforms-input");
+    await expect(carModels).toHaveCount(1);
+    await expect(carModels.first()).toHaveValue(/Pacifica/i);
+
+    const beforeCount = msgs.length;
     await clickTrigger(page, "Insert Car");
-    expect(msgs.some(m => /xforms.action/i.test(m) || /xforms-rebuild/i.test(m))).toBe(true);
+    await expect(carModels).toHaveCount(2);
+
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.some((message) => /^xforms:action$/i.test(message))).toBe(true);
+    expect(newMessages.some((message) => /^xforms-rebuild$/i.test(message))).toBe(true);
   });
 
   /*
@@ -522,8 +688,16 @@ test.describe("W3C Ch10 [smoke → behavioral promoted]", () => {
   test("10.c — action with setvalue fires recalculate", async ({ page }) => {
     const msgs = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.c.xhtml");
+    const carModel = page.locator("input.xforms-input");
+    await expect(carModel).toHaveValue(/Pacifica/i);
+
+    const beforeCount = msgs.length;
     await clickTrigger(page, "Update Car");
-    expect(msgs.some(m => /xforms.action/i.test(m) || /xforms-recalculate/i.test(m))).toBe(true);
+    await expect(carModel).toHaveValue(/Pilot/i);
+
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.some((message) => /^xforms:action$/i.test(message))).toBe(true);
+    expect(newMessages.some((message) => /^xforms-recalculate$/i.test(message))).toBe(true);
   });
 
   /*
@@ -533,8 +707,16 @@ test.describe("W3C Ch10 [smoke → behavioral promoted]", () => {
   test("10.d — action with setvalue fires revalidate", async ({ page }) => {
     const msgs = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.d.xhtml");
+    const carModel = page.locator("input.xforms-input");
+    await expect(carModel).toHaveValue(/Pacifica/i);
+
+    const beforeCount = msgs.length;
     await clickTrigger(page, "Update Car");
-    expect(msgs.some(m => /xforms.action/i.test(m) || /xforms-revalidate/i.test(m))).toBe(true);
+    await expect(carModel).toHaveValue(/Pilot/i);
+
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.some((message) => /^xforms:action$/i.test(message))).toBe(true);
+    expect(newMessages.some((message) => /^xforms-revalidate$/i.test(message))).toBe(true);
   });
 
   /*
@@ -544,7 +726,15 @@ test.describe("W3C Ch10 [smoke → behavioral promoted]", () => {
   test("10.e — action with setvalue fires refresh", async ({ page }) => {
     const msgs = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.e.xhtml");
+    const carModel = page.locator("input.xforms-input");
+    await expect(carModel).toHaveValue(/Pacifica/i);
+
+    const beforeCount = msgs.length;
     await clickTrigger(page, "Update Car");
-    expect(msgs.some(m => /xforms.action/i.test(m) || /xforms-refresh/i.test(m))).toBe(true);
+    await expect(carModel).toHaveValue(/Pilot/i);
+
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.some((message) => /^xforms:action$/i.test(message))).toBe(true);
+    expect(newMessages.some((message) => /^xforms-refresh$/i.test(message))).toBe(true);
   });
 });
