@@ -1,4 +1,4 @@
-import {  test, expect, loadTest, loadAndWait, getRenderedText, getFormControlText, clickTrigger } from "./helpers";
+import { test, expect, loadTest, loadAndWait, getRenderedText, getFormControlText, clickTrigger } from "./helpers";
 async function getEventOutputs(page: any): Promise<string[]> {
   const outputs = await page.locator(".xforms-output").allTextContents();
   return outputs
@@ -78,9 +78,7 @@ test.describe("W3C Ch4 — Processing Model [behavioral]", () => {
     const output = page.locator('.xforms-output');
     await expect(output).toHaveText("NaN");
   });
-});
 
-test.describe("W3C Ch4 [behavioral promoted]", () => {
   /* You must not have seen a message. */
   test("4.2.1.b1 — 4.2.1.b1 schemas loaded sucessfully", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.2/4.2.1/4.2.1.b1.xhtml");

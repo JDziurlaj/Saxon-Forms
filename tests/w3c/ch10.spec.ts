@@ -1,4 +1,4 @@
-import {  test, expect, loadTest, loadAndWait, getRenderedText, collectDialogMessages, clickTrigger, getFormControlText } from "./helpers";
+import { test, expect, loadTest, loadAndWait, getRenderedText, collectDialogMessages, clickTrigger, getFormControlText } from "./helpers";
 
 test.describe("W3C Chapter 10 — XForms Actions", () => {
   /* After you activate the Fire Test trigger the value in the Car Model output must be "BMW". */
@@ -214,37 +214,6 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     await clickTrigger(page, "Fire Custom Event");
     expect(dialogMessages.some((message) => /custom-event/i.test(message))).toBe(true);
   });
-});
-
-
-const ch10_gaps_smoke: [string, string][] = [
-  ["10.14.1.a", "Chapt10/10.14/10.14.1/10.14.1.a.xhtml"],  // depends on form submission lifecycle
-  ["10.14.1.b", "Chapt10/10.14/10.14.1/10.14.1.b.xhtml"],  // depends on form submission lifecycle
-  ["10.14.a", "Chapt10/10.14/10.14.a.xhtml"],  // depends on load action (page navigation)
-  ["10.14.b", "Chapt10/10.14/10.14.b.xhtml"],  // depends on load action (page navigation)
-  ["10.15.a", "Chapt10/10.15/10.15.a.xhtml"],  // expects modal message after trigger activation
-  ["10.16.a", "Chapt10/10.16/10.16.a.xhtml"],  // depends on event dispatch sequencing
-  ["10.16.b", "Chapt10/10.16/10.16.b.xhtml"],  // expects modal message after trigger activation
-  ["10.3.f", "Chapt10/10.3/10.3.f.xhtml"],  // expects modal message after trigger activation
-  ["10.3.i", "Chapt10/10.3/10.3.i.xhtml"],  // expects modal message from event handler
-  ["10.4.g", "Chapt10/10.4/10.4.g.xhtml"],  // expects modal message from event handler
-  ["10.8.3.a", "Chapt10/10.8/10.8.3/10.8.3.a.xhtml"],  // expects modal message after trigger activation
-  ["10.8.3.b", "Chapt10/10.8/10.8.3/10.8.3.b.xhtml"],  // expects modal message after trigger activation
-  ["10.8.3.c", "Chapt10/10.8/10.8.3/10.8.3.c.xhtml"],  // expects modal message after trigger activation
-  ["10.8.c", "Chapt10/10.8/10.8.c.xhtml"],  // expects modal message after trigger activation
-  ["10.f", "Chapt10/10.f.xhtml"],  // expects modal message after trigger activation
-  ["10.g", "Chapt10/10.g.xhtml"],  // expects modal message after trigger activation
-  ["10.h", "Chapt10/10.h.xhtml"],  // expects modal message after trigger activation
-  ["10.i", "Chapt10/10.i.xhtml"],  // expects modal message after trigger activation
-];
-
-test.describe("W3C Chapt10 [smoke gaps]", () => {
-  for (const [name, file] of ch10_gaps_smoke) {
-    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
-  }
-});
-
-test.describe("W3C Ch10 [behavioral promoted]", () => {
   /*
      When you activate the Reset Car Type Value trigger the value in the Car Type output must change
      to "Mercedes". You must NOT see a message. When you activate the Reset Car Color Value trigger
@@ -524,9 +493,7 @@ test.describe("W3C Ch10 [behavioral promoted]", () => {
     await clickTrigger(page, "Reset");
     await expect(carModel).toHaveValue("Del Sol");
   });
-});
 
-test.describe("W3C Ch10 [smoke → behavioral promoted]", () => {
   /* When you activate the Reset trigger you must see an xforms-reset message. */
   test("10.13.a — reset trigger renders", async ({ page }) => {
     await loadTest(page, "Chapt10/10.13/10.13.a.xhtml");
@@ -737,4 +704,32 @@ test.describe("W3C Ch10 [smoke → behavioral promoted]", () => {
     expect(newMessages.some((message) => /^xforms:action$/i.test(message))).toBe(true);
     expect(newMessages.some((message) => /^xforms-refresh$/i.test(message))).toBe(true);
   });
+});
+
+
+const ch10_gaps_smoke: [string, string][] = [
+  ["10.14.1.a", "Chapt10/10.14/10.14.1/10.14.1.a.xhtml"],  // depends on form submission lifecycle
+  ["10.14.1.b", "Chapt10/10.14/10.14.1/10.14.1.b.xhtml"],  // depends on form submission lifecycle
+  ["10.14.a", "Chapt10/10.14/10.14.a.xhtml"],  // depends on load action (page navigation)
+  ["10.14.b", "Chapt10/10.14/10.14.b.xhtml"],  // depends on load action (page navigation)
+  ["10.15.a", "Chapt10/10.15/10.15.a.xhtml"],  // expects modal message after trigger activation
+  ["10.16.a", "Chapt10/10.16/10.16.a.xhtml"],  // depends on event dispatch sequencing
+  ["10.16.b", "Chapt10/10.16/10.16.b.xhtml"],  // expects modal message after trigger activation
+  ["10.3.f", "Chapt10/10.3/10.3.f.xhtml"],  // expects modal message after trigger activation
+  ["10.3.i", "Chapt10/10.3/10.3.i.xhtml"],  // expects modal message from event handler
+  ["10.4.g", "Chapt10/10.4/10.4.g.xhtml"],  // expects modal message from event handler
+  ["10.8.3.a", "Chapt10/10.8/10.8.3/10.8.3.a.xhtml"],  // expects modal message after trigger activation
+  ["10.8.3.b", "Chapt10/10.8/10.8.3/10.8.3.b.xhtml"],  // expects modal message after trigger activation
+  ["10.8.3.c", "Chapt10/10.8/10.8.3/10.8.3.c.xhtml"],  // expects modal message after trigger activation
+  ["10.8.c", "Chapt10/10.8/10.8.c.xhtml"],  // expects modal message after trigger activation
+  ["10.f", "Chapt10/10.f.xhtml"],  // expects modal message after trigger activation
+  ["10.g", "Chapt10/10.g.xhtml"],  // expects modal message after trigger activation
+  ["10.h", "Chapt10/10.h.xhtml"],  // expects modal message after trigger activation
+  ["10.i", "Chapt10/10.i.xhtml"],  // expects modal message after trigger activation
+];
+
+test.describe("W3C Chapt10 [smoke gaps]", () => {
+  for (const [name, file] of ch10_gaps_smoke) {
+    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
+  }
 });

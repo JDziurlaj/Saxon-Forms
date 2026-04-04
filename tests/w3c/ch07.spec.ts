@@ -13,7 +13,9 @@ const ch7_smoke: [string, string][] = [
   ["7.10.2.a — current() ex1", "Chapt07/7.10/7.10.2/7.10.2.a.xhtml"],
   ["7.10.2.b — current() ex2", "Chapt07/7.10/7.10.2/7.10.2.b.xhtml"],
   ["7.12.a — invalid functions attr", "Chapt07/7.12/7.12.a.xhtml"],  // expects xforms-compute-exception message or fatal error
+  ["7.2.c", "Chapt07/7.2/7.2.c.xhtml"],  // no testable output criteria in spec
 ];
+
 
 test.describe("W3C Ch7 — XPath Expressions [smoke]", () => {
   for (const [name, file] of ch7_smoke) {
@@ -154,9 +156,7 @@ test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
     // bad-fruit output should now show "apple"
     await expect(badFruitOutput).toHaveText("apple");
   });
-});
 
-test.describe("W3C Chapter 7 — current() function", () => {
   /* You must see the value "8023.451" for the Converted Amount output. */
   test("7.10.2.a current() in bind calculate (cross-instance lookup)", async ({ page }) => {
     await loadAndWait(page, "Chapt07/7.10/7.10.2/7.10.2.a.xhtml");
@@ -175,20 +175,7 @@ test.describe("W3C Chapter 7 — current() function", () => {
     expect(text).toContain("Feb");
     expect(text).toContain("Mar");
   });
-});
 
-
-const ch07_gaps_smoke: [string, string][] = [
-  ["7.2.c", "Chapt07/7.2/7.2.c.xhtml"],  // no testable output criteria in spec
-];
-
-test.describe("W3C Chapt07 [smoke gaps]", () => {
-  for (const [name, file] of ch07_gaps_smoke) {
-    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
-  }
-});
-
-test.describe("W3C Ch7 [behavioral promoted]", () => {
   /*
      You must see the value "John" for the First Name output. You must see the value "George" for
      the Second Name output.

@@ -130,6 +130,17 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
     const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
     expect(outputs.filter((value) => value !== "")).toEqual([]);
   });
+  /*
+     You must see a list of cars. Also, the repeat item with the current index must have a dashed
+     box around it with a yellow background. When you change the index with the triggers at the
+     bottom the selected repeat-item must have the dashed box and yellow background. All other
+     repeat-items must have a dotted border with an orange background.
+  */
+  test("g.2.d — g.2.d repeat-index precedence over repeat-item (non-normative)", async ({ page }) => {
+    await loadAndWait(page, "Appendix/G/G.2/g.2.d.xhtml");
+    const text = await getRenderedText(page);
+    expect(text).not.toBe("");
+  });
 });
 
 
@@ -151,18 +162,4 @@ test.describe("W3C Appendix [smoke gaps]", () => {
   for (const [name, file] of appendix_gaps_smoke) {
     test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
   }
-});
-
-test.describe("W3C Appendix [behavioral promoted]", () => {
-  /*
-     You must see a list of cars. Also, the repeat item with the current index must have a dashed
-     box around it with a yellow background. When you change the index with the triggers at the
-     bottom the selected repeat-item must have the dashed box and yellow background. All other
-     repeat-items must have a dotted border with an orange background.
-  */
-  test("g.2.d — g.2.d repeat-index precedence over repeat-item (non-normative)", async ({ page }) => {
-    await loadAndWait(page, "Appendix/G/G.2/g.2.d.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
-  });
 });

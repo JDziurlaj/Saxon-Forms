@@ -1,4 +1,4 @@
-import {  test, expect, loadTest, loadAndWait, getRenderedText, submitAndCapture, collectDialogMessages, clickTrigger, getFormControlText } from "./helpers";
+import { test, expect, loadTest, loadAndWait, getRenderedText, submitAndCapture, collectDialogMessages, clickTrigger, getFormControlText } from "./helpers";
 
 const ch11_smoke: [string, string][] = [
   ["11.1.e", "Chapt11/11.1/11.1.e.xhtml"],  // depends on form submission lifecycle
@@ -303,9 +303,6 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     const text = await getFormControlText(page);
     expect(text).toContain("Ren%C3%A9");
   });
-});
-
-test.describe("W3C Ch11 [smoke → behavioral promoted]", () => {
   // --- Render checks (no submit needed) ---
 
   /*

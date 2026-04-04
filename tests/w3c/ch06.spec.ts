@@ -164,9 +164,6 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     await expectDialogAfterTrigger(page, dialogMessages, "Invalid Value", /^xforms-invalid$/i);
     await expect(toInput).toHaveValue("5");
   });
-});
-
-test.describe("W3C Ch6 [behavioral promoted]", () => {
   /*
      You must see the output "Discount : 750" after you have activated the Enter 1500 trigger. You
      must see the output "Discount : 1000" after you have activated the Enter 2000 trigger.
