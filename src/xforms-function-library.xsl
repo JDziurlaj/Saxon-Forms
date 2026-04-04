@@ -19,7 +19,7 @@
     extension-element-prefixes="ixsl" version="3.0">
     
     <!-- TEST-TRACE: register XForms function names for impose() rewriting; helps ch07 -->
-    <xsl:variable name="xform-functions" select="'if','instance', 'index', 'avg', 'foo', 'context', 'current-date', 'random', 'property', 'boolean-from-string', 'count-non-empty', 'power', 'choose', 'is-card-number', 'now', 'local-date', 'local-dateTime', 'days-from-date', 'days-to-date', 'seconds-from-dateTime', 'seconds-to-dateTime', 'seconds', 'months', 'adjust-dateTime-to-timezone', 'digest', 'hmac'"/>
+    <xsl:variable name="xform-functions" select="'if','instance', 'index', 'avg', 'foo', 'context', 'current-date', 'random', 'property', 'boolean-from-string', 'count-non-empty', 'power', 'choose', 'is-card-number', 'now', 'local-date', 'local-dateTime', 'days-from-date', 'days-to-date', 'seconds-from-dateTime', 'seconds-to-dateTime', 'seconds', 'months', 'adjust-dateTime-to-timezone', 'digest', 'hmac', 'min', 'max'"/>
     
     <xsl:function name="xforms:impose" as="xs:string" visibility="public">
         <xsl:param name="input" as="xs:string" />
@@ -117,14 +117,16 @@
         
     </xsl:function>
     
-    <xsl:function name="xforms:index" as="xs:integer" visibility="public">
+    <!-- TEST-TRACE: return xs:integer for registered repeats (preserves XPath predicate
+         semantics) or xs:double(NaN) for non-existent repeats per XForms 1.1 §7.7.5;
+         helps tests/w3c/ch07.spec.ts "7.7.5.b" -->
+    <xsl:function name="xforms:index" as="xs:anyAtomicType" visibility="public">
         <xsl:param name="repeatID" as="xs:string" />
                 
-        <!-- call to js:getRepeatIndex doesn't work on first pass for some reason -->
+        <xsl:variable name="registered" as="xs:boolean" select="js:isRepeatRegistered($repeatID)"/>
         <xsl:variable name="repeat-index" as="xs:double?" select="js:getRepeatIndex($repeatID)"/>
                 
-        <!-- assign value '0' if $repeat-index does not exist -->
-        <xsl:sequence select="if (exists($repeat-index)) then xs:integer($repeat-index) else 0"/>
+        <xsl:sequence select="if ($registered) then xs:integer(($repeat-index, 0)[1]) else xs:double('NaN')"/>
         
     </xsl:function>
     
@@ -187,6 +189,46 @@
             </xsl:when>
             <xsl:otherwise>
                 <xsl:sequence select="$result-if-false"/>
+            </xsl:otherwise>
+        </xsl:choose>
+    </xsl:function>
+    
+    <!-- TEST-TRACE: XForms-compliant id() that recognizes xsi:type="xsd:ID";
+         standard XPath id() only uses DTD/schema IDs; XForms 1.1 §7.10.3
+         requires recognizing xsi:type annotations;
+         helps tests/w3c/ch07.spec.ts "7.10.3.c" -->
+    <!-- TEST-TRACE: XForms-compliant min() wrapper; returns NaN for non-numeric
+         or empty nodesets instead of throwing XPath 3.1 type errors;
+         helps tests/w3c/ch07.spec.ts "7.7.2.b" -->
+    <xsl:function name="xforms:min" as="xs:anyAtomicType" visibility="public">
+        <xsl:param name="arg" as="item()*"/>
+        <xsl:choose>
+            <xsl:when test="empty($arg)">
+                <xsl:sequence select="xs:double('NaN')"/>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:try>
+                    <xsl:sequence select="fn:min($arg)"/>
+                    <xsl:catch><xsl:sequence select="xs:double('NaN')"/></xsl:catch>
+                </xsl:try>
+            </xsl:otherwise>
+        </xsl:choose>
+    </xsl:function>
+    
+    <!-- TEST-TRACE: XForms-compliant max() wrapper; returns NaN for non-numeric
+         or empty nodesets instead of throwing XPath 3.1 type errors;
+         helps tests/w3c/ch07.spec.ts "7.7.3.b" -->
+    <xsl:function name="xforms:max" as="xs:anyAtomicType" visibility="public">
+        <xsl:param name="arg" as="item()*"/>
+        <xsl:choose>
+            <xsl:when test="empty($arg)">
+                <xsl:sequence select="xs:double('NaN')"/>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:try>
+                    <xsl:sequence select="fn:max($arg)"/>
+                    <xsl:catch><xsl:sequence select="xs:double('NaN')"/></xsl:catch>
+                </xsl:try>
             </xsl:otherwise>
         </xsl:choose>
     </xsl:function>

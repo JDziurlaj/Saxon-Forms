@@ -71,11 +71,12 @@ test.describe("W3C Ch4 — Processing Model [smoke]", () => {
 
 test.describe("W3C Ch4 — Processing Model [behavioral]", () => {
   /* You must see a value of "NaN" : */
-  test("4.7.c — index() on missing repeat returns 0", async ({ page }) => {
+  /* TEST-TRACE: updated to match W3C pass criterion (NaN, not 0);
+     helps tests/w3c/ch07.spec.ts "7.7.5.b" */
+  test("4.7.c — index() on missing repeat returns NaN", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.7/4.7.c.xhtml");
-    // Saxon-Forms returns 0 for missing repeat (W3C expects NaN)
     const output = page.locator('.xforms-output');
-    await expect(output).toHaveText("0");
+    await expect(output).toHaveText("NaN");
   });
 });
 

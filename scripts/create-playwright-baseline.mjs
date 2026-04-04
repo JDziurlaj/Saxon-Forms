@@ -62,7 +62,8 @@ const evaluatorPath = path.join(
   "scripts",
   "evaluate_playwright_baseline.mjs"
 );
-const fetchW3CPath = path.join(repoRoot, "scripts", "fetch-w3c-suite.sh");
+const fetchW3CPath = path.join(repoRoot, "scripts", "fetch-w3c-suite.mjs");
+const playwrightLauncherPath = path.join(repoRoot, "scripts", "run-playwright-with-port.mjs");
 const sefPath = path.join(repoRoot, "sef", "saxon-xforms.sef.json");
 const testAppSefPath = path.join(repoRoot, "test-app", "sef", "saxon-xforms.sef.json");
 
@@ -97,6 +98,9 @@ function run(command, args, options = {}) {
 
 function timestampUtcCompact() {
   return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+function logEvent(event, payload = {}) {
+  console.log(JSON.stringify({ ts: new Date().toISOString(), event, ...payload }));
 }
 
 function collectSpecs(suites, parentTitles = []) {
@@ -230,7 +234,7 @@ console.log(
 const needsW3CData = selectedSuiteIds.some((suiteId) => suiteId.startsWith("w3c-"));
 if (needsW3CData) {
   console.log("Preparing W3C test data...");
-  run("bash", [fetchW3CPath]);
+  run("node", [fetchW3CPath]);
   const linkPath = path.join(repoRoot, "test-app", "w3c-suite");
   if (!fs.existsSync(linkPath)) {
     fs.symlinkSync(path.resolve(repoRoot, "public-test", "w3c-suite"), linkPath, "junction");
@@ -281,38 +285,39 @@ for (const suiteId of selectedSuiteIds) {
   fs.mkdirSync(runDir, { recursive: true });
 
   const reportPath = path.join(runDir, "playwright-report.json");
-  const stderrPath = path.join(runDir, "playwright-stderr.log");
   const comparisonPath = path.join(runDir, "comparison.json");
-
-  const reportFd = fs.openSync(reportPath, "w");
-  const stderrFd = fs.openSync(stderrPath, "w");
-
-  console.log(`Running Playwright for suite '${suiteId}'...`);
+  logEvent("suite-start", {
+    suite_id: suiteId,
+    workers,
+    config_path: toRepoRelative(suite.config_path),
+    test_path: toRepoRelative(suite.test_path),
+    report_path: toRepoRelative(reportPath)
+  });
 
   const playwrightResult = spawnSync(
-    "npx",
+    "node",
     [
-      "--prefix",
-      repoRoot,
-      "playwright",
-      "test",
+      playwrightLauncherPath,
       "--workers",
       String(workers),
       "--config",
       suite.config_path,
       suite.test_path,
-      "--reporter=json"
+      "--reporter=dot,json"
     ],
     {
       cwd: repoRoot,
-      stdio: ["ignore", reportFd, stderrFd],
+      stdio: "inherit",
       encoding: "utf8",
-      timeout: playwrightTimeoutMs
+      timeout: playwrightTimeoutMs,
+      env: {
+        ...process.env,
+        PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath,
+        PLAYWRIGHT_JSON_OUTPUT_DIR: path.dirname(reportPath),
+        PLAYWRIGHT_JSON_OUTPUT_NAME: path.basename(reportPath)
+      }
     }
   );
-
-  fs.closeSync(reportFd);
-  fs.closeSync(stderrFd);
 
   if (playwrightResult.error) {
     if (playwrightResult.error.code === "ETIMEDOUT") {
@@ -324,10 +329,7 @@ for (const suiteId of selectedSuiteIds) {
     fail(`Playwright failed for suite ${suiteId}: ${playwrightResult.error.message}`);
   }
   if (!fs.existsSync(reportPath) || fs.statSync(reportPath).size === 0) {
-    fail(
-      `No Playwright JSON report produced for suite ${suiteId}. ` +
-      `Check ${stderrPath} for details.`
-    );
+    fail(`No Playwright JSON report produced for suite ${suiteId}.`);
   }
 
   const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
@@ -378,18 +380,22 @@ for (const suiteId of selectedSuiteIds) {
     allowed_failures_count: baseline.allowed_failures.length,
     duration_seconds: Math.round((Date.now() - startedAt) / 1000)
   });
+  logEvent("suite-end", {
+    suite_id: suiteId,
+    workers,
+    run_dir: toRepoRelative(runDir),
+    duration_seconds: Number(((Date.now() - startedAt) / 1000).toFixed(2)),
+    passed: baseline.stats.passed,
+    failed: baseline.stats.failed,
+    flaky: baseline.stats.flaky,
+    skipped: baseline.stats.skipped,
+    allowed_failures_count: baseline.allowed_failures.length
+  });
   console.log(`Baseline written for '${suiteId}' -> ${toRepoRelative(suite.baseline_path)}`);
-  console.log(`Baseline written for '${suiteId}' -> ${suite.baseline_path}`);
 }
 
-console.log(
-  JSON.stringify(
-    {
-      created_at: new Date().toISOString(),
-      selected_suites: selectedSuiteIds,
-      summaries
-    },
-    null,
-    2
-  )
-);
+console.log(JSON.stringify({
+  created_at: new Date().toISOString(),
+  selected_suites: selectedSuiteIds,
+  summaries
+}));

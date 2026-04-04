@@ -568,7 +568,74 @@ Source: <https://www.w3.org/MarkUp/Forms/Test/XForms1.1/Edition1/>
 The following categories of W3C test failures reflect known limitations in the Saxon-Forms engine.
 These are tracked here to guide future development.
 
-**430 of 472 tests pass (91%).** 42 failures remain, categorized below.
+**446 of 481 tests pass (92.7%).** 35 failures remain, categorized below.
+
+### Recently resolved
+
+The following gaps were resolved and are listed here for reference:
+
+- **Readonly MIP enforcement** — `readonly="true()"` bind now propagates to HTML inputs,
+  including inheritance from ancestor bindings. *Resolved: 6.1.2.a, 6.1.2.b, 7.2.f.*
+- **`index()` returns NaN** — Non-existent repeat IDs now return NaN per XForms 1.1 §7.7.5.
+  *Resolved: 7.7.5.b; 4.7.c test updated.*
+- **XPath 3.1 type coercion** — Calculate/relevant expressions wrapped in try/catch to
+  handle empty-string arithmetic crashes. *Resolved: 6.1.5.a, 6.1.4.b.*
+- **`min()`/`max()` negative tests** — XForms-compliant wrappers return NaN instead of
+  throwing XPath 3.1 type errors. *Resolved: 7.7.2.b, 7.7.3.b.*
+- **Constraint validation events** — `xforms-valid`/`xforms-invalid` events now dispatch
+  after setvalue changes constraint state. *Resolved: 6.1.6.a.*
+- **Switch/case selector issues** — Test selectors scoped to `.xforms-switch` to avoid
+  matching instruction text. *Resolved: 9.1.1.a2, 9.1.1.b, 9.2.2.b, 9.2.2.c.*
+- **Reset action** — Initial instance snapshots saved on construction and restored on
+  `xf:reset`. *Resolved: 10.a.*
+- **`setfocus` action** — Enhanced `setFocus` JS with suffixed-ID fallback and
+  group→first-child focus. *Resolved: 9.1.1.c, 10.7.a.*
+- **`current()` in repeat** — Output `@value` starting with `instance(...)` no longer
+  short-circuits `$instanceField` inside repeats, so `current()` resolves to the repeat
+  item. *Resolved: 7.10.2.b.*
+- **`position()`/`last()` in bind calculate** — Calculate expressions containing
+  `position()` or `last()` now substitute actual nodeset position/size before evaluation.
+  *Resolved: 7.2.e.*
+- **`adjust-dateTime-to-timezone()` test** — Test updated with timezone-aware assertions
+  instead of hardcoded Pacific time. *Resolved: 7.9.8.a.*
+- **Model-construction crash (no instance)** — `evaluate-xpath-with-context-node` parameter
+  `$context-node` made optional (`node()?`) so models without instances don't crash the
+  transform. *Resolved: 4.2.1.a, 4.2.1.d, 4.2.2.a, 4.2.3.a, 4.5.2.a.*
+
+### Insert/delete action semantics (13 tests)
+
+Root causes vary across the cluster:
+- **Model-level `xforms-ready` handlers** — Insert actions defined as direct children of
+  `<xforms:model>` (without `ev:observer`) do not execute reliably. Affects Appendix B tests
+  (B.1, B.3, B.4, B.13) which use `<xforms:action ev:event="xforms-ready"><xforms:insert .../>`.
+- **Multi-instance `@context` resolution** — Sequential insert actions that switch between
+  instances via `@context` (e.g., `context="instance('second')"` then `context="number_list[2]"`)
+  resolve against the wrong instance for later actions. Affects: 10.3.a, 10.3.c.
+- **`@bind`/`@model` on insert** — Crashes the XSLT transform. Affects: 10.3.b.
+- **`@at` position evaluation** — Insert/delete `@at` attribute position calculation produces
+  wrong results for some trigger sequences. Affects: 10.3.d, 10.4.d.
+- **Delete index tracking** — Post-delete repeat index not updated correctly. Affects: 10.4.e, 10.4.f.
+- **Insert `@context` with absent `@nodeset`** — Guard added for empty `$ref-qualified` but
+  deeper model event execution issues remain. Affects: 10.3.h, 10.3.j.
+
+### Toggle action scoping in repeats (1 test)
+
+`xf:toggle` inside a repeat iteration toggles ALL iterations' switches instead of just the
+current one. The toggle action's `$source-control` scoping mechanism (lines 6018–6024 in
+`saxon-xforms.xsl`) exists but `$source-control` is not being passed through the event
+dispatch chain (`applyActions` → `action-toggle`) from the clicked button's DOM element.
+
+Affected: 9.3.1.f.
+
+### Toggle case-child precedence (1 test)
+
+The `<xforms:case>` child element of `<xforms:toggle>` (which specifies the target case with
+optional `@value` attribute) is not parsed by the toggle action. The action map builder
+(line 932–933) stores `case` text content but does not handle `@value` attribute precedence.
+The `<xforms:case>` child may also be incorrectly matched by the case rendering template
+(line 1545).
+
+Affected: 10.6.1.b.
 
 ### Model-event message dispatch (10 tests)
 
@@ -592,53 +659,33 @@ Affected tests: 10.13.a (reset), 10.8.1.a/b (rebuild), 8.1.8.a (DOMActivate mess
   of `xforms:submission` are not added to the outgoing request.
   Affected: 11.8.1.a, 11.8.2.a.
 
-### External instance loading (8 tests)
+### Processing model behavioral failures (3 tests)
 
-Instance data loaded via `xforms:instance/@src` or `@resource` pointing to an external file
-fails in some test configurations. This primarily affects Ch03 and Ch04 tests that reference
-external XML instance documents.
+- **4.2.2.b** — `xforms-model-construct-done` setvalue handler does not clear instance
+  data ("Mitsubishi" persists). Root cause: event handler execution during model
+  construction does not update instance values.
+- **4.2.2.c1** — Form control referencing instance not yet loaded; output hidden after
+  `xforms-ready`. Root cause: lazy instance resolution timing.
+- **4.4.1.a** — `xforms-insert` event properties (`inserted-nodes`) not populated in
+  event handler after clicking trigger.
 
-Affected: 3.2.2.a, 3.3.2.c/d/f/g/h, 4.2.1.a/c3/d.
+### Container control edge cases (1 test)
 
-### XPath 3.1 vs 1.0 type coercion (2 tests)
-
-XForms 1.1 assumes XPath 1.0 semantics where empty strings implicitly become `NaN` in numeric
-contexts. Saxon-JS uses XPath 3.1, which raises `FORG0001` when an empty string is used in
-arithmetic. This crashes forms that use `calculate` expressions on initially-empty nodes.
-
-Affected: 6.1.5.a (calculate with empty amount), 6.1.4.b (relevant with calculate).
-
-### Processing model event sequencing (5 tests)
-
-Several Ch04 tests depend on precise event sequencing during `xforms-model-construct` and
-`xforms-model-construct-done` (e.g. modal messages dispatched during initialization).
-Saxon-Forms does not generate modal dialogs for messages dispatched during model construction.
-
-Affected: 4.2.1.c1, 4.2.2.a/b/c1, 4.2.3.a, 4.5.1.a5, 4.5.2.a, 4.5.4.a.
-
-### Container control edge cases (6 tests)
-
-- **`xf:group` focus management** — `setfocus` targeting a group does not advance focus to the
-  first focusable control within. Affected: 9.1.1.c.
-- **`xf:switch` selected-state edge cases** — Initial `selected="true"` on non-first case, and
-  both cases with `selected="true"`, not handled correctly. Affected: 9.2.2.b, 9.2.2.c.
-- **`xf:repeat` startindex** — `startindex` attribute not applied on initial render.
+- **`xf:repeat` startindex** — `startindex` attribute is set in XSLT but output
+  `value="index('...')"` evaluates before the repeat template runs (document order issue).
   Affected: 9.3.1.b.
-- **Switch inside repeat** — Independent switch state per repeat iteration not maintained.
-  Affected: 9.3.1.f.
-- **Group inside switch toggle** — Group visibility inside switch/case not updating on toggle.
-  Affected: 9.1.1.a2.
 
-### Miscellaneous (7 tests)
+### XPath function limitations (1 test)
+
+- **`id()` with `xsi:type`** — The standard XPath `id()` function does not recognize
+  `xsi:type="xsd:ID"` annotations. A custom `xforms:id()` cannot be called from within
+  `xsl:evaluate` because the JS bridge (`js:getInstanceKeys()`) is not available in that
+  context. Affected: 7.10.3.c.
+
+### Miscellaneous (4 tests)
 
 - **Cancelled event propagation** — `dispatch` with `cancelable="true"` + `ev:preventDefault`
   does not prevent the default action. Affected: 10.8.f.
-- **Conditional action negative test** — `if` condition on action not suppressing execution
-  in a specific pattern. Affected: 10.17.b.
-- **`id()` with `xsi:type`** — The `id()` function does not resolve IDs from `xsi:type`
-  annotations. Affected: 7.10.3.c.
-- **`min()`/`max()` negative tests** — Empty-nodeset edge cases for `min()` and `max()`.
-  Affected: 7.7.2.b, 7.7.3.b.
 - **Insert with @context precision** — Insert action context attribute does not produce
   expected result in a specific pattern. Affected: 10.3.j.
 - **Appendix H.2** — Renders empty. Affected: h.2.

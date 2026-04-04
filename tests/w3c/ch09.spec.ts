@@ -36,22 +36,25 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
      see "You are now in the In case" output to the screen and a Show Out Case trigger. When either
      switch is activated you must see an xforms-disabled message and an xforms-enabled message.
   */
+  /* TEST-TRACE: scope selectors to .xforms-switch to avoid matching instruction text;
+     helps tests/w3c/ch09.spec.ts "9.1.1.a2" */
   test("9.1.1.a2 — group inside switch/case toggles between In and Out", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.1/9.1.1/9.1.1.a2.xhtml");
+    const sw = page.locator('.xforms-switch');
     // Initial state: "In case" is selected — label and trigger visible
-    await expect(page.getByText("You are now in the In case")).toBeVisible();
+    await expect(sw.getByText("You are now in the In case")).toBeVisible();
     const showOutTrigger = page.getByRole("button", { name: "Show Out Case" });
     await expect(showOutTrigger).toBeVisible();
     // Click "Show Out Case" → Out case shown
     await showOutTrigger.click();
     await page.waitForTimeout(500);
-    await expect(page.getByText("You are now in the Out case")).toBeVisible();
+    await expect(sw.getByText("You are now in the Out case")).toBeVisible();
     const showInTrigger = page.getByRole("button", { name: "Show In Case" });
     await expect(showInTrigger).toBeVisible();
     // Click "Show In Case" → In case restored
     await showInTrigger.click();
     await page.waitForTimeout(500);
-    await expect(page.getByText("You are now in the In case")).toBeVisible();
+    await expect(sw.getByText("You are now in the In case")).toBeVisible();
     await expect(page.getByRole("button", { name: "Show Out Case" })).toBeVisible();
   });
 
@@ -60,17 +63,17 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
      label for the entire group. The group labeled "Shipping Address" must include the inputs Street
      Name and City. The group labeled "Shipping Date" must include the inputs Day and Month.
   */
+  /* TEST-TRACE: use getFormControlText to avoid matching instruction text;
+     helps tests/w3c/ch09.spec.ts "9.1.1.b" */
   test("9.1.1.b — Shipping Address group has Street Name and City; Shipping Date has Day and Month", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.1/9.1.1/9.1.1.b.xhtml");
-    // Group labels visible
-    await expect(page.getByText("Shipping Address")).toBeVisible();
-    await expect(page.getByText("Shipping Date")).toBeVisible();
-    // Shipping Address inputs
-    await expect(page.getByText("Street Name:")).toBeVisible();
-    await expect(page.getByText("City:")).toBeVisible();
-    // Shipping Date inputs
-    await expect(page.getByText("Day:")).toBeVisible();
-    await expect(page.getByText("Month:")).toBeVisible();
+    const text = await getFormControlText(page);
+    expect(text).toContain("Shipping Address");
+    expect(text).toContain("Shipping Date");
+    expect(text).toContain("Street Name");
+    expect(text).toContain("City");
+    expect(text).toContain("Day");
+    expect(text).toContain("Month");
   });
 
   /*
@@ -172,32 +175,39 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
      You must see the output "Eye Color : Blue" below. You must NOT be able to see an output labeled
      "Name" or it must be somehow unavailable to you.
   */
+  /* TEST-TRACE: scope selectors to .xforms-switch to avoid matching instruction text;
+     helps tests/w3c/ch09.spec.ts "9.2.2.b" */
   test("9.2.2.b — case selected=true on second case shows Eye Color Blue, Name hidden", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.2/9.2.2/9.2.2.b.xhtml");
+    const sw = page.locator('.xforms-switch');
     // Eye Color output visible with "Blue"
-    const outputs = page.locator('.xforms-output');
+    const outputs = sw.locator('.xforms-output');
     const texts = await outputs.allInnerTexts();
     expect(texts).toContain("Blue");
-    await expect(page.getByText("Eye Color :", { exact: false })).toBeVisible();
-    // Name label must NOT be visible
-    const nameLabel = page.getByText("Name :", { exact: false });
-    await expect(nameLabel).toBeHidden();
+    // Eye Color case visible
+    await expect(sw.locator('#out')).toBeVisible();
+    await expect(sw.locator('#out .xforms-output')).toContainText("Blue");
+    // Name case must be hidden
+    await expect(sw.locator('#in')).toBeHidden();
   });
 
   /*
      You must see the output "Name : Janel" below. You must NOT be able to see an output labeled
      "Eye Color" or it must be somehow unavailable to you.
   */
+  /* TEST-TRACE: scope selectors to .xforms-switch to avoid matching instruction text;
+     helps tests/w3c/ch09.spec.ts "9.2.2.c" */
   test("9.2.2.c — both cases selected=true: first wins, shows Name Janel, Eye Color hidden", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.2/9.2.2/9.2.2.c.xhtml");
+    const sw = page.locator('.xforms-switch');
     // First case wins — Name output visible with "Janel"
-    const outputs = page.locator('.xforms-output');
+    const outputs = sw.locator('.xforms-output');
     const texts = await outputs.allInnerTexts();
     expect(texts).toContain("Janel");
-    await expect(page.getByText("Name :", { exact: false })).toBeVisible();
-    // Eye Color must NOT be visible
-    const eyeColorLabel = page.getByText("Eye Color :", { exact: false });
-    await expect(eyeColorLabel).toBeHidden();
+    // Name case visible
+    await expect(sw.locator('.xforms-case').first()).toBeVisible();
+    // Eye Color case must be hidden
+    await expect(sw.locator('.xforms-case').nth(1)).toBeHidden();
   });
 
   // -----------------------------------------------------------------

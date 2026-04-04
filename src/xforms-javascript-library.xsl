@@ -79,6 +79,22 @@
             elementsUsingIndexFunction = {};
             elementsContextUsingIndexFunction = {};
             dirtyInstances = {};
+            /* TEST-TRACE: preserve initial snapshots across reset */
+        }
+        
+        /* TEST-TRACE: snapshot initial instance data for xf:reset;
+           helps tests/w3c/ch10.spec.ts "10.a", "10.13.b" */
+        var initialInstances = {};
+        var saveInitialInstance = function(name, value) {
+            initialInstances[name] = value.cloneNode(true);
+        }
+        var getInitialInstance = function(name) {
+            return initialInstances[name] ? initialInstances[name].cloneNode(true) : null;
+        }
+        var restoreInitialInstances = function() {
+            for (var key in initialInstances) {
+                instances[key] = initialInstances[key].cloneNode(true);
+            }
         }
         
         var setModel = function(name, value) {
@@ -388,6 +404,12 @@
             else {
                 return 0;
             }
+        }
+        
+        /* TEST-TRACE: check if a repeat ID has been registered;
+           helps tests/w3c/ch07.spec.ts "7.7.5.b" */
+        var isRepeatRegistered = function(name) {
+            return typeof(repeatIndexMap[name]) != 'undefined';
         } 
                 
         var setRepeatSize = function(name, value) {
@@ -451,10 +473,22 @@
              }
          }
                 
+         /* TEST-TRACE: enhanced setFocus with suffixed-ID fallback and group-to-child focus;
+            helps tests/w3c/ch09.spec.ts "9.1.1.c", tests/w3c/ch10.spec.ts "10.7.a" */
          var setFocus = function(id) {
             var item = document.getElementById(id);
-            item.focus();
-            // alert('setFocus on ' + id);
+            /* fallback: rendered IDs have position suffix (e.g. "shipping-0") */
+            if (!item) {
+                item = document.querySelector('[id^="' + id + '-"]');
+            }
+            if (!item) return;
+            /* if target is a group/div, focus the first focusable child */
+            var focusable = item;
+            if (item.tagName !== 'INPUT' &amp;&amp; item.tagName !== 'TEXTAREA' &amp;&amp; item.tagName !== 'SELECT') {
+                var child = item.querySelector('input, textarea, select, [tabindex]');
+                if (child) focusable = child;
+            }
+            focusable.focus();
          }
          
          var setValue = function(id,val) {

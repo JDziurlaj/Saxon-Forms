@@ -1073,7 +1073,6 @@
                     <xsl:sequence select="$base"/>
                 </xsl:when>
                 <xsl:when test="starts-with($relative,'/')">
-<!--                    <xsl:sequence select="$relative"/>-->
                     <!-- remove root element from XPath -->
                     <xsl:analyze-string select="$relative" regex="^/[^/]+/(.*)$">
                         <xsl:matching-substring>
@@ -1084,7 +1083,14 @@
                                     <xsl:sequence select="regex-group(1)"/>
                                 </xsl:when>
                                 <xsl:otherwise>
-                                    <xsl:sequence select="$base || '/' || regex-group(1)"/>
+                                    <!-- TEST-TRACE: for absolute refs, use instance prefix
+                                         (not full repeat path) to avoid mangling;
+                                         helps tests/w3c/ch09.spec.ts "9.3.1.f" -->
+                                    <xsl:variable name="instance-prefix" as="xs:string" select="
+                                        if (matches($base, '^instance\s*\('))
+                                        then replace($base, '^(instance\s*\([^)]+\)).*$', '$1')
+                                        else $base"/>
+                                    <xsl:sequence select="$instance-prefix || '/' || regex-group(1)"/>
                                 </xsl:otherwise>
                             </xsl:choose>
                         </xsl:matching-substring>
@@ -1138,32 +1144,32 @@
         <xd:param name="context-node">XML node to use as context for the XPath expression.</xd:param>
         <xd:param name="namespace-context">Element containing all namespace declarations</xd:param>  
     </xd:doc>
+    <!-- TEST-TRACE: context-node made optional (node()?) to handle models without instances;
+         helps tests/w3c/ch04.spec.ts "4.2.1.a", "4.2.1.d", "4.2.2.a", "4.2.3.a", "4.5.2.a" -->
     <xsl:function name="xforms:evaluate-xpath-with-context-node">
         <xsl:param name="xpath" as="xs:string"/>
-        <xsl:param name="context-node" as="node()"/>
+        <xsl:param name="context-node" as="node()?"/>
         <xsl:param name="namespace-context" as="element()?"/>
         
-        <!-- 
-            Use the namespace-enriched XForm element as default namespace context
-            so that namespace prefixes declared on xf:xform are available in XPath evaluation.
-            Previously fell back to the context-node (instance element), which lacked these bindings.
-        -->
-        <xsl:variable name="namespace-context-item" as="element()" select="
+        <xsl:variable name="namespace-context-item" as="element()?" select="
             if (exists($namespace-context))
             then $namespace-context
             else (
                 if (exists(js:getXForm()))
                 then js:getXForm()
                 else (
-                    if ($context-node[not(self::*)])
+                    if (exists($context-node) and $context-node[not(self::*)])
                     then $context-node/parent::*
                     else $context-node
                 )
             )"/>
         
         <xsl:choose>
-            <xsl:when test="$xpath ne ''">
+            <xsl:when test="$xpath ne '' and exists($context-node) and exists($namespace-context-item)">
                 <xsl:evaluate xpath="xforms:impose($xpath)" context-item="$context-node" namespace-context="$namespace-context-item"/>
+            </xsl:when>
+            <xsl:when test="$xpath ne '' and exists($context-node)">
+                <xsl:evaluate xpath="xforms:impose($xpath)" context-item="$context-node"/>
             </xsl:when>
             <xsl:otherwise/>
         </xsl:choose>
@@ -1646,9 +1652,13 @@
         <xsl:variable name="instanceField" as="node()?">
             <xsl:choose>
                 <!-- 
-                    Override default instance if @value specifies an instance
+                    Override default instance if @value specifies an instance,
+                    BUT NOT when inside a repeat ($nodeset != '') because
+                    current() needs the repeat item as context.
                 -->
-                <xsl:when test="starts-with(@value,'instance(')">
+                <!-- TEST-TRACE: skip instance() shortcut inside repeats so current()
+                     resolves to the repeat item; helps tests/w3c/ch07.spec.ts "7.10.2.b" -->
+                <xsl:when test="starts-with(@value,'instance(') and $nodeset = ''">
                     <xsl:sequence select="xforms:evaluate-xpath-with-instance-id(@value,xforms:getInstanceId(string(@value)),())[1]"/>
                 </xsl:when>
                 <xsl:when test="$nodeset != ''">
@@ -1666,8 +1676,36 @@
         
         <xsl:variable name="valueExecuted" as="xs:string">
             <xsl:choose>
+                <!-- TEST-TRACE: try/catch guards XPath 3.1 type errors on calculate;
+                     also substitutes position()/last() with actual values;
+                     helps tests/w3c/ch06.spec.ts "6.1.5.a", tests/w3c/ch07.spec.ts "7.2.e" -->
                 <xsl:when test="exists($binding/@calculate) and exists($instanceField)">
-                    <xsl:sequence select="xforms:evaluate-xpath-with-context-node('string(' || $binding/@calculate || ')',$instanceField,())"/>
+                    <xsl:variable name="__init-calc" as="xs:string" select="string($binding/@calculate)"/>
+                    <xsl:variable name="__init-calc-fixed" as="xs:string">
+                        <xsl:choose>
+                            <xsl:when test="contains($__init-calc, 'position()') or contains($__init-calc, 'last()')">
+                                <xsl:variable name="__bind-nodes" as="node()*">
+                                    <xsl:try>
+                                        <xsl:variable name="__inst" select="xforms:instance($instance-context)"/>
+                                        <xsl:evaluate xpath="xforms:impose(string($binding/@nodeset))" context-item="$__inst" namespace-context="$__inst"/>
+                                        <xsl:catch/>
+                                    </xsl:try>
+                                </xsl:variable>
+                                <xsl:variable name="__pos" as="xs:integer" select="
+                                    (for $i in 1 to count($__bind-nodes) return
+                                        if ($__bind-nodes[$i] is $instanceField) then $i else ()
+                                    , 1)[1]"/>
+                                <xsl:sequence select="replace(replace($__init-calc,
+                                    'last\s*\(\s*\)', string(count($__bind-nodes))),
+                                    'position\s*\(\s*\)', string($__pos))"/>
+                            </xsl:when>
+                            <xsl:otherwise><xsl:sequence select="$__init-calc"/></xsl:otherwise>
+                        </xsl:choose>
+                    </xsl:variable>
+                    <xsl:try>
+                        <xsl:sequence select="xforms:evaluate-xpath-with-context-node('string(' || $__init-calc-fixed || ')',$instanceField,())"/>
+                        <xsl:catch><xsl:sequence select="''"/></xsl:catch>
+                    </xsl:try>
                 </xsl:when>
                 <!-- 
                     XForms 1.1 §8.1.5: When @bind is present, the single-node
@@ -1865,6 +1903,52 @@
                 </xsl:if>
                 <xsl:if test="exists($binding) and exists($binding/@required)">
                     <xsl:attribute name="data-required" select="$binding/@required"/>
+                </xsl:if>
+                <!-- TEST-TRACE: propagate readonly MIP (direct or inherited) to HTML input;
+                     XForms §6.1.2: ancestor readonly="true()" overrides any child readonly;
+                     helps tests/w3c/ch06.spec.ts "6.1.2.a", "6.1.2.b" -->
+                <xsl:if test="exists($instanceField) and $instanceField[self::* or self::text() or self::attribute()]">
+                    <xsl:variable name="all-bindings-ro" as="element(xforms:bind)*" select="js:getBindings()"/>
+                    <xsl:variable name="ns-ctx-ro" as="node()" select="
+                        if ($instanceField[self::attribute() or self::text()])
+                        then ($instanceField/parent::*, /*)[1]
+                        else $instanceField"/>
+                    <xsl:variable name="instance-root-ro" as="element()" select="root($instanceField)"/>
+                    <!-- Walk ancestor-or-self to find any readonly binding (ancestor wins per spec) -->
+                    <xsl:variable name="readonly-status" as="xs:boolean">
+                        <xsl:iterate select="reverse($instanceField/ancestor-or-self::*)">
+                            <xsl:param name="found" as="xs:boolean" select="false()"/>
+                            <xsl:on-completion select="$found"/>
+                            <xsl:variable name="anc" as="element()" select="."/>
+                            <xsl:variable name="ro-bind" as="element(xforms:bind)?" select="
+                                ($all-bindings-ro[exists(@readonly)][
+                                    let $bn := xforms:impose(string(@nodeset))
+                                    return (some $n in xforms:evaluate-xpath-with-context-node($bn, $instance-root-ro, ())
+                                            satisfies $n is $anc)
+                                ])[1]"/>
+                            <xsl:choose>
+                                <xsl:when test="exists($ro-bind)">
+                                    <xsl:variable name="ro-val" as="xs:boolean">
+                                        <xsl:try>
+                                            <xsl:evaluate xpath="xforms:impose($ro-bind/@readonly)" context-item="$anc" namespace-context="$ns-ctx-ro"/>
+                                            <xsl:catch><xsl:sequence select="false()"/></xsl:catch>
+                                        </xsl:try>
+                                    </xsl:variable>
+                                    <xsl:choose>
+                                        <!-- Ancestor readonly=true wins unconditionally -->
+                                        <xsl:when test="$ro-val"><xsl:break select="true()"/></xsl:when>
+                                        <xsl:otherwise><xsl:next-iteration><xsl:with-param name="found" select="$found"/></xsl:next-iteration></xsl:otherwise>
+                                    </xsl:choose>
+                                </xsl:when>
+                                <xsl:otherwise>
+                                    <xsl:next-iteration><xsl:with-param name="found" select="$found"/></xsl:next-iteration>
+                                </xsl:otherwise>
+                            </xsl:choose>
+                        </xsl:iterate>
+                    </xsl:variable>
+                    <xsl:if test="$readonly-status">
+                        <xsl:attribute name="data-readonly" select="'true'"/>
+                    </xsl:if>
                 </xsl:if>
                 <!--
                     Persist bind @type on the rendered control so submit-time validation
@@ -3315,7 +3399,12 @@
                     if ($instanceField[self::attribute()])
                     then $instanceField/parent::*
                     else $instanceField"/>
-                <xsl:evaluate xpath="xforms:impose($binding/@relevant)" context-item="$eval-context" namespace-context="$namespace-context-item"/>
+                <!-- TEST-TRACE: try/catch guards XPath 3.1 type errors on relevant;
+                     helps tests/w3c/ch06.spec.ts "6.1.5.a", "6.1.4.b" -->
+                <xsl:try>
+                    <xsl:evaluate xpath="xforms:impose($binding/@relevant)" context-item="$eval-context" namespace-context="$namespace-context-item"/>
+                    <xsl:catch><xsl:sequence select="true()"/></xsl:catch>
+                </xsl:try>
             </xsl:when>
             <!-- 
                 No direct binding with @relevant found.  Walk up the instance
@@ -4202,6 +4291,9 @@
                 )"/>
             <!--<xsl:message use-when="$debugMode">[xforms-model-construct] Setting instance with ID '<xsl:sequence select="$instance-key"/>': <xsl:sequence select="fn:serialize($instance-with-explicit-namespaces)"/></xsl:message>-->
             <xsl:sequence select="js:setInstance($instance-key,$instance-with-explicit-namespaces)"/>
+            <!-- TEST-TRACE: snapshot initial instance for xf:reset;
+                 helps tests/w3c/ch10.spec.ts "10.a", "10.13.b" -->
+            <xsl:sequence select="js:saveInitialInstance($instance-key,$instance-with-explicit-namespaces)"/>
             <!-- TEST-TRACE: alias first instance under implicit default key when it has an explicit @id,
                  so that default-instance lookups (instance() with no arg, plain XPaths) find it;
                  helps tests/w3c/ch07.spec.ts "7.4.6.a", "7.10.1.a" -->
@@ -4402,8 +4494,24 @@
         <xsl:variable name="updatedInstanceXML" as="element()">
             <xsl:choose>
                 <xsl:when test="exists($evaluation-context)">
+                    <!-- TEST-TRACE: try/catch guards XPath 3.1 type errors (e.g. empty string
+                         in arithmetic); helps tests/w3c/ch06.spec.ts "6.1.5.a" -->
+                    <!-- TEST-TRACE: substitute position()/last() with actual nodeset values;
+                         xsl:evaluate sets context size=1, but XForms calculate needs
+                         position within the bind nodeset;
+                         helps tests/w3c/ch07.spec.ts "7.2.e" -->
+                    <xsl:variable name="__calc-expr" as="xs:string" select="$this-binding/@calculate"/>
+                    <xsl:variable name="__calc-with-pos" as="xs:string" select="
+                        if (contains($__calc-expr, 'position()') or contains($__calc-expr, 'last()'))
+                        then replace(replace($__calc-expr,
+                            'last\s*\(\s*\)', string(count($calculated-nodes))),
+                            'position\s*\(\s*\)', string($match-counter))
+                        else $__calc-expr"/>
                     <xsl:variable name="value" as="xs:string?">
-                        <xsl:evaluate xpath="xforms:impose('string(' || $this-binding/@calculate || ')')" context-item="$evaluation-context" namespace-context="$instanceXML"/> 
+                        <xsl:try>
+                            <xsl:evaluate xpath="xforms:impose('string(' || $__calc-with-pos || ')')" context-item="$evaluation-context" namespace-context="$instanceXML"/>
+                            <xsl:catch><xsl:sequence select="''"/></xsl:catch>
+                        </xsl:try>
                     </xsl:variable>
                     <xsl:message use-when="$debugMode">[xforms-recalculate-binding] New value for <xsl:value-of select="$this-binding/@nodeset"/> (match #<xsl:value-of select="$match-counter"/>) (<xsl:value-of select="$this-binding/@calculate"/>) is <xsl:sequence select="$value"/></xsl:message>
                     
@@ -4499,7 +4607,28 @@
                 else ()"/>
             <xsl:variable name="binding-type" as="xs:string" select="((normalize-space($binding-type-from-bind-exact),normalize-space($binding-type-from-bind-node),normalize-space($binding-type-from-instance))[. ne ''],'')[1]"/>
             <xsl:variable name="typed-value" as="xs:string" select="if (exists($context-node)) then normalize-space(string($context-node)) else ''"/>
-            <xsl:variable name="is-valid" as="xs:boolean" select="if (exists($context-node)) then xsdh:is-type-valid($binding-type,$typed-value) else false()"/>
+            <xsl:variable name="is-type-valid" as="xs:boolean" select="if (exists($context-node)) then xsdh:is-type-valid($binding-type,$typed-value) else false()"/>
+            <!-- TEST-TRACE: evaluate bind @constraint (not just type);
+                 helps tests/w3c/ch06.spec.ts "6.1.6.a" -->
+            <xsl:variable name="constraint-bind" as="element(xforms:bind)?" select="
+                ($bindings[@instance-context = $context-instance-id][exists(@constraint)][
+                    let $bn := xforms:impose(string(@nodeset))
+                    return exists($context-instance-xml) and
+                           (some $n in xforms:evaluate-xpath-with-context-node($bn, $context-instance-xml, ())
+                            satisfies exists($context-node) and $n is $context-node)
+                ])[1]"/>
+            <xsl:variable name="is-constraint-valid" as="xs:boolean">
+                <xsl:choose>
+                    <xsl:when test="exists($constraint-bind) and exists($context-node)">
+                        <xsl:try>
+                            <xsl:evaluate xpath="xforms:impose(string($constraint-bind/@constraint))" context-item="$context-node" namespace-context="$context-instance-xml"/>
+                            <xsl:catch><xsl:sequence select="false()"/></xsl:catch>
+                        </xsl:try>
+                    </xsl:when>
+                    <xsl:otherwise><xsl:sequence select="true()"/></xsl:otherwise>
+                </xsl:choose>
+            </xsl:variable>
+            <xsl:variable name="is-valid" as="xs:boolean" select="$is-type-valid and $is-constraint-valid"/>
 
             <xsl:message use-when="$debugMode">[xforms-revalidate] ref=<xsl:value-of select="$context-ref"/> instance=<xsl:value-of select="$context-instance-id"/> type=<xsl:value-of select="$binding-type"/> value='<xsl:value-of select="$typed-value"/>' valid=<xsl:value-of select="$is-valid"/></xsl:message>
 
@@ -5235,6 +5364,16 @@
     <xsl:template name="action-setvalue-form-control">
         <xsl:param name="form-control" as="node()"/>
         
+        <!-- TEST-TRACE: skip value update when readonly MIP is active;
+             helps tests/w3c/ch06.spec.ts "6.1.2.a", "6.1.2.b" -->
+        <xsl:if test="$form-control/@data-readonly = 'true'">
+            <xsl:variable name="ro-instance-id" as="xs:string" select="xforms:getInstanceId($form-control/@data-ref)"/>
+            <xsl:variable name="ro-instanceXML" as="element()" select="xforms:instance($ro-instance-id)"/>
+            <xsl:variable name="ro-current" as="node()?" select="xforms:evaluate-xpath-with-context-node(string($form-control/@data-ref),$ro-instanceXML,())"/>
+            <ixsl:set-property name="value" select="string($ro-current)" object="$form-control"/>
+        </xsl:if>
+        <xsl:if test="not($form-control/@data-readonly = 'true')">
+        
         <xsl:variable name="refi" select="$form-control/@data-ref"/>
         <xsl:variable name="refElement" select="$form-control/@data-element"/>
         
@@ -5288,6 +5427,8 @@
         <xsl:call-template name="xforms-value-changed">
             <xsl:with-param name="when-value-changed" select="$actions[map:get(.,'@event') = 'xforms-value-changed']" tunnel="yes"/>
         </xsl:call-template>
+        
+        </xsl:if><!-- end not(data-readonly) guard -->
               
     </xsl:template>
     
@@ -5330,13 +5471,20 @@
         <xsl:variable name="instance-id-origin" as="xs:string?" select="if(exists($origin-ref)) then xforms:getInstanceId($origin-ref) else ()"/>
         <xsl:variable name="instanceXML-origin" as="element()?" select="if(exists($instance-id-origin)) then xforms:instance($instance-id-origin) else ()"/>
         
-        <xsl:variable name="binding-nodeset" as="node()*" select="xforms:evaluate-xpath-with-context-node($ref-qualified,$instanceXML,())"/>
+        <!-- TEST-TRACE: guard empty ref-qualified (insert with @context only, no @nodeset);
+             helps tests/w3c/appendix.spec.ts "B.1", "B.3", "B.4" -->
+        <xsl:variable name="binding-nodeset" as="node()*" select="
+            if (exists($ref-qualified) and $ref-qualified ne '')
+            then xforms:evaluate-xpath-with-context-node($ref-qualified,$instanceXML,())
+            else ()"/>
         
         <xsl:variable name="origin-nodeset" as="node()*">
             <xsl:choose>
                 <xsl:when test="exists($origin-ref)">
                     <!--<xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> $origin-ref = <xsl:sequence select="$origin-ref"/></xsl:message>-->
-                    <xsl:sequence select="xforms:evaluate-xpath-with-context-node($origin-ref,$instanceXML-origin,())"/>
+                    <xsl:sequence select="xforms:evaluate-xpath-with-context-node($origin-ref,
+                        if (exists($instanceXML-origin)) then $instanceXML-origin else $instanceXML,
+                        ())"/>
                 </xsl:when>
                 <xsl:otherwise>
                     <!-- fall back to using "Node Set Binding node-set" context -->
@@ -5873,19 +6021,14 @@
         </xd:desc>
         <xd:param name="action-map">Action map</xd:param>
     </xd:doc>
+    <!-- TEST-TRACE: restore initial instance snapshots on reset instead of full re-init;
+         helps tests/w3c/ch10.spec.ts "10.a", "10.13.b" -->
     <xsl:template name="action-reset">
         <xsl:param name="action-map" required="yes" as="map(*)" tunnel="yes"/>
         
-        <xsl:message use-when="$debugMode">[action-reset] Reset triggered!</xsl:message>
-        <xsl:sequence select="js:reset()"/>
-        <xsl:call-template name="xformsjs-main" >
-            <xsl:with-param name="xFormsId" select="$xform-html-id" />
-            <xsl:with-param name="reset" select="true()"/>
-        </xsl:call-template>
-        <xsl:message use-when="$debugMode">[action-reset] Reset in progress!</xsl:message>
-        
+        <xsl:message use-when="$debugMode">[action-reset] Reset triggered — restoring initial instances</xsl:message>
+        <xsl:sequence select="js:restoreInitialInstances()"/>
         <xsl:sequence select="js:setDeferredUpdateFlags(('rebuild','recalculate','revalidate','refresh'))"/>
-        <!--<xsl:call-template name="outermost-action-handler"/>-->
     </xsl:template>
     
     <xd:doc scope="component">

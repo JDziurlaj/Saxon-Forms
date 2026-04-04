@@ -21,7 +21,7 @@ Prevent regressions by requiring:
 - Baseline snapshots (one per suite):
   - `.agents/skills/regression-gate/baselines/<suite-id>.json`
 - Gate runner script (full workflow: compile + targeted + full queue + baseline comparison):
-  - `.agents/skills/regression-gate/scripts/run_regression_gate.mjs`
+  - `.agents/skills/regression-gate/scripts/run_regression_gate.mjs` (`npm run test:gate`)
 - Baseline evaluator script:
   - `.agents/skills/regression-gate/scripts/evaluate_playwright_baseline.mjs`
 - Baseline generation script (repeatable initialization/refresh workflow):

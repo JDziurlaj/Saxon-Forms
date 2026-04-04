@@ -29,7 +29,6 @@
  *   2 - Regressions detected
  *   1 - Error (missing arguments, file not found, etc.)
  */
-#!/usr/bin / env node
 import fs from "fs";
 
 function argValue(flag) {

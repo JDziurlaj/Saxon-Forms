@@ -12,7 +12,8 @@ const repoRoot = path.resolve(skillRoot, "../../..");
 
 const suitesPath = path.join(skillRoot, "playwright", "suites.json");
 const evaluatorPath = path.join(skillRoot, "scripts", "evaluate_playwright_baseline.mjs");
-const fetchW3CPath = path.join(repoRoot, "scripts", "fetch-w3c-suite.sh");
+const fetchW3CPath = path.join(repoRoot, "scripts", "fetch-w3c-suite.mjs");
+const playwrightLauncherPath = path.join(repoRoot, "scripts", "run-playwright-with-port.mjs");
 const sefPath = path.join(repoRoot, "sef", "saxon-xforms.sef.json");
 const testAppSefPath = path.join(repoRoot, "test-app", "sef", "saxon-xforms.sef.json");
 const runsRoot = path.join(skillRoot, "runs");
@@ -95,6 +96,9 @@ function run(command, args, options = {}) {
 function timestampUtcCompact() {
   return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
+function logEvent(event, payload = {}) {
+  console.log(JSON.stringify({ ts: new Date().toISOString(), event, ...payload }));
+}
 
 function resolveSuitePath(value) {
   if (!value) return value;
@@ -137,32 +141,39 @@ function loadSuiteRegistry() {
 
 function runPlaywrightToJsonReport({ suite, workers, runDir }) {
   const reportPath = path.join(runDir, "playwright-report.json");
-  const stderrPath = path.join(runDir, "playwright-stderr.log");
-  const reportFd = fs.openSync(reportPath, "w");
-  const stderrFd = fs.openSync(stderrPath, "w");
+  const startedAt = Date.now();
+  logEvent("suite-start", {
+    suite_id: suite.id,
+    workers,
+    config_path: toRepoRelative(suite.config_path),
+    test_path: toRepoRelative(suite.test_path),
+    report_path: toRepoRelative(reportPath)
+  });
   const result = spawnSync(
-    "npx",
+    "node",
     [
-      "--prefix",
-      repoRoot,
-      "playwright",
-      "test",
+      playwrightLauncherPath,
       "--workers",
       String(workers),
       "--config",
       suite.config_path,
       suite.test_path,
-      "--reporter=json"
+      "--reporter=dot,json"
     ],
     {
       cwd: repoRoot,
-      stdio: ["ignore", reportFd, stderrFd],
+      stdio: "inherit",
       encoding: "utf8",
-      timeout: playwrightTimeoutMs
+      timeout: playwrightTimeoutMs,
+      env: {
+        ...process.env,
+        PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath,
+        PLAYWRIGHT_JSON_OUTPUT_DIR: path.dirname(reportPath),
+        PLAYWRIGHT_JSON_OUTPUT_NAME: path.basename(reportPath)
+      }
     }
   );
-  fs.closeSync(reportFd);
-  fs.closeSync(stderrFd);
+  const playwrightDurationSeconds = Number(((Date.now() - startedAt) / 1000).toFixed(2));
 
   if (result.error) {
     if (result.error.code === "ETIMEDOUT") {
@@ -174,19 +185,16 @@ function runPlaywrightToJsonReport({ suite, workers, runDir }) {
     throw new Error(`Playwright failed for suite ${suite.id}: ${result.error.message}`);
   }
   if (!fs.existsSync(reportPath) || fs.statSync(reportPath).size === 0) {
-    throw new Error(
-      `No Playwright JSON report produced for suite ${suite.id}. ` +
-        `Check ${toRepoRelative(stderrPath)} for details.`
-    );
+    throw new Error(`No Playwright JSON report produced for suite ${suite.id}.`);
   }
-  return { result, reportPath, stderrPath };
+  return { result, reportPath, playwrightDurationSeconds };
 }
 
 function ensureW3CDataIfNeeded(queueIds) {
   const needsW3CData = queueIds.some((suiteId) => suiteId.startsWith("w3c-"));
   if (!needsW3CData) return;
 
-  run("bash", [fetchW3CPath]);
+  run("node", [fetchW3CPath]);
   const linkPath = path.join(repoRoot, "test-app", "w3c-suite");
   const targetPath = path.join(repoRoot, "public-test", "w3c-suite");
 
@@ -290,18 +298,22 @@ function main() {
   let targetedSummary = {
     status: "skipped",
     reason: args.grepPattern ? "skip-targeted requested" : "no --grep provided",
-    exit_code: null
+    exit_code: null,
+    duration_seconds: null
   };
 
   if (args.grepPattern && !args.skipTargeted) {
     const primarySuite = queue.find((suite) => suite.id === primarySuiteId);
+    const targetedStartedAt = Date.now();
+    logEvent("targeted-start", {
+      suite_id: primarySuite.id,
+      workers,
+      grep: args.grepPattern
+    });
     const targetedResult = run(
-      "npx",
+      "node",
       [
-        "--prefix",
-        repoRoot,
-        "playwright",
-        "test",
+        playwrightLauncherPath,
         "--workers",
         String(workers),
         "--config",
@@ -312,11 +324,21 @@ function main() {
       ],
       { allowFailure: true, timeoutMs: playwrightTimeoutMs }
     );
+    const targetedDurationSeconds = Number(((Date.now() - targetedStartedAt) / 1000).toFixed(2));
     targetedSummary = {
       status: targetedResult.status === 0 ? "ok" : "failed",
       reason: null,
-      exit_code: targetedResult.status
+      exit_code: targetedResult.status,
+      duration_seconds: targetedDurationSeconds
     };
+    logEvent("targeted-end", {
+      suite_id: primarySuite.id,
+      workers,
+      grep: args.grepPattern,
+      status: targetedSummary.status,
+      exit_code: targetedSummary.exit_code,
+      duration_seconds: targetedSummary.duration_seconds
+    });
   }
 
   let hardFail = false;
@@ -324,10 +346,10 @@ function main() {
   const suiteResults = [];
 
   for (const suite of queue) {
+    const suiteStartedAt = Date.now();
     const runDir = path.join(runsRoot, suite.id, timestampUtcCompact());
     fs.mkdirSync(runDir, { recursive: true });
-
-    const { result: playwrightResult, reportPath } = runPlaywrightToJsonReport({
+    const { result: playwrightResult, reportPath, playwrightDurationSeconds } = runPlaywrightToJsonReport({
       suite,
       workers,
       runDir
@@ -371,6 +393,22 @@ function main() {
         );
       }
     }
+    const currentStats = comparisonSummary?.current_stats ?? null;
+    logEvent("suite-end", {
+      suite_id: suite.id,
+      workers,
+      policy: suite.regression_policy,
+      run_dir: toRepoRelative(runDir),
+      duration_seconds: Number(((Date.now() - suiteStartedAt) / 1000).toFixed(2)),
+      playwright_duration_seconds: playwrightDurationSeconds,
+      passed: currentStats?.passed ?? null,
+      failed: currentStats?.failed ?? null,
+      flaky: currentStats?.flaky ?? null,
+      skipped: currentStats?.skipped ?? null,
+      no_regressions: comparisonSummary?.no_regressions ?? null,
+      baseline_promoted: comparisonSummary?.baseline_promoted ?? false,
+      new_regressions_count: (comparisonSummary?.new_regressions || []).length
+    });
 
     suiteResults.push({
       suite_id: suite.id,
@@ -383,7 +421,7 @@ function main() {
       comparison_exit_code: compareResult.status,
       baseline_promoted: comparisonSummary?.baseline_promoted ?? false,
       no_regressions: comparisonSummary?.no_regressions ?? null,
-      current_stats: comparisonSummary?.current_stats ?? null,
+      current_stats: currentStats,
       new_regressions: comparisonSummary?.new_regressions ?? []
     });
   }
@@ -400,7 +438,7 @@ function main() {
     policy_result: hardFail ? "hard-fail" : softFail ? "soft-fail" : "pass"
   };
 
-  console.log(JSON.stringify(summary, null, 2));
+  console.log(JSON.stringify(summary));
 
   if (hardFail) process.exit(2);
   if (softFail) process.exit(3);
