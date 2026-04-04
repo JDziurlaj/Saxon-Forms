@@ -9,14 +9,17 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  reporter: "dot",
+  reporter: [
+    ["dot"],
+    ["html", { open: "never" }]
+  ],
   use: {
     baseURL,
     trace: "on-first-retry",
     bypassCSP: true,
     launchOptions: {
       args: ["--disable-web-security"],
-    }
+    },
   },
   projects: [
     {
@@ -25,14 +28,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev",
+    command: `npx http-server test-app -p ${playwrightPort} -c-1`,
     url: baseURL,
-    env: {
-      ...process.env,
-      PLAYWRIGHT_TEST_HOST: playwrightHost,
-      PLAYWRIGHT_TEST_PORT: String(playwrightPort),
-      VITE_PORT: String(playwrightPort)
-    },
     reuseExistingServer: !process.env.CI,
   },
 });

@@ -29,6 +29,9 @@ Saxon-Forms currently supports Saxon-JS 1.1.0 and Saxon-JS 2. To run Saxon-Forms
 
 ## End-to-end tests (Playwright)
 
+> [!IMPORTANT]
+> Avoid the Vite server for conformance and regression testing
+
 Playwright tests can now run against two different web server modes.
 
 - Vite mode (matches local dev behavior):

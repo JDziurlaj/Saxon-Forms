@@ -5,25 +5,22 @@
   "type": "module",
   "scripts": {
     "build:sef": "npx xslt3 -t -xsl:src/saxon-xforms.xsl -export:sef/saxon-xforms.sef.json -nogo \"-ns:##html5\" && node -e \"require('fs').cpSync('sef/saxon-xforms.sef.json','test-app/sef/saxon-xforms.sef.json')\"",
-    "predev": "bash scripts/fetch-w3c-suite.sh && node -e \"const fs=require('fs');const t='test-app/w3c-suite';if(!fs.existsSync(t)){fs.symlinkSync(require('path').resolve('public-test/w3c-suite'),t,'junction')}\"",
-    "fetch:w3c": "bash scripts/fetch-w3c-suite.sh",
-    "fetch:w3c:force": "bash scripts/fetch-w3c-suite.sh --force",
+    "predev": "node scripts/fetch-w3c-suite.mjs && node -e \"const fs=require('fs');const t='test-app/w3c-suite';if(!fs.existsSync(t)){fs.symlinkSync(require('path').resolve('public-test/w3c-suite'),t,'junction')}\"",
+    "fetch:w3c": "node scripts/fetch-w3c-suite.mjs",
+    "fetch:w3c:force": "node scripts/fetch-w3c-suite.mjs --force",
     "test:baseline": "node scripts/create-playwright-baseline.mjs --all",
     "test:gate": "node .agents/skills/regression-gate/scripts/run_regression_gate.mjs",
-    "dev": "npm run predev && vite",
-    "test:e2e": "npm run test:e2e:vite",
-    "test:e2e:ui": "npm run test:e2e:ui:vite",
-    "test:e2e:vite": "playwright test --config=playwright.config.ts",
-    "test:e2e:ui:vite": "playwright test --config=playwright.config.ts --ui",
-    "test:e2e:static": "playwright test --config=playwright.static.config.ts",
+    "dev": "npm run predev && npx http-server test-app -p 5174 -c-1",
+    "test:e2e": "npm run test:e2e:static",
+    "test:e2e:ui": "npm run test:e2e:ui:static",
+    "test:e2e:static": "node scripts/run-playwright-with-port.mjs --config=playwright.config.ts",
     "test:xsd-helpers": "npx xslt3 -xsl:tests/xsd-helpers.spec.xsl -s:tests/xsd-helpers-cases.xml",
-    "test:e2e:ui:static": "playwright test --config=playwright.static.config.ts --ui"
+    "test:e2e:ui:static": "node scripts/run-playwright-with-port.mjs --config=playwright.config.ts --ui"
   },
   "devDependencies": {
     "@noble/hashes": "^2.0.1",
     "@playwright/test": "^1.50.0",
     "http-server": "^14.1.1",
-    "tsx": "^4.21.0",
-    "vite": "^6.4.1"
+    "tsx": "^4.21.0"
   }
 }

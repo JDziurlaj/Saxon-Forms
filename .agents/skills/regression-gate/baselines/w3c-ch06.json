@@ -1,20 +1,14 @@
 {
   "suite_id": "w3c-ch06",
-  "test_path": "/mnt/c/Users/John/Documents/GitHub/Saxon-Forms-fork/tests/w3c/ch06.spec.ts",
-  "config_path": "/mnt/c/Users/John/Documents/GitHub/Saxon-Forms-fork/playwright.config.ts",
-  "last_updated": "2026-04-03T19:39:38.842Z",
+  "test_path": "tests/w3c/ch06.spec.ts",
+  "config_path": "playwright.config.ts",
+  "last_updated": "2026-04-04T17:21:15.523Z",
   "stats": {
     "total": 11,
-    "passed": 6,
-    "failed": 5,
+    "passed": 11,
+    "failed": 0,
     "flaky": 0,
     "skipped": 0
   },
-  "allowed_failures": [
-    "W3C Ch6 [behavioral promoted] › 6.1.5.a — 6.1.5.a calculate property",
-    "W3C Ch6 — Model Item Properties [behavioral] › 6.1.2.a — readonly: values rendered, readonly MIP parsed",
-    "W3C Ch6 — Model Item Properties [behavioral] › 6.1.2.b — readonly inheritance: values rendered",
-    "W3C Ch6 — Model Item Properties [behavioral] › 6.1.4.b — relevant: Enter 1500 shows discount, Enter 250 hides it",
-    "W3C Ch6 — Model Item Properties [behavioral] › 6.1.6.a — constraint: Valid Value sets To=25, instance updated"
-  ]
+  "allowed_failures": []
 }

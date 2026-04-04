@@ -1,8 +1,8 @@
 {
   "suite_id": "issues-spec",
-  "test_path": "/mnt/c/Users/John/Documents/GitHub/Saxon-Forms-fork/tests/issues.spec.ts",
-  "config_path": "/mnt/c/Users/John/Documents/GitHub/Saxon-Forms-fork/playwright.config.ts",
-  "last_updated": "2026-04-03T19:35:58.043Z",
+  "test_path": "tests/issues.spec.ts",
+  "config_path": "playwright.config.ts",
+  "last_updated": "2026-04-04T17:17:57.488Z",
   "stats": {
     "total": 18,
     "passed": 16,

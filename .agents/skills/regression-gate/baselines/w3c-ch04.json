@@ -1,24 +1,19 @@
 {
   "suite_id": "w3c-ch04",
-  "test_path": "/mnt/c/Users/John/Documents/GitHub/Saxon-Forms-fork/tests/w3c/ch04.spec.ts",
-  "config_path": "/mnt/c/Users/John/Documents/GitHub/Saxon-Forms-fork/playwright.config.ts",
-  "last_updated": "2026-04-03T19:38:24.171Z",
+  "test_path": "tests/w3c/ch04.spec.ts",
+  "config_path": "playwright.config.ts",
+  "last_updated": "2026-04-04T17:20:16.890Z",
   "stats": {
     "total": 67,
-    "passed": 58,
-    "failed": 9,
+    "passed": 63,
+    "failed": 4,
     "flaky": 0,
     "skipped": 0
   },
   "allowed_failures": [
-    "W3C Ch4 [behavioral promoted] › 4.2.2.b — 4.2.2.b xforms-model-construct-done",
-    "W3C Ch4 [behavioral promoted] › 4.2.2.c1 — 4.2.2.c1 form control referenced instance that did not exist yet",
-    "W3C Ch4 [behavioral promoted] › 4.4.1.a — 4.4.1.a xforms-insert event",
-    "W3C Ch4 [behavioral promoted] › 4.7.a — 4.7.a invalid ID references that terminate with no effect",
-    "W3C Ch4 — Processing Model [smoke] › 4.2.1.a — model-construct events renders",
-    "W3C Ch4 — Processing Model [smoke] › 4.2.1.d — model-construct-done events renders",
-    "W3C Ch4 — Processing Model [smoke] › 4.2.2.a — ready event messages renders",
-    "W3C Ch4 — Processing Model [smoke] › 4.2.3.a — model-construct-done messages renders",
-    "W3C Ch4 — Processing Model [smoke] › 4.5.2.a — no Hello world renders"
+    "W3C Ch4 — Processing Model [behavioral] › 4.2.2.b — 4.2.2.b xforms-model-construct-done",
+    "W3C Ch4 — Processing Model [behavioral] › 4.2.2.c1 — 4.2.2.c1 form control referenced instance that did not exist yet",
+    "W3C Ch4 — Processing Model [behavioral] › 4.4.1.a — 4.4.1.a xforms-insert event",
+    "W3C Ch4 — Processing Model [behavioral] › 4.7.a — 4.7.a invalid ID references that terminate with no effect"
   ]
 }

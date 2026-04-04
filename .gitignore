@@ -7,3 +7,6 @@ node_modules/
 test-results/
 playwright-report/
 public-test/
+test-app/w3c-suite
+public-test/w3c-suite/
+runs/
