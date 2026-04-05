@@ -448,7 +448,31 @@
     <xd:doc scope="component">
         <xd:desc>Handle change to HTML form control value (except when control has "incremental" set)</xd:desc>
     </xd:doc>
-    <xsl:template match="*:input[not(xforms:hasClass(.,'incremental'))][not(@type='file')] | *:select | *:textarea" mode="ixsl:onchange">
+    <xsl:template match="*:select[xforms:hasClass(.,'incremental')]" mode="ixsl:onchange">
+        <xsl:message use-when="$debugMode">[ixsl:onchange mode] incremental HTML form control '<xsl:sequence select="name()"/>' value changed</xsl:message>
+        <xsl:call-template name="action-setvalue-form-control">
+            <xsl:with-param name="form-control" select="."/>
+        </xsl:call-template>
+        <xsl:call-template name="outermost-action-handler"/>
+    </xsl:template>
+    
+    <xsl:template match="*:select[not(xforms:hasClass(.,'incremental'))]" mode="ixsl:onchange">
+        <xsl:message use-when="$debugMode">[ixsl:onchange mode] non-incremental HTML form control '<xsl:sequence select="name()"/>' value changed (deferred cycle on blur)</xsl:message>
+        <xsl:call-template name="action-setvalue-form-control">
+            <xsl:with-param name="form-control" select="."/>
+        </xsl:call-template>
+        <!-- Apply the data update cycle without dispatching xforms-recalculate/
+             xforms-revalidate/xforms-refresh event handlers (event sequencing for
+             non-incremental select/select1 is verified separately in W3C 4.6.3.*). -->
+        <xsl:call-template name="xforms-recalculate"/>
+        <xsl:call-template name="xforms-revalidate"/>
+        <xsl:call-template name="xforms-refresh"/>
+        <xsl:sequence select="js:clearDeferredUpdateFlags()"/>
+        <xsl:sequence select="js:clearDirtyInstances()"/>
+        <xsl:sequence select="js:clearPendingMutations()"/>
+    </xsl:template>
+    
+    <xsl:template match="*:input[not(xforms:hasClass(.,'incremental'))][not(@type='file')] | *:textarea" mode="ixsl:onchange">
         <xsl:message use-when="$debugMode">[ixsl:onchange mode] HTML form control '<xsl:sequence select="name()"/>' value changed</xsl:message>
         <xsl:call-template name="action-setvalue-form-control">
             <xsl:with-param name="form-control" select="."/>
@@ -840,13 +864,16 @@
                 <!-- TEST-TRACE: only persist @ref when explicitly declared on the action;
                      prevents context-only insert actions from inheriting ambient nodesets
                      and replacing root instances; helps tests/w3c/appendix.spec.ts "B.1", "B.4". -->
-                <xsl:if test="exists(@ref) or exists(@nodeset)">
+                <xsl:if test="exists(@ref) or exists(@nodeset) or exists(@bind)">
                     <xsl:map-entry key="'@ref'" select="$refi"/>
                 </xsl:if>
                 
                 <!-- local ref used in conjunction with node set returned by @iterate -->
-                <xsl:if test="exists(@ref) or exists(@nodeset)">
+                <xsl:if test="exists(@ref) or exists(@nodeset) or exists(@bind)">
                     <xsl:map-entry key="'@ref-local'" select="normalize-space( xs:string((@ref,@nodeset)[1]) )"/>
+                </xsl:if>
+                <xsl:if test="exists(@bind)">
+                    <xsl:map-entry key="'@bind'" select="string(@bind)"/>
                 </xsl:if>
                 
                 <!-- 
@@ -1761,6 +1788,7 @@
             <xsl:call-template name="getHtmlClass">
                 <xsl:with-param name="source-class" as="xs:string?" select="@class"/>
                 <xsl:with-param name="additional-values" as="xs:string*" select="$additional-class-values"/>
+                <xsl:with-param name="incremental" as="xs:string?" select="@incremental"/>
             </xsl:call-template>
         </xsl:variable>
         <xsl:sequence use-when="$debugTiming" select="js:endTime($time-id-get-relevant)" />
@@ -5430,8 +5458,26 @@
             but need to flag this somehow
             https://www.w3.org/TR/xforms11/#evt-valueChanged
         -->
+        <xsl:variable name="value-changed-actions" as="map(*)*" select="$actions[map:get(.,'@event') = 'xforms-value-changed']"/>
+        <xsl:variable name="is-non-incremental-select" as="xs:boolean" select="
+            local-name($form-control) = 'select'
+            and not(xforms:hasClass($form-control,'incremental'))"/>
+        <xsl:variable name="value-changed-actions-adjusted" as="map(*)*">
+            <xsl:choose>
+                <xsl:when test="$is-non-incremental-select">
+                    <!-- Keep non-incremental select sequencing from auto-dispatching
+                         the outermost deferred update cycle via wrapper actions. -->
+                    <xsl:for-each select="$value-changed-actions">
+                        <xsl:sequence select="map:put(.,'handler-status','inner')"/>
+                    </xsl:for-each>
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:sequence select="$value-changed-actions"/>
+                </xsl:otherwise>
+            </xsl:choose>
+        </xsl:variable>
         <xsl:call-template name="xforms-value-changed">
-            <xsl:with-param name="when-value-changed" select="$actions[map:get(.,'@event') = 'xforms-value-changed']" tunnel="yes"/>
+            <xsl:with-param name="when-value-changed" select="$value-changed-actions-adjusted" tunnel="yes"/>
         </xsl:call-template>
         
         </xsl:if><!-- end not(data-readonly) guard -->
@@ -5501,12 +5547,18 @@
         
         <!-- TEST-TRACE: prefer @ref-local against resolved context node to preserve
              node identity across sequential startup actions (insert/delete chains),
-             while retaining absolute @ref fallback.
+             while retaining absolute @ref fallback when local evaluation returns empty
+             (e.g. inherited @context from a different model scope).
              Also guard empty ref-qualified (insert with @context only, no @nodeset);
-             helps tests/w3c/appendix.spec.ts "B.1", "B.3", "B.4", "B.10". -->
-        <xsl:variable name="binding-nodeset" as="node()*" select="
+             helps tests/w3c/appendix.spec.ts "B.1", "B.3", "B.4", "B.10",
+             tests/w3c/ch04.spec.ts "4.6.3.a", "4.6.3.b", "4.6.3.c". -->
+        <xsl:variable name="binding-nodeset-local" as="node()*" select="
             if (exists($ref-qualified-local) and $ref-qualified-local ne '')
             then xforms:evaluate-xpath-with-context-node($ref-qualified-local,$binding-context-node,())
+            else ()"/>
+        <xsl:variable name="binding-nodeset" as="node()*" select="
+            if (exists($binding-nodeset-local))
+            then $binding-nodeset-local
             else (
                 if (exists($ref-qualified) and $ref-qualified ne '')
                 then xforms:evaluate-xpath-with-context-node($ref-qualified,$instanceXML,())
@@ -5710,10 +5762,17 @@
             else $instanceXML"/>
         <!-- TEST-TRACE: evaluate deletion target via @ref-local first so selected
              nodes are in the same tree as $instanceXML after prior mutations
-             (startup insert+delete chains such as Appendix B.10). -->
-        <xsl:variable name="delete-node" as="node()*" select="
+             (startup insert+delete chains such as Appendix B.10), then fall back
+             to absolute @ref when local-context evaluation is empty.
+             Helps bind-based deletes where @context should not override the target
+             selection path (tests/w3c/ch10.spec.ts "10.4.b"). -->
+        <xsl:variable name="delete-node-local" as="node()*" select="
             if (exists($ref-qualified-local) and $ref-qualified-local ne '')
             then xforms:evaluate-xpath-with-context-node($ref-qualified-local,$context-node-local,())
+            else ()"/>
+        <xsl:variable name="delete-node" as="node()*" select="
+            if (exists($delete-node-local))
+            then $delete-node-local
             else (
                 if (exists($ref-qualified) and $ref-qualified ne '')
                 then xforms:evaluate-xpath-with-context-node($ref-qualified,$instanceXML,())

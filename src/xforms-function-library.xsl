@@ -19,7 +19,7 @@
     extension-element-prefixes="ixsl" version="3.0">
     
     <!-- TEST-TRACE: register XForms function names for impose() rewriting; helps ch07 -->
-    <xsl:variable name="xform-functions" select="'if','instance', 'index', 'avg', 'foo', 'context', 'current-date', 'random', 'property', 'boolean-from-string', 'count-non-empty', 'power', 'choose', 'is-card-number', 'now', 'local-date', 'local-dateTime', 'days-from-date', 'days-to-date', 'seconds-from-dateTime', 'seconds-to-dateTime', 'seconds', 'months', 'adjust-dateTime-to-timezone', 'digest', 'hmac', 'min', 'max'"/>
+    <xsl:variable name="xform-functions" select="'if','instance', 'index', 'avg', 'foo', 'context', 'id', 'current-date', 'random', 'property', 'boolean-from-string', 'count-non-empty', 'power', 'choose', 'is-card-number', 'now', 'local-date', 'local-dateTime', 'days-from-date', 'days-to-date', 'seconds-from-dateTime', 'seconds-to-dateTime', 'seconds', 'months', 'adjust-dateTime-to-timezone', 'digest', 'hmac', 'min', 'max'"/>
     
     <xsl:function name="xforms:impose" as="xs:string" visibility="public">
         <xsl:param name="input" as="xs:string" />
@@ -197,6 +197,73 @@
          standard XPath id() only uses DTD/schema IDs; XForms 1.1 §7.10.3
          requires recognizing xsi:type annotations;
          helps tests/w3c/ch07.spec.ts "7.10.3.c" -->
+    <xsl:function name="xforms:id" as="node()*" visibility="public">
+        <xsl:param name="arg" as="item()*"/>
+        <xsl:variable name="scope-node" as="node()?">
+            <xsl:try>
+                <xsl:sequence select="root(.)"/>
+                <xsl:catch>
+                    <xsl:sequence select="js:getDefaultInstance()"/>
+                </xsl:catch>
+            </xsl:try>
+        </xsl:variable>
+        <xsl:sequence select="xforms:id($arg, $scope-node)"/>
+    </xsl:function>
+    
+    <xsl:function name="xforms:id" as="node()*" visibility="public">
+        <xsl:param name="arg" as="item()*"/>
+        <xsl:param name="node" as="node()?"/>
+        
+        <xsl:variable name="id-values" as="xs:string*" select="
+            tokenize(
+                normalize-space(
+                    string-join(
+                        for $v in $arg return normalize-space(string($v)),
+                        ' '
+                    )
+                ),
+                '\s+'
+            )[. ne '']"/>
+        <xsl:variable name="scope-node" as="node()?">
+            <xsl:choose>
+                <xsl:when test="exists($node)">
+                    <xsl:sequence select="$node"/>
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:try>
+                        <xsl:sequence select="root(.)"/>
+                        <xsl:catch>
+                            <xsl:sequence select="js:getDefaultInstance()"/>
+                        </xsl:catch>
+                    </xsl:try>
+                </xsl:otherwise>
+            </xsl:choose>
+        </xsl:variable>
+        <xsl:variable name="scope-elements" as="element()*" select="
+            if (exists($scope-node))
+            then (
+                if ($scope-node instance of element())
+                then ($scope-node | $scope-node//*)
+                else $scope-node//*
+            )
+            else ()"/>
+        <xsl:variable name="standard-id" as="node()*" select="
+            if (exists($scope-node))
+            then fn:id(string-join($id-values,' '), $scope-node)
+            else ()"/>
+        <xsl:variable name="xml-id" as="node()*" select="
+            for $id in $id-values
+            return $scope-elements[@xml:id = $id]"/>
+        <xsl:variable name="xsi-typed-id" as="node()*" select="
+            for $id in $id-values
+            return $scope-elements[
+                @*[local-name() = 'type' and namespace-uri() = ('http://www.w3.org/2001/XMLSchema-instance','http://www.w3.org/XMLSchema-instance')]
+                [matches(normalize-space(string(.)), '(^|:)?ID$')]
+            ][normalize-space(string(.)) = $id]"/>
+        
+        <xsl:sequence select="$standard-id | $xml-id | $xsi-typed-id"/>
+    </xsl:function>
+    
     <!-- TEST-TRACE: XForms-compliant min() wrapper; returns NaN for non-numeric
          or empty nodesets instead of throwing XPath 3.1 type errors;
          helps tests/w3c/ch07.spec.ts "7.7.2.b" -->

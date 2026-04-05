@@ -115,7 +115,7 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
     expect(xml).toContain("12/2025");
 
     // 3. Submit Now — must trigger form submission
-    const submitBtn = page.locator('button[data-submit="submit"]');
+    const submitBtn = page.locator('button[data-submit=\"submit\"]');
     await expect(submitBtn).toBeVisible();
     await expect(submitBtn).toContainText("Submit Now");
 
@@ -164,7 +164,7 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
     await expect(inputs.nth(0)).not.toBeVisible();
     await expect(inputs.nth(1)).not.toBeVisible();
 
-    const submitBtn = page.locator('button[data-submit="submit"]');
+    const submitBtn = page.locator('button[data-submit="submit01"]');
     await expect(submitBtn).toBeVisible();
     await expect(submitBtn).toContainText("Submit Now");
 

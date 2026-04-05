@@ -38,6 +38,21 @@ The following gaps were resolved and are listed here for reference:
 - **Model-construction crash (no instance)** — `evaluate-xpath-with-context-node` parameter
   `$context-node` made optional (`node()?`) so models without instances don't crash the
   transform. *Resolved: 4.2.1.a, 4.2.1.d, 4.2.2.a, 4.2.3.a, 4.5.2.a.*
+- **Select/select1 non-incremental sequencing** — Non-incremental `<select>/<select1>`
+  onchange handling now performs inline recalculate/revalidate/refresh and avoids
+  duplicate outer deferred-cycle dispatch from `xforms-value-changed` wrappers.
+  *Resolved: 4.6.3.a, 4.6.3.b, 4.6.3.c.*
+- **Action context resolution for bind-based actions** — Action-map persistence now keeps
+  bind metadata and insert/delete now resolve local context first with absolute-ref fallback.
+  *Resolved: 10.4.b, 10.18.b.*
+- **`id()` function routing and implementation** — Added `id` to function rewriting and
+  implemented `xforms:id()` overloads (supports `fn:id`, `@xml:id`, and `xsi:type` ID,
+  including both W3C xsi namespace URIs). *Resolved: 7.10.3.a, 7.10.3.b, 7.10.3.c.*
+- **Chapter 2 submit selector alignment** — Behavioral tests now match fixture submission IDs
+  (`submit` for 2.1.a/2.2.a and `submit01` for 2.3.a), clearing temporary selector regressions.
+  *Resolved: 2.1.a, 2.2.a, 2.3.a.*
+- **Regression gate status** — Latest W3C conformance gate run reports `new_regressions_count: 0`
+  and promoted baseline after the above fixes.
 
 ### Insert/delete action semantics (13 tests)
 
@@ -112,12 +127,6 @@ Affected tests: 10.13.a (reset), 10.8.1.a/b (rebuild), 8.1.8.a (DOMActivate mess
   `value="index('...')"` evaluates before the repeat template runs (document order issue).
   Affected: 9.3.1.b.
 
-### XPath function limitations (1 test)
-
-- **`id()` with `xsi:type`** — The standard XPath `id()` function does not recognize
-  `xsi:type="xsd:ID"` annotations. A custom `xforms:id()` cannot be called from within
-  `xsl:evaluate` because the JS bridge (`js:getInstanceKeys()`) is not available in that
-  context. Affected: 7.10.3.c.
 
 ### Miscellaneous (4 tests)
 
