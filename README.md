@@ -1,7 +1,7 @@
 Saxon-Forms
 =========
 
-The Saxon-Forms implementation is a XForms prototype written using Interactive XSLT 3.0. 
+Saxon-Forms is an XForms implementation written using Interactive XSLT 3.0. 
 Interactive XSLT 3.0 is a feature of Saxon-JS, which is an XSLT 3.0 run-time written in pure JavaScript for use in the browser or a platform that supports JavaScript.
 
 See conference papers below:
@@ -12,14 +12,14 @@ See conference papers below:
 
 ## Build
 
-The latest builds of Saxon-Forms are placed in the builds directory (i.e. saxon-xforms.sef.json, saxon-xforms.sef.xml). However to build the tool yourself you will need [Saxon-EE](http://www.saxonica.com/download/download_page.xml) to export the stylesheet into an export file (SEF file) to run directly in Saxon-JS.
+The latest builds of Saxon-Forms are placed in the builds directory (i.e. saxon-xforms.sef.json). However to build the tool yourself you will use the following command:
 
-For instructions to build the Saxon executable for Saxon-JS see: 
-[Exporting for JS](http://www.saxonica.com/saxon-js/documentation/index.html#!starting/export) (see the [archive](https://www.saxonica.com/saxon-js/documentation1.1/index.html#!starting/export) for instructions for Saxon-JS 1.1).
-
+```bash
+npm run build:sef
+```
 
 ## Setup
-Saxon-Forms currently supports Saxon-JS 1.1.0 and Saxon-JS 2. To run Saxon-Forms you will need Saxon-JS which can be downloaded at 
+Saxon-Forms currently supports Saxon-JS 3. To run Saxon-Forms you will need Saxon-JS which can be downloaded at 
 [Saxon-JS](http://www.saxonica.com/saxon-js/index.xml) (older versions available at the [archive](https://www.saxonica.com/saxon-js/archive.xml)). Please see sample1 and sample2 which show two alternative ways to use Saxon-Forms.
 
 - Saxon-Forms can be loaded directly with the source document being the XForms application. See
@@ -29,34 +29,18 @@ Saxon-Forms currently supports Saxon-JS 1.1.0 and Saxon-JS 2. To run Saxon-Forms
 
 ## End-to-end tests (Playwright)
 
-> [!IMPORTANT]
-> Avoid the Vite server for conformance and regression testing
+1. `npm install` to install dependencies
+1. `npm run predev` to start the Vite dev server (required for the Playwright tests)
+1. `npm run build:sef` to build the SEF files for testing
+1. `npm run test:e2e` to run the full suite of Playwright tests
 
-Playwright tests can now run against two different web server modes.
-
-- Vite mode (matches local dev behavior):
-  - `npm run test:e2e:vite`
-  - `npm run test:e2e:ui:vite`
-- Static-server mode (more deterministic, useful for stable CI/regression checks):
-  - `npm run test:e2e:static`
-  - `npm run test:e2e:ui:static`
-
-Default aliases:
-
-- `npm run test:e2e` -> `npm run test:e2e:vite`
-- `npm run test:e2e:ui` -> `npm run test:e2e:ui:vite`
-
-Recommended usage:
-
-- Use `test:e2e:static` when you want the most stable signal.
-- Use `test:e2e:vite` when you want parity with the Vite dev runtime.
-
+To run the tests interactively, use `npm run test:e2e:ui`
 
 ## Cryptographic Functions (Optional)
 
 The XForms `digest()` and `hmac()` functions require the
-[@noble/hashes](https://github.com/paulmillr/noble-hashes) library (MIT license,
-audited, zero dependencies). These functions are **optional** — forms that do not
+[@noble/hashes](https://github.com/paulmillr/noble-hashes) library (MIT license). 
+These functions are **optional** — forms that do not
 use `digest()` or `hmac()` work without it. When the library is not loaded,
 these functions return an empty string instead of crashing.
 

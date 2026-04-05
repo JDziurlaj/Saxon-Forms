@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures/echo-intercept";
+import { test, expect } from "../fixtures/echo-intercept";
 import path from "path";
 import { fileURLToPath } from "url";
 

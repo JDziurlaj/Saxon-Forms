@@ -70,6 +70,16 @@ function parseArgs(argv) {
 
   return { suiteId, grepPattern, skipTargeted };
 }
+function resolveSpawnCommand(command, args) {
+  // TEST-TRACE: use cmd.exe to launch npx on Windows where plain "npx" can fail with ENOENT.
+  if (process.platform === "win32" && command === "npx") {
+    return {
+      command: "cmd.exe",
+      args: ["/d", "/s", "/c", "npx", ...args]
+    };
+  }
+  return { command, args };
+}
 
 function run(command, args, options = {}) {
   const {
@@ -78,7 +88,8 @@ function run(command, args, options = {}) {
     stdio = "inherit",
     timeoutMs = 0
   } = options;
-  const result = spawnSync(command, args, {
+  const spawnCommand = resolveSpawnCommand(command, args);
+  const result = spawnSync(spawnCommand.command, spawnCommand.args, {
     cwd,
     stdio,
     encoding: "utf8",
@@ -141,12 +152,14 @@ function loadSuiteRegistry() {
 
 function runPlaywrightToJsonReport({ suite, workers, runDir }) {
   const reportPath = path.join(runDir, "playwright-report.json");
+  const configPathArg = toRepoRelative(suite.config_path);
+  const testPathArg = toRepoRelative(suite.test_path);
   const startedAt = Date.now();
   logEvent("suite-start", {
     suite_id: suite.id,
     workers,
-    config_path: toRepoRelative(suite.config_path),
-    test_path: toRepoRelative(suite.test_path),
+    config_path: configPathArg,
+    test_path: testPathArg,
     report_path: toRepoRelative(reportPath)
   });
   const result = spawnSync(
@@ -156,8 +169,8 @@ function runPlaywrightToJsonReport({ suite, workers, runDir }) {
       "--workers",
       String(workers),
       "--config",
-      suite.config_path,
-      suite.test_path,
+      configPathArg,
+      testPathArg,
       "--reporter=dot,json"
     ],
     {
@@ -304,6 +317,8 @@ function main() {
 
   if (args.grepPattern && !args.skipTargeted) {
     const primarySuite = queue.find((suite) => suite.id === primarySuiteId);
+    const configPathArg = toRepoRelative(primarySuite.config_path);
+    const testPathArg = toRepoRelative(primarySuite.test_path);
     const targetedStartedAt = Date.now();
     logEvent("targeted-start", {
       suite_id: primarySuite.id,
@@ -317,8 +332,8 @@ function main() {
         "--workers",
         String(workers),
         "--config",
-        primarySuite.config_path,
-        primarySuite.test_path,
+        configPathArg,
+        testPathArg,
         "-g",
         args.grepPattern
       ],

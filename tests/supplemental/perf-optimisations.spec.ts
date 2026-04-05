@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures/echo-intercept";
+import { test, expect } from "../fixtures/echo-intercept";
 
 /**
  * Regression tests for the repeat-refresh performance optimisations

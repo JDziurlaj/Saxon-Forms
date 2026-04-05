@@ -837,7 +837,12 @@
                     <xsl:map-entry key="'script-body'" select="string(.)" />
                 </xsl:if>
                 
-                <xsl:map-entry key="'@ref'" select="$refi"/>
+                <!-- TEST-TRACE: only persist @ref when explicitly declared on the action;
+                     prevents context-only insert actions from inheriting ambient nodesets
+                     and replacing root instances; helps tests/w3c/appendix.spec.ts "B.1", "B.4". -->
+                <xsl:if test="exists(@ref) or exists(@nodeset)">
+                    <xsl:map-entry key="'@ref'" select="$refi"/>
+                </xsl:if>
                 
                 <!-- local ref used in conjunction with node set returned by @iterate -->
                 <xsl:if test="exists(@ref) or exists(@nodeset)">
@@ -1492,7 +1497,10 @@
         </xd:desc>
     </xd:doc>
     <xsl:template match="xforms:xform">
-        <xsl:apply-templates select="node()"/>
+        <!-- TEST-TRACE: avoid re-processing xforms:model during render; model actions are
+             already registered in xformsjs-main, and double-registration replays xforms-ready
+             inserts (e.g. Appendix B.8 Copy Nodeset). -->
+        <xsl:apply-templates select="node()[not(self::xforms:model)]"/>
     </xsl:template>
 
     <xd:doc scope="component">
@@ -3986,8 +3994,6 @@
             <xsl:if test="$isWhileStillTrue">
                 <xsl:call-template name="applyActions"/>
             </xsl:if>
-            
-            <!-- if outermost action is an event of the type triggered -->
             <xsl:if test="$handler-status = 'outermost' and not($event = ('xforms-rebuild','xforms-recalculate','xforms-revalidate','xforms-refresh','xforms-reset'))">
                 <xsl:call-template name="outermost-action-handler"/>
             </xsl:if>
@@ -5447,10 +5453,19 @@
         
         <xsl:variable name="instance-context" select="map:get($action-map, 'instance-context')" as="xs:string"/>
         <xsl:variable name="ref" select="map:get($action-map,'@ref')" />
+        <xsl:variable name="ref-local" select="map:get($action-map,'@ref-local')" as="xs:string?"/>
         <xsl:variable name="at" select="map:get($action-map, '@at')" as="xs:string?"/>
         <xsl:variable name="position" select="(map:get($action-map, '@position'),'after')[1]" as="xs:string?"/>
         <xsl:variable name="origin-ref" select="map:get($action-map, '@origin')" as="xs:string?"/>
         <xsl:variable name="context" select="map:get($action-map, '@context')" as="xs:string?"/>
+        <xsl:variable name="context-local" as="xs:string?" select="
+            if (exists($context))
+            then
+                replace(
+                    replace(normalize-space($context),
+                        '^instance\\s*\\(\\s*''[^'']+''\\s*\\)\\s*/?', ''),
+                    '^instance\\s*\\(\\s*&quot;[^&quot;]+&quot;\\s*\\)\\s*/?', '')
+            else ()"/>
         
         
         <xsl:variable name="ref-qualified" as="xs:string?" select="
@@ -5462,8 +5477,21 @@
             )
             else ()
             "/>
+        <xsl:variable name="ref-qualified-local" as="xs:string?" select="
+            if (exists($ref-local) and $ref-local != '')
+            then (
+            if (exists($at))
+            then concat($ref-local, '[', $at, ']')
+            else $ref-local
+            )
+            else ()
+            "/>
         
         <xsl:variable name="instanceXML" as="element()" select="xforms:instance($instance-context)"/>
+        <xsl:variable name="binding-context-node" as="node()?" select="
+            if (exists($context-local) and $context-local ne '')
+            then (xforms:evaluate-xpath-with-context-node($context-local,$instanceXML,()))[1]
+            else $instanceXML"/>
         
         <!--<xsl:message use-when="$debugMode">[action-insert] $ref = '<xsl:value-of select="$ref"/>'; inserting node at XPath <xsl:value-of select="$ref-qualified"/></xsl:message>-->
                
@@ -5471,12 +5499,19 @@
         <xsl:variable name="instance-id-origin" as="xs:string?" select="if(exists($origin-ref)) then xforms:getInstanceId($origin-ref) else ()"/>
         <xsl:variable name="instanceXML-origin" as="element()?" select="if(exists($instance-id-origin)) then xforms:instance($instance-id-origin) else ()"/>
         
-        <!-- TEST-TRACE: guard empty ref-qualified (insert with @context only, no @nodeset);
-             helps tests/w3c/appendix.spec.ts "B.1", "B.3", "B.4" -->
+        <!-- TEST-TRACE: prefer @ref-local against resolved context node to preserve
+             node identity across sequential startup actions (insert/delete chains),
+             while retaining absolute @ref fallback.
+             Also guard empty ref-qualified (insert with @context only, no @nodeset);
+             helps tests/w3c/appendix.spec.ts "B.1", "B.3", "B.4", "B.10". -->
         <xsl:variable name="binding-nodeset" as="node()*" select="
-            if (exists($ref-qualified) and $ref-qualified ne '')
-            then xforms:evaluate-xpath-with-context-node($ref-qualified,$instanceXML,())
-            else ()"/>
+            if (exists($ref-qualified-local) and $ref-qualified-local ne '')
+            then xforms:evaluate-xpath-with-context-node($ref-qualified-local,$binding-context-node,())
+            else (
+                if (exists($ref-qualified) and $ref-qualified ne '')
+                then xforms:evaluate-xpath-with-context-node($ref-qualified,$instanceXML,())
+                else ()
+            )"/>
         
         <xsl:variable name="origin-nodeset" as="node()*">
             <xsl:choose>
@@ -5498,7 +5533,10 @@
         
         <xsl:variable name="insert-node-location" as="node()?" select="$binding-nodeset[last()]"/> 
         
-        <xsl:variable name="context-nodeset" as="node()*" select="if (exists($context)) then xforms:evaluate-xpath-with-context-node($context,$instanceXML,()) else ()"/>
+        <xsl:variable name="context-nodeset" as="node()*" select="
+            if (exists($context-local) and $context-local ne '')
+            then xforms:evaluate-xpath-with-context-node($context-local,$instanceXML,())
+            else ()"/>
         
         <xsl:variable name="context-node" as="node()?" select="$context-nodeset[1]"/>
         <xsl:variable name="context-node-in-instance" as="node()?" select="
@@ -5592,8 +5630,12 @@
             <xsl:sequence select="js:addDirtyInstance($instance-context)"/>
             <!-- TEST-TRACE: PERF-6b – record pending append so refreshRepeats-JS can use
                  the splice fast-path instead of full re-render.
-                 An append occurs when we insert after the last existing item. -->
+                 Guard against predicate-filtered refs (e.g. paragraph[2]) where count($ref)
+                 is not the full list size; helps tests/w3c/appendix.spec.ts "B.3". -->
             <xsl:if test="$effective-position = 'after'
+                          and exists($ref)
+                          and not(exists($at))
+                          and not(contains($ref,'['))
                           and ($insert-node-location is $binding-nodeset[last()])
                           and not($instanceXML is $effective-insert-location)">
                 <!-- Use the unqualified $ref (without @at predicate) against the
@@ -5630,7 +5672,17 @@
         
         <xsl:variable name="instance-context" select="map:get($action-map, 'instance-context')" as="xs:string"/>
         <xsl:variable name="ref" select="map:get($action-map,'@ref')"/>
+        <xsl:variable name="ref-local" select="map:get($action-map,'@ref-local')" as="xs:string?"/>
         <xsl:variable name="at" select="map:get($action-map, '@at')" as="xs:string?"/>
+        <xsl:variable name="context" select="map:get($action-map, '@context')" as="xs:string?"/>
+        <xsl:variable name="context-local" as="xs:string?" select="
+            if (exists($context))
+            then
+                replace(
+                    replace(normalize-space($context),
+                        '^instance\\s*\\(\\s*''[^'']+''\\s*\\)\\s*/?', ''),
+                    '^instance\\s*\\(\\s*&quot;[^&quot;]+&quot;\\s*\\)\\s*/?', '')
+            else ()"/>
         
         <xsl:variable name="ref-qualified" as="xs:string?" select="
             if (exists($ref))
@@ -5641,9 +5693,32 @@
             )
             else ()
             "/>
+        <xsl:variable name="ref-qualified-local" as="xs:string?" select="
+            if (exists($ref-local) and $ref-local != '')
+            then (
+            if (exists($at))
+            then concat($ref-local, '[', $at, ']')
+            else $ref-local
+            )
+            else ()
+            "/>
         
         <xsl:variable name="instanceXML" as="element()" select="xforms:instance($instance-context)"/>
-        <xsl:variable name="delete-node" as="node()*" select="xforms:evaluate-xpath-with-context-node($ref-qualified,$instanceXML,())"/>
+        <xsl:variable name="context-node-local" as="node()?" select="
+            if (exists($context-local) and $context-local ne '')
+            then (xforms:evaluate-xpath-with-context-node($context-local,$instanceXML,()))[1]
+            else $instanceXML"/>
+        <!-- TEST-TRACE: evaluate deletion target via @ref-local first so selected
+             nodes are in the same tree as $instanceXML after prior mutations
+             (startup insert+delete chains such as Appendix B.10). -->
+        <xsl:variable name="delete-node" as="node()*" select="
+            if (exists($ref-qualified-local) and $ref-qualified-local ne '')
+            then xforms:evaluate-xpath-with-context-node($ref-qualified-local,$context-node-local,())
+            else (
+                if (exists($ref-qualified) and $ref-qualified ne '')
+                then xforms:evaluate-xpath-with-context-node($ref-qualified,$instanceXML,())
+                else ()
+            )"/>
          
         <!--<xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> ref-qualified = <xsl:sequence select="$ref-qualified"/>; delete-node = <xsl:sequence select="fn:serialize($delete-node)"/></xsl:message>-->
         

@@ -39,6 +39,12 @@ async function selectPort() {
 async function main() {
   const selectedPort = await selectPort();
   const baseUrl = `http://${host}:${selectedPort}`;
+  const forwardedArgs = process.argv.slice(2);
+  const isWindows = process.platform === "win32";
+  const spawnCommand = isWindows ? "cmd.exe" : "npx";
+  const spawnArgs = isWindows
+    ? ["/d", "/s", "/c", "npx", "playwright", "test", ...forwardedArgs]
+    : ["playwright", "test", ...forwardedArgs];
   console.log(
     JSON.stringify({
       ts: new Date().toISOString(),
@@ -48,10 +54,11 @@ async function main() {
       base_url: baseUrl
     })
   );
+  // TEST-TRACE: launch via cmd.exe on Windows to avoid spawn EINVAL from npx.cmd; helps npm run test:e2e:static.
 
   const child = spawn(
-    process.platform === "win32" ? "npx.cmd" : "npx",
-    ["playwright", "test", ...process.argv.slice(2)],
+    spawnCommand,
+    spawnArgs,
     {
       stdio: "inherit",
       env: {

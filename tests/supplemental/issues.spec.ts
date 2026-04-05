@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures/echo-intercept";
+import { test, expect } from "../fixtures/echo-intercept";
 
 /**
  * Tests for upstream Saxon-Forms issues #19-27.

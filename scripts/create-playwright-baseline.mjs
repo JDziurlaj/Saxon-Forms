@@ -83,10 +83,21 @@ function toRepoRelative(inputPath) {
   }
   return inputPath;
 }
+function resolveSpawnCommand(command, args) {
+  // TEST-TRACE: use cmd.exe to launch npx on Windows where plain "npx" can fail with ENOENT.
+  if (process.platform === "win32" && command === "npx") {
+    return {
+      command: "cmd.exe",
+      args: ["/d", "/s", "/c", "npx", ...args]
+    };
+  }
+  return { command, args };
+}
 
 function run(command, args, options = {}) {
   const { cwd = repoRoot, allowFailure = false, stdio = "inherit" } = options;
-  const result = spawnSync(command, args, { cwd, stdio, encoding: "utf8" });
+  const spawnCommand = resolveSpawnCommand(command, args);
+  const result = spawnSync(spawnCommand.command, spawnCommand.args, { cwd, stdio, encoding: "utf8" });
   if (result.error) {
     fail(`Failed to run ${command}: ${result.error.message}`);
   }
@@ -272,6 +283,8 @@ const summaries = [];
 
 for (const suiteId of selectedSuiteIds) {
   const suite = suiteMap[suiteId];
+  const configPathArg = toRepoRelative(suite.config_path);
+  const testPathArg = toRepoRelative(suite.test_path);
   const startedAt = Date.now();
   const runDir = path.join(
     repoRoot,
@@ -289,8 +302,8 @@ for (const suiteId of selectedSuiteIds) {
   logEvent("suite-start", {
     suite_id: suiteId,
     workers,
-    config_path: toRepoRelative(suite.config_path),
-    test_path: toRepoRelative(suite.test_path),
+    config_path: configPathArg,
+    test_path: testPathArg,
     report_path: toRepoRelative(reportPath)
   });
 
@@ -301,8 +314,8 @@ for (const suiteId of selectedSuiteIds) {
       "--workers",
       String(workers),
       "--config",
-      suite.config_path,
-      suite.test_path,
+      configPathArg,
+      testPathArg,
       "--reporter=dot,json"
     ],
     {
