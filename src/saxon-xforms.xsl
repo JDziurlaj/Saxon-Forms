@@ -420,7 +420,19 @@
     <xd:doc scope="component">
         <xd:desc>Handle incremental change to HTML input</xd:desc>
     </xd:doc>
-    <xsl:template match="*:input[xforms:hasClass(.,'incremental')]" mode="ixsl:onkeyup">
+    <xsl:template match="*:input[xforms:hasClass(.,'incremental')][not(@type='range')]" mode="ixsl:onkeyup">
+        <xsl:call-template name="action-setvalue-form-control">
+            <xsl:with-param name="form-control" select="."/>
+        </xsl:call-template>
+        <xsl:call-template name="outermost-action-handler"/>
+    </xsl:template>
+
+    <xd:doc scope="component">
+        <xd:desc>Handle incremental change to HTML5 range input rendered from xf:range.</xd:desc>
+    </xd:doc>
+    <xsl:template match="*:input[@type='range'][xforms:hasClass(.,'incremental')]" mode="ixsl:oninput">
+        <!-- TEST-TRACE: drive xf:range incremental updates via native input event;
+             helps tests/w3c/ch08.spec.ts "8.1.7.d", "8.1.7.e" -->
         <xsl:call-template name="action-setvalue-form-control">
             <xsl:with-param name="form-control" select="."/>
         </xsl:call-template>
@@ -1930,6 +1942,13 @@
                 <xsl:attribute name="class" select="$htmlClass"/>
                 <xsl:attribute name="instance-context" select="$instance-context"/>
                 <xsl:attribute name="data-ref" select="$nodeset"/>
+                <!-- TEST-TRACE: map xf:input @navindex/@accesskey to native focus attrs; helps tests/w3c/ch08.spec.ts "8.1.a" -->
+                <xsl:if test="exists(@navindex) and normalize-space(string(@navindex)) ne ''">
+                    <xsl:attribute name="tabindex" select="string(@navindex)"/>
+                </xsl:if>
+                <xsl:if test="exists(@accesskey) and normalize-space(string(@accesskey)) ne ''">
+                    <xsl:attribute name="accesskey" select="string(@accesskey)"/>
+                </xsl:if>
                
                 <xsl:if test="exists($binding) and exists($binding/@constraint)">
                     <xsl:attribute name="data-constraint" select="$binding/@constraint"/>
@@ -2068,6 +2087,115 @@
         
         
         
+    </xsl:template>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Implementation of XForms <a href="https://www.w3.org/TR/xforms11/#ui-range">range element</a></xd:p>
+            <xd:p>Generates a native HTML5 range input and maps start/end/step attributes.</xd:p>
+        </xd:desc>
+        <xd:param name="id">ID of HTML element.</xd:param>
+        <xd:param name="nodeset">XPath binding expression</xd:param>
+        <xd:param name="instance-context">ID of XForms instance relevant to this control</xd:param>
+        <xd:param name="binding">xforms:bind elements relevant to this control</xd:param>
+        <xd:param name="actions">Map(s) of actions relevant to this control</xd:param>
+    </xd:doc>
+    <xsl:template match="xforms:range" mode="get-html">
+        <xsl:param name="id" as="xs:string" tunnel="yes"/>
+        <xsl:param name="nodeset" as="xs:string" tunnel="yes"/>
+        <xsl:param name="instance-context" as="xs:string" tunnel="yes"/>
+        <xsl:param name="binding" as="element(xforms:bind)*" tunnel="yes"/>
+        <xsl:param name="actions" as="map(*)*"/>
+        
+        <!-- TEST-TRACE: render xf:range as native HTML5 slider with start/end/step wiring;
+             helps tests/w3c/ch08.spec.ts "8.1.7.a", "8.1.7.b", "8.1.7.c", "8.1.7.d", "8.1.7.e" -->
+        <xsl:variable name="instanceField" as="node()?" select="xforms:evaluate-xpath-with-instance-id($nodeset,$instance-context,())[1]"/>
+        <xsl:variable name="relevantStatus" as="xs:boolean">
+            <xsl:call-template name="getRelevantStatus">
+                <xsl:with-param name="xformsControl" as="element()" select="."/>
+                <xsl:with-param name="instanceField" as="node()?" select="$instanceField"/>
+            </xsl:call-template>
+        </xsl:variable>
+        
+        <xsl:variable name="additional-class-values" as="xs:string+" select="('xforms-range')"/>
+        <xsl:variable name="htmlClass" as="xs:string">
+            <xsl:call-template name="getHtmlClass">
+                <xsl:with-param name="source-class" as="xs:string?" select="@class"/>
+                <xsl:with-param name="additional-values" as="xs:string*" select="$additional-class-values"/>
+                <xsl:with-param name="incremental" as="xs:string?" select="@incremental"/>
+            </xsl:call-template>
+        </xsl:variable>
+        
+        <xsl:variable name="hints" select="xforms:hint/text()"/>
+        <xsl:variable name="range-value" as="xs:string" select="
+            if (exists($instanceField))
+            then string($instanceField)
+            else (if (exists(@start)) then string(@start) else '0')"/>
+        <xsl:variable name="range-min" as="xs:string?" select="
+            if (exists(@start) and normalize-space(string(@start)) ne '')
+            then string(@start)
+            else ()"/>
+        <xsl:variable name="range-max" as="xs:string?" select="
+            if (exists(@end) and normalize-space(string(@end)) ne '')
+            then string(@end)
+            else (
+                if (exists(@start) and normalize-space(string(@start)) ne '')
+                then string(@start)
+                else ()
+            )"/>
+        <xsl:variable name="range-step" as="xs:string?" select="
+            if (exists(@step) and normalize-space(string(@step)) ne '')
+            then string(@step)
+            else ()"/>
+        
+        <div>
+            <xsl:call-template name="copy-custom-data-attributes"/>
+            <xsl:attribute name="class" select="$htmlClass"/>
+            <xsl:if test="not($relevantStatus)">
+                <xsl:attribute name="style" select="'display:none'"/>
+            </xsl:if>
+            <xsl:apply-templates select="xforms:label"/>
+            <input type="range">
+                <xsl:attribute name="id" select="$id"/>
+                <xsl:attribute name="class" select="$htmlClass"/>
+                <xsl:attribute name="instance-context" select="$instance-context"/>
+                <xsl:attribute name="data-ref" select="$nodeset"/>
+                
+                <xsl:if test="exists($binding) and exists($binding/@constraint)">
+                    <xsl:attribute name="data-constraint" select="$binding/@constraint"/>
+                </xsl:if>
+                <xsl:if test="exists($binding) and exists($binding/@relevant)">
+                    <xsl:attribute name="data-relevant" select="$binding/@relevant"/>
+                </xsl:if>
+                <xsl:if test="exists($binding) and exists($binding/@required)">
+                    <xsl:attribute name="data-required" select="$binding/@required"/>
+                </xsl:if>
+                <xsl:if test="exists($binding[@type])">
+                    <xsl:attribute name="data-binding-type" select="string(($binding[@type][1]/@type)[1])"/>
+                </xsl:if>
+                <xsl:if test="exists($actions)">
+                    <xsl:attribute name="data-action" select="$id"/>
+                </xsl:if>
+                <xsl:if test="exists($hints)">
+                    <xsl:attribute name="title" select="$hints"/>
+                </xsl:if>
+                <xsl:if test="exists($range-min)">
+                    <xsl:attribute name="min" select="$range-min"/>
+                </xsl:if>
+                <xsl:if test="exists($range-max)">
+                    <xsl:attribute name="max" select="$range-max"/>
+                </xsl:if>
+                <xsl:if test="exists($range-step)">
+                    <xsl:attribute name="step" select="$range-step"/>
+                </xsl:if>
+                <xsl:attribute name="value" select="$range-value"/>
+                
+                <xsl:call-template name="registerOutput">
+                    <xsl:with-param name="additional-class-values" select="$additional-class-values"/>
+                    <xsl:with-param name="data-type" as="xs:string" select="'range'"/>
+                </xsl:call-template>
+            </input>
+        </div>
     </xsl:template>
     
 

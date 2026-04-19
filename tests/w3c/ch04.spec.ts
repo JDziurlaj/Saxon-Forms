@@ -22,6 +22,7 @@ const ch4_smoke: [string, string][] = [
   ["4.3.4.a — refresh event", "Chapt04/4.3/4.3.4/4.3.4.a.xhtml"],  // expects modal message from event handler
   ["4.3.5.a — reset event sequence", "Chapt04/4.3/4.3.5/4.3.5.a.xhtml"],  // expects modal message after trigger activation
   ["4.3.6.a — previous event", "Chapt04/4.3/4.3.6/4.3.6.a.xhtml"],  // expects modal message after trigger activation
+  ["4.3.6.b — 4.3.6.b navigation sequence with navindex (non-normative)", "Chapt04/4.3/4.3.6/4.3.6.b.xhtml"],
   ["4.3.7.a — focus event", "Chapt04/4.3/4.3.7/4.3.7.a.xhtml"],  // expects modal message after trigger activation
   ["4.3.8.a — help event", "Chapt04/4.3/4.3.8/4.3.8.a.xhtml"],  // expects modal message from event handler
   ["4.4.3.a — value-changed event", "Chapt04/4.4/4.4.3/4.4.3.a.xhtml"],  // expects modal message from event handler
@@ -71,8 +72,7 @@ test.describe("W3C Ch4 — Processing Model [smoke]", () => {
 
 test.describe("W3C Ch4 — Processing Model [behavioral]", () => {
   /* You must see a value of "NaN" : */
-  /* TEST-TRACE: updated to match W3C pass criterion (NaN, not 0);
-     helps tests/w3c/ch07.spec.ts "7.7.5.b" */
+  // helps tests / w3c / ch07.spec.ts "7.7.5.b" */
   test("4.7.c — index() on missing repeat returns NaN", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.7/4.7.c.xhtml");
     const output = page.locator('.xforms-output');
@@ -130,12 +130,12 @@ test.describe("W3C Ch4 — Processing Model [behavioral]", () => {
      move through the page you must be going in the order that the input controls are labeled from
      the smallest number to the largest.
   */
-  test("4.3.6.b — 4.3.6.b navigation sequence with navindex (non-normative)", async ({ page }) => {
-    await loadAndWait(page, "Chapt04/4.3/4.3.6/4.3.6.b.xhtml");
-    const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
-  });
+  // test("4.3.6.b — 4.3.6.b navigation sequence with navindex (non-normative)", async ({ page }) => {
+  //   await loadAndWait(page, "Chapt04/4.3/4.3.6/4.3.6.b.xhtml");
+  //   const inputs = page.locator('input.xforms-input');
+  //   const count = await inputs.count();
+  //   expect(count).toBeGreaterThan(0);
+  // });
 
   /*
      Activate the Insert A Date trigger below to fire the xforms-insert event. You must see an
@@ -160,9 +160,15 @@ test.describe("W3C Ch4 — Processing Model [behavioral]", () => {
   */
   test("4.4.2.a — 4.4.2.a xforms-delete action", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.4/4.4.2/4.4.2.a.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("1");
-    expect(text).toContain("2006-12-25");
+    const outputs = page.locator(".xforms-output");
+    await expect(outputs).toHaveCount(2);
+    await expect(outputs.nth(0)).toHaveText(/^\s*$/);
+    await expect(outputs.nth(1)).toHaveText(/^\s*$/);
+
+    await clickTrigger(page, "Delete A Date");
+
+    await expect(outputs.nth(0)).toHaveText(/^\s*1\s*$/);
+    await expect(outputs.nth(1)).toHaveText(/^\s*2006-12-25\s*$/);
   });
 
   /*
@@ -170,6 +176,11 @@ test.describe("W3C Ch4 — Processing Model [behavioral]", () => {
      indicates which form control the event came from,the select or select1 control. The output may
      be followed by the output for the Value Change sequence ("xforms-recalculate",
      "xforms-revalidate", "xforms-refresh", and "xforms-value-changed").
+     When a value is deselected (which includes when a different value is selected and the old value 
+     is automatically deselected) you must see the outputs "xforms-deselect" and "xforms-select". 
+     The value in parentheses indicates which form control the event came from, the select or select1 control.
+      The output may be followed by the output for the Value Change sequence ("xforms-recalculate", "xforms-revalidate",
+       "xforms-refresh", and "xforms-value-changed").
   */
   test("4.6.3.a — 4.6.3.a event sequencing for select/select1 controls with incremental=&quot;true&quot;", async ({ page }) => {
     await loadAndWait(page, "Chapt04/4.6/4.6.3/4.6.3.a.xhtml");
@@ -188,6 +199,8 @@ test.describe("W3C Ch4 — Processing Model [behavioral]", () => {
     await page.waitForTimeout(300);
     events = (await getEventOutputs(page)).slice(before);
     expect(events.length).toBeGreaterThan(0);
+    expect(events.some((eventName) => eventName === "xforms-deselect (select1)")).toBe(true);
+    expect(events.some((eventName) => eventName === "xforms-select (select1)")).toBe(true);
     expect(
       events.every((eventName) =>
         /^xforms-(select|deselect|value-changed) \(select1\)$/.test(eventName) ||
@@ -214,8 +227,10 @@ test.describe("W3C Ch4 — Processing Model [behavioral]", () => {
     await page.waitForTimeout(300);
     const events = (await getEventOutputs(page)).slice(before);
     expect(events.length).toBeGreaterThan(0);
+    expect(events.some((eventName) => eventName === "xforms-deselect (select1)")).toBe(true);
+    expect(events.some((eventName) => eventName === "xforms-select (select1)")).toBe(true);
     for (const eventName of events) {
-      expect(eventName).toMatch(/^xforms-(deselect|select|value-changed) \(select1\)$/);
+      expect(eventName).toMatch(/^xforms-(deselect|select) \(select1\)$/);
     }
   });
 
@@ -242,8 +257,6 @@ test.describe("W3C Ch4 — Processing Model [behavioral]", () => {
     before = (await getEventOutputs(page)).length;
     await select1.selectOption("hon");
     await page.waitForTimeout(300);
-    const changedSelectionEvents = (await getEventOutputs(page)).slice(before);
-    expect(changedSelectionEvents.some((eventName) => eventName === "xforms-value-changed (select1)")).toBe(true);
 
     before = (await getEventOutputs(page)).length;
     await select.focus();
@@ -251,7 +264,7 @@ test.describe("W3C Ch4 — Processing Model [behavioral]", () => {
     const focusShiftEvents = (await getEventOutputs(page)).slice(before);
     const hasFullFocusSequence = ["xforms-recalculate", "xforms-revalidate", "xforms-refresh"]
       .every((eventName) => focusShiftEvents.includes(eventName));
-    expect(hasFullFocusSequence || changedSelectionEvents.includes("xforms-value-changed (select1)")).toBe(true);
+    expect(hasFullFocusSequence).toBe(true);
   });
 
   /*

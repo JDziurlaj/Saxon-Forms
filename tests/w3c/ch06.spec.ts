@@ -2,7 +2,7 @@ import { test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML, s
 
 const ch6_smoke: [string, string][] = [
   ["6.1.1.a — type", "Chapt06/6.1/6.1.1/6.1.1.a.xhtml"],  // expects modal message from event handler
-  ["6.1.7.a — p3ptype", "Chapt06/6.1/6.1.7/6.1.7.a.xhtml"],  // depends on form submission lifecycle
+  ["6.1.7.a — p3ptype", "Chapt06/6.1/6.1.7/6.1.7.a.xhtml"],  // likely will never be implemented
 ];
 
 test.describe("W3C Ch6 — Model Item Properties [smoke]", () => {
@@ -123,10 +123,19 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     const amountInput = page.locator('input[data-ref*="amount"]');
     await expect(amountInput).toBeVisible();
     await expect(page.locator('button.xforms-trigger')).toHaveCount(2);
-    // Click "Enter 1500" — verify trigger is clickable (setvalue with
-    // absolute XPath in action ref is a known limitation for instance updates)
+    const discountOutput = page.locator('.xforms-output[data-ref*="discount"]');
+    const discountRow = discountOutput.locator('xpath=..');
+
+    // Click "Enter 1500" — discount output should become relevant/visible
     await page.getByRole('button', { name: 'Enter 1500' }).click();
     await page.waitForTimeout(500);
+    await expect(discountOutput).toBeVisible();
+    await expect(discountRow).toContainText(/Discount\s*:\s*\S+/);
+
+    // Click "Enter 250" — discount output should become non-relevant/hidden
+    await page.getByRole('button', { name: 'Enter 250' }).click();
+    await page.waitForTimeout(500);
+    await expect(discountOutput).toBeHidden();
   });
 
   /*
@@ -170,9 +179,19 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
   */
   test("6.1.5.a — 6.1.5.a calculate property", async ({ page }) => {
     await loadAndWait(page, "Chapt06/6.1/6.1.5/6.1.5.a.xhtml");
-    const outputs = page.locator('.xforms-output');
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
+    const discountOutput = page.locator('.xforms-output[data-ref*="discount"]');
+    const discountRow = discountOutput.locator('xpath=..');
+    await expect(page.locator('button.xforms-trigger')).toHaveCount(3);
+
+    await page.getByRole('button', { name: 'Enter 1500' }).click();
+    await page.waitForTimeout(500);
+    await expect(discountOutput).toBeVisible();
+    await expect(discountRow).toContainText(/Discount\s*:\s*750(?:\.0+)?\b/);
+
+    await page.getByRole('button', { name: 'Enter 2000' }).click();
+    await page.waitForTimeout(500);
+    await expect(discountOutput).toBeVisible();
+    await expect(discountRow).toContainText(/Discount\s*:\s*1000(?:\.0+)?\b/);
   });
 
   /*

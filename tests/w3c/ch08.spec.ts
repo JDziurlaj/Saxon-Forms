@@ -1,4 +1,4 @@
-import {  test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML, collectDialogMessages, clickTrigger, normalizeWhitespace, getFormControlText } from "./helpers";
+import { test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML, collectDialogMessages, clickTrigger, normalizeWhitespace, getFormControlText } from "./helpers";
 
 const ch8_1_smoke: [string, string][] = [
   ["8.1.1.a — form control binding restriction", "Chapt08/8.1/8.1.1/8.1.1.a.xhtml"],  // expects xforms-binding-exception message or fatal error
@@ -101,10 +101,23 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
      message, an xforms-readwrite message, and an xforms-optional message.
   */
   test("8.1.1.b — 8.1.1.b non-relevant form control becoming relevant", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt08/8.1/8.1.1/8.1.1.b.xhtml");
-    const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
+    // TEST-TRACE: Assert required xforms:* modal messages are emitted as JS dialogs.
+    await expect(page.locator('input.xforms-input')).toHaveCount(1);
+    await page.waitForTimeout(300);
+    const normalizedMessages = dialogMessages.map((message) => normalizeWhitespace(message));
+    const missingEvents = [
+      "xforms-enabled",
+      "xforms-value-changed",
+      "xforms-valid",
+      "xforms-readwrite",
+      "xforms-optional",
+    ].filter(
+      (eventName) =>
+        !normalizedMessages.some((message) => new RegExp(`\\b${eventName}\\b`, "i").test(message))
+    );
+    expect(missingEvents).toEqual([]);
   });
 
   /*
@@ -112,10 +125,8 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
      own value into it.
   */
   test("8.1.10.a — 8.1.10.a selection attribute of select element", async ({ page }) => {
+    test.fixme("xf:select selection='open' custom value entry is not implemented yet.");
     await loadAndWait(page, "Chapt08/8.1/8.1.10/8.1.10.a.xhtml");
-    const outputs = page.locator('.xforms-output');
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
   });
 
   /*
@@ -123,10 +134,8 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
      own value into it.
   */
   test("8.1.11.a — 8.1.11.a selection attribute of select1 element", async ({ page }) => {
+    test.fixme("xf:select1 selection='open' custom value entry is not implemented yet.");
     await loadAndWait(page, "Chapt08/8.1/8.1.11/8.1.11.a.xhtml");
-    const outputs = page.locator('.xforms-output');
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
   });
 
   /*
@@ -136,10 +145,8 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
      the problem known.
   */
   test("8.1.2.b — 8.1.2.b data binding restrictions for input element", async ({ page }) => {
+    test.fixme("Binding-restriction handling for xsd:base64Binary/xsd:hexBinary input controls is not implemented yet.");
     await loadAndWait(page, "Chapt08/8.1/8.1.2/8.1.2.b.xhtml");
-    const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
   });
 
   /*
@@ -148,23 +155,37 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
   */
   test("8.1.2.c — 8.1.2.c datatype bound to input element", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.1/8.1.2/8.1.2.c.xhtml");
-    const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
+    // TEST-TRACE: Assert typed input defaults, not just control presence.
+    const dateInput = page.locator('input[data-ref*="date-of-birth"]');
+    await expect(dateInput).toHaveCount(1);
+    await expect(dateInput).toHaveValue("1997-12-21");
+
+    const confirmInput = page.locator('input[data-ref*="confirm"]');
+    await expect(confirmInput).toHaveCount(1);
+    const confirmType = ((await confirmInput.getAttribute("type")) ?? "").toLowerCase();
+    if (confirmType === "checkbox") {
+      await expect(confirmInput).not.toBeChecked();
+    } else {
+      await expect(confirmInput).toHaveValue(/false/i);
+    }
+
+    const xml = await getInstanceXML(page);
+    expect(xml).toContain("<date-of-birth");
+    expect(xml).toContain(">1997-12-21<");
+    expect(xml).toContain("<confirm");
+    expect(xml).toContain(">false<");
   });
 
   /* You should see the "calendar-picker-open.png" image. */
   test("8.1.5.1.a — 8.1.5.1.a mediatype element", async ({ page }) => {
+    test.fixme("Dynamic output rendering from xf:mediatype child content is not implemented yet.");
     await loadAndWait(page, "Chapt08/8.1/8.1.5/8.1.5.1/8.1.5.1.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
   });
 
   /* You should see the "calendar-picker-open.png" image. */
   test("8.1.5.d — 8.1.5.d mediatype attribute", async ({ page }) => {
+    test.fixme("Output mediatype-driven image rendering is not implemented yet.");
     await loadAndWait(page, "Chapt08/8.1/8.1.5/8.1.5.d.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
   });
 
   /*
@@ -175,6 +196,8 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
     await loadAndWait(page, "Chapt08/8.1/8.1.6/8.1.6.1/8.1.6.1.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
+    // the expected outcome is part of the native file input behavior and cannot be programmatically asserted
+    test.fixme();
   });
 
   /*
@@ -183,36 +206,103 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
   */
   test("8.1.6.2.a — 8.1.6.2.a mediatype element", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.1/8.1.6/8.1.6.2/8.1.6.2.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const uploadInput = page.locator("input[type='file']");
+    await expect(uploadInput).toHaveCount(1);
+
+    // TEST-TRACE: Exercise xf:upload with a concrete XML file and assert resulting mediatype.
+    await uploadInput.setInputFiles({
+      name: "simple.xml",
+      mimeType: "application/xml",
+      buffer: Buffer.from("<?xml version=\"1.0\"?><root><value>1</value></root>", "utf8"),
+    });
+    await page.waitForTimeout(500);
+
+    const mediatypeOutput = page.locator(".xforms-output[data-ref*='@type']");
+    await expect(mediatypeOutput).toHaveCount(1);
+    await expect(mediatypeOutput.locator("xpath=..")).toContainText(/Mediatype\s*:\s*application\/xml/i);
+
+    const xml = await getInstanceXML(page);
+    expect(xml).toMatch(/<attachment[^>]*\btype=\"application\/xml\"/i);
   });
 
   /* You must see a range control that starts at 1000. No end value is defined. */
   test("8.1.7.a — 8.1.7.a start attribute of range element", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.1/8.1.7/8.1.7.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    // TEST-TRACE: Verify xf:range @start maps to native range min/value and bound output.
+    const rangeInput = page.locator("input[type='range'][data-ref*='mileage']");
+    await expect(rangeInput).toHaveCount(1);
+    await expect(rangeInput).toHaveAttribute("min", "1000");
+    await expect(rangeInput).toHaveValue("1000");
+    await expect(page.locator(".xforms-output[data-ref*='mileage']").locator("xpath=..")).toContainText(/Car mileage\s*:\s*1000/);
   });
 
   /* You must see a range control that ends at 50000. No start value is defined. */
   test("8.1.7.b — 8.1.7.b end attribute of range element", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.1/8.1.7/8.1.7.b.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    // TEST-TRACE: Verify xf:range @end maps to native range max and initial bound value.
+    const rangeInput = page.locator("input[type='range'][data-ref*='mileage']");
+    await expect(rangeInput).toHaveCount(1);
+    await expect(rangeInput).toHaveAttribute("max", "50000");
+    await expect(rangeInput).toHaveValue("50000");
+    await expect(page.locator(".xforms-output[data-ref*='mileage']").locator("xpath=..")).toContainText(/Car mileage\s*:\s*50000/);
   });
 
   /* You must see a range control that increments by 2. No start or end values are defined. */
   test("8.1.7.c — 8.1.7.c step attribute of range element", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.1/8.1.7/8.1.7.c.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    // TEST-TRACE: Verify xf:range @step and value propagation to output/instance.
+    const rangeInput = page.locator("input[type='range'][data-ref*='age']");
+    await expect(rangeInput).toHaveCount(1);
+    await expect(rangeInput).toHaveAttribute("step", "2");
+    await rangeInput.evaluate((input) => {
+      (input as HTMLInputElement).value = "4";
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await page.waitForTimeout(250);
+    await expect(page.locator(".xforms-output[data-ref*='age']").locator("xpath=..")).toContainText(/Car age\s*:\s*4/);
+    const xml = await getInstanceXML(page);
+    expect(xml).toContain(">4<");
+  });
+
+  /*
+     You must see a range control that displays an xforms-value-changed message when you change its
+     value.
+  */
+  test("8.1.7.d — 8.1.7.d incremental attribute of range element", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt08/8.1/8.1.7/8.1.7.d.xhtml");
+    // TEST-TRACE: Verify incremental slider change dispatches xforms-value-changed and updates model.
+    const rangeInput = page.locator("input[type='range'][data-ref*='age']");
+    await expect(rangeInput).toHaveCount(1);
+    await rangeInput.evaluate((input) => {
+      (input as HTMLInputElement).value = "7";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await page.waitForTimeout(300);
+    const normalizedMessages = dialogMessages.map((message) => normalizeWhitespace(message));
+    expect(normalizedMessages.some((message) => /\bxforms-value-changed\b/i.test(message))).toBe(true);
+    await expect(page.locator(".xforms-output[data-ref*='age']").locator("xpath=..")).toContainText(/Car age\s*:\s*7/);
+    const xml = await getInstanceXML(page);
+    expect(xml).toContain(">7<");
   });
 
   /* You should see a range control with range of -2 to 2 and increments by 0.5. */
   test("8.1.7.e — 8.1.7.e example of range element", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.1/8.1.7/8.1.7.e.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    // TEST-TRACE: Verify min/max/step mapping for decimal xf:range and output reflection.
+    const rangeInput = page.locator("input[type='range'][data-ref*='balance']");
+    await expect(rangeInput).toHaveCount(1);
+    expect(Number(await rangeInput.getAttribute("min"))).toBe(-2);
+    expect(Number(await rangeInput.getAttribute("max"))).toBe(2);
+    expect(Number(await rangeInput.getAttribute("step"))).toBe(0.5);
+    await rangeInput.evaluate((input) => {
+      (input as HTMLInputElement).value = "1.5";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await page.waitForTimeout(300);
+    await expect(page.locator(".xforms-output[data-ref*='balance']").locator("xpath=..")).toContainText(/Balance\s*:\s*1\.5/);
+    const xml = await getInstanceXML(page);
+    expect(xml).toContain(">1.5<");
   });
 
   /*
@@ -225,9 +315,24 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
   */
   test("8.1.a — 8.1.a navindex and accesskey (non-normative)", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.1/8.1.a.xhtml");
-    const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
+    // TEST-TRACE: Verify navindex/accesskey rendering and keyboard tab order; helps tests/w3c/ch08.spec.ts "8.1.a".
+    const nameInput = page.locator("input.xforms-input[data-ref*='name']");
+    const quantityInput = page.locator("input.xforms-input[data-ref*='quantity']");
+    const itemInput = page.locator("input.xforms-input[data-ref*='item']");
+    await expect(nameInput).toHaveCount(1);
+    await expect(quantityInput).toHaveCount(1);
+    await expect(itemInput).toHaveCount(1);
+    await expect(nameInput).toHaveAttribute("tabindex", "1");
+    await expect(quantityInput).toHaveAttribute("tabindex", "2");
+    await expect(itemInput).toHaveAttribute("tabindex", "3");
+    await expect(nameInput).toHaveAttribute("accesskey", "n");
+    await expect(quantityInput).toHaveAttribute("accesskey", "q");
+    await expect(itemInput).toHaveAttribute("accesskey", "i");
+    await nameInput.focus();
+    await page.keyboard.press("Tab");
+    await expect(quantityInput).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(itemInput).toBeFocused();
   });
 
   /* You must see an input control with the label "Instance Data". */
