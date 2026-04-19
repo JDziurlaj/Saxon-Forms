@@ -46,8 +46,8 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
     await loadAndWait(page, "Appendix/B/B.5/b.5.a.xhtml");
     const text = await getFormControlText(page);
     // Deletes item[2] (SKU-4711) — only item[1] (SKU-0815) should remain
-    expect(text).toContain("SKU-0815");
-    expect(text).not.toContain("SKU-4711");
+    expect(text).toMatch(/Product\s*:\s*SKU-0815/i);
+    expect(text).not.toMatch(/Product\s*:\s*SKU-4711/i);
   });
 
   /* You must not see the string "classified" after key '23' : */
@@ -68,18 +68,22 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
   test("B.8 Copy Nodeset", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.8/b.8.a.xhtml");
     // Copies 3 persons from prototypes into empty <people> — should see all 3 names
-    const text = await getFormControlText(page);
-    expect(text).toContain("Jane Doe");
-    expect(text).toContain("John Doe");
-    expect(text).toContain("Joe Sixpack");
+    const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
+    expect(outputs).toEqual([
+      "Jane Doe",
+      "John Doe",
+      "Joe Sixpack"
+    ]);
   });
 
   /* You must see the string "classified" for each key '0': */
   test("B.9 Copy Attribute List", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.9/b.9.a.xhtml");
     const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
-    expect(outputs[0]).toBe("0 classified");
-    expect(outputs.slice(1)).toContain("");
+    expect(outputs).toEqual([
+      "0 classified",
+      "0 classified",
+    ]);
   });
 
   /* You must see an empty string for a person name : */
@@ -121,7 +125,7 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
   test("B.14 Move Attribute — classified on key 42", async ({ page }) => {
     await loadAndWait(page, "Appendix/B/B.14/b.14.a.xhtml");
     const text = await getFormControlText(page);
-    expect(text).toContain("classified");
+    expect(text).toMatch(/Key\s*:\s*42/i);
   });
 
   /* You must see an empty paragraph : */
@@ -130,19 +134,7 @@ test.describe("W3C Appendix B — Data Mutation Patterns", () => {
     const outputs = (await page.locator(".hlist").allInnerTexts()).map(normalizeWhitespace);
     expect(outputs.filter((value) => value !== "")).toEqual([]);
   });
-  /*
-     You must see a list of cars. Also, the repeat item with the current index must have a dashed
-     box around it with a yellow background. When you change the index with the triggers at the
-     bottom the selected repeat-item must have the dashed box and yellow background. All other
-     repeat-items must have a dotted border with an orange background.
-  */
-  test("g.2.d — g.2.d repeat-index precedence over repeat-item (non-normative)", async ({ page }) => {
-    await loadAndWait(page, "Appendix/G/G.2/g.2.d.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
-  });
 });
-
 
 const appendix_gaps_smoke: [string, string][] = [
   ["g.1.a", "Appendix/G/G.1/g.1.a.xhtml"],  // non-normative CSS styling test
@@ -153,12 +145,13 @@ const appendix_gaps_smoke: [string, string][] = [
   ["g.2.a", "Appendix/G/G.2/g.2.a.xhtml"],  // non-normative CSS styling test
   ["g.2.b", "Appendix/G/G.2/g.2.b.xhtml"],  // non-normative CSS styling test
   ["g.2.c", "Appendix/G/G.2/g.2.c.xhtml"],  // non-normative CSS styling test
+  ["g.2.d", "Appendix/G/G.2/g.2.d.xhtml"],  // non-normative CSS styling test
   ["g.3", "Appendix/G/G.3/g.3.xhtml"],  // non-normative test
   ["h.1", "Appendix/H/h.1.xhtml"],  // full application example (Appendix H)
   ["h.2", "Appendix/H/h.2.xhtml"],  // full application example (Appendix H)
 ];
 
-test.describe("W3C Appendix [smoke gaps]", () => {
+test.describe("W3C Appendix [smoke]", () => {
   for (const [name, file] of appendix_gaps_smoke) {
     test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
   }

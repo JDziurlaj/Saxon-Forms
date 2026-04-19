@@ -229,8 +229,18 @@ test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
 
   /* After you activate the Insert A Date trigger you must see the correct value as output. */
   test("7.11.2.a — 7.11.2.a event() function with inserted-nodes property", async ({ page }) => {
-    test.fixme("event() function context for xforms-insert properties is not implemented yet.");
     await loadAndWait(page, "Chapt07/7.11/7.11.2/7.11.2.a.xhtml");
+    // TEST-TRACE: assert event('inserted-nodes') is populated after xforms-insert.
+    const output = page.locator(".xforms-output[data-ref*='insert_description']");
+    await expect(output).toHaveCount(1);
+    await expect(output).toHaveText(/^\s*$/);
+
+    await page.locator("button.xforms-trigger", { hasText: "Insert A Date" }).click();
+    await page.waitForTimeout(300);
+
+    await expect(output).toHaveText(/\S/);
+    const eventValue = (await output.innerText()).trim();
+    expect(eventValue).toMatch(/^(\/Dates\/date|2006-01-01|2006-12-25)$/);
   });
 
   /* You must see the value "John" in all three input fields. */

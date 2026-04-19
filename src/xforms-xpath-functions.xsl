@@ -13,7 +13,8 @@
     xmlns:xforms="http://www.w3.org/2002/xforms"
     xmlns:fn="http://www.w3.org/2005/xpath-functions"
     xmlns:js="http://saxonica.com/ns/globalJS"
-    exclude-result-prefixes="xs math fn js"
+    xmlns:map="http://www.w3.org/2005/xpath-functions/map"
+    exclude-result-prefixes="xs math fn js map"
     version="3.0">
 
     <!-- ================================================================
@@ -79,6 +80,25 @@
         <xsl:param name="value1" as="item()*"/>
         <xsl:param name="value2" as="item()*"/>
         <xsl:sequence select="if (boolean($test)) then $value1 else $value2"/>
+    </xsl:function>
+
+    <!-- ================================================================
+         7.11.2  event()
+         Returns property values from the current XForms event context map.
+         See https://www.w3.org/TR/xforms11/#fn-event
+         TEST-TRACE: helps ch04 4.4.2.a and ch07 7.11.2.a
+         ================================================================ -->
+    <xsl:function name="xforms:event" as="item()*" visibility="public">
+        <xsl:param name="name" as="xs:string"/>
+        <xsl:variable name="event-context" as="item()*" select="js:getCurrentEventContext()"/>
+        <xsl:choose>
+            <xsl:when test="exists($event-context) and $event-context instance of map(*)">
+                <xsl:sequence select="map:get($event-context, $name)"/>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:sequence select="js:getCurrentEventProperty($name)"/>
+            </xsl:otherwise>
+        </xsl:choose>
     </xsl:function>
 
     <!-- ================================================================

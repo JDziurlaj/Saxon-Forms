@@ -351,6 +351,21 @@
         </xsl:if>
         
     </xsl:template>
+    
+    <xsl:template match="*:select[not(xforms:hasClass(.,'incremental'))]" mode="ixsl:onblur">
+        <xsl:message use-when="$debugMode">[ixsl:onblur mode] non-incremental HTML form control '<xsl:sequence select="name()"/>' lost focus</xsl:message>
+        <xsl:call-template name="outermost-action-handler"/>
+    </xsl:template>
+    
+    <xsl:template match="*:select[not(xforms:hasClass(.,'incremental'))]" mode="ixsl:onfocusout">
+        <xsl:message use-when="$debugMode">[ixsl:onfocusout mode] non-incremental HTML form control '<xsl:sequence select="name()"/>' lost focus</xsl:message>
+        <xsl:call-template name="outermost-action-handler"/>
+    </xsl:template>
+    
+    <xsl:template match="*:select[not(xforms:hasClass(.,'incremental'))]" mode="ixsl:onfocus">
+        <xsl:message use-when="$debugMode">[ixsl:onfocus mode] non-incremental HTML form control '<xsl:sequence select="name()"/>' focused</xsl:message>
+        <xsl:call-template name="outermost-action-handler"/>
+    </xsl:template>
 
 
     <xd:doc scope="component">
@@ -473,15 +488,11 @@
         <xsl:call-template name="action-setvalue-form-control">
             <xsl:with-param name="form-control" select="."/>
         </xsl:call-template>
-        <!-- Apply the data update cycle without dispatching xforms-recalculate/
-             xforms-revalidate/xforms-refresh event handlers (event sequencing for
-             non-incremental select/select1 is verified separately in W3C 4.6.3.*). -->
-        <xsl:call-template name="xforms-recalculate"/>
-        <xsl:call-template name="xforms-revalidate"/>
-        <xsl:call-template name="xforms-refresh"/>
-        <xsl:sequence select="js:clearDeferredUpdateFlags()"/>
-        <xsl:sequence select="js:clearDirtyInstances()"/>
-        <xsl:sequence select="js:clearPendingMutations()"/>
+        <!-- Keep select/deselect event tracker UI in sync without triggering
+             the deferred update cycle (recalculate/revalidate/refresh) until blur. -->
+        <xsl:call-template name="refreshRepeats-JS"/>
+        <!-- For non-incremental select/select1, defer recalculate/revalidate/refresh
+             to focus-loss (blur), while still processing immediate select/deselect. -->
     </xsl:template>
     
     <xsl:template match="*:input[not(xforms:hasClass(.,'incremental'))][not(@type='file')] | *:textarea" mode="ixsl:onchange">
@@ -1860,6 +1871,7 @@
             <xsl:call-template name="getHtmlClass">
                 <xsl:with-param name="source-class" as="xs:string?" select="@class"/>
                 <xsl:with-param name="additional-values" as="xs:string*" select="$additional-class-values"/>
+                <xsl:with-param name="incremental" as="xs:string?" select="@incremental"/>
             </xsl:call-template>
         </xsl:variable>
         
@@ -2345,6 +2357,7 @@
             <xsl:call-template name="getHtmlClass">
                 <xsl:with-param name="source-class" as="xs:string?" select="@class"/>
                 <xsl:with-param name="additional-values" as="xs:string*" select="$additional-class-values"/>
+                <xsl:with-param name="incremental" as="xs:string?" select="@incremental"/>
             </xsl:call-template>
         </xsl:variable>
                          
@@ -3777,10 +3790,23 @@
             <!-- PERF-6b: check for a pending append mutation on this repeat's instance -->
             <xsl:variable name="pending-append-pos" as="xs:double"
                 select="js:getPendingAppendForInstance($this-repeat-instance-id)"/>
+            <xsl:variable name="current-repeat-size" as="xs:double"
+                select="(js:getRepeatSize($this-key), 0)[1]"/>
+            <xsl:variable name="this-repeat-ref" as="xs:string?"
+                select="js:getRepeatRef($this-key)"/>
+            <xsl:variable name="live-repeat-size" as="xs:double"
+                select="
+                    if (exists($this-repeat-ref) and $this-repeat-ref ne '')
+                    then count(xforms:evaluate-xpath-with-instance-id($this-repeat-ref,$this-repeat-instance-id,()))
+                    else 0"/>
             
             <xsl:choose>
-                <!-- PERF-6b fast path: single-item append via ixsl:append-content -->
-                <xsl:when test="exists($page-element) and $pending-append-pos > 0">
+                <!-- PERF-6b fast path: only valid for a single-item append.
+                     If multiple appends occurred in one action cycle, fall back
+                     to full re-render to avoid dropping intermediate items. -->
+                <xsl:when test="exists($page-element)
+                                and $pending-append-pos = $current-repeat-size + 1
+                                and $live-repeat-size = $current-repeat-size + 1">
                     <xsl:result-document href="#{$this-key}" method="ixsl:append-content">
                         <xsl:apply-templates select="$this-repeat">
                             <xsl:with-param name="model-key" select="$this-repeat-model" tunnel="yes"/>
@@ -5226,8 +5252,10 @@
     </xd:doc>
     <xsl:template name="xforms-event-handler">
         <xsl:param name="event-name" as="xs:string" tunnel="yes"/>
+        <xsl:param name="event-context" as="map(*)?" required="no" select="map{}" tunnel="yes"/>
         <xsl:variable name="log-label" as="xs:string" select="'[xforms-event-handler for ' || $event-name || ']'"/>
         <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> START</xsl:message>
+        <xsl:sequence select="js:pushCurrentEventContext(($event-context, map{})[1])"/>
         
         <xsl:variable name="actions" select="js:getEventAction($event-name)" as="map(*)*"/>
                 
@@ -5239,6 +5267,7 @@
                 <xsl:with-param name="action-map" select="$action-map" tunnel="yes"/>
             </xsl:call-template>
         </xsl:for-each>                
+        <xsl:sequence select="js:popCurrentEventContext()"/>
         
         <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> END</xsl:message>
         
@@ -5540,7 +5569,8 @@
         <xsl:variable name="refElement" select="$form-control/@data-element"/>
         
         <xsl:variable name="instance-id" as="xs:string" select="xforms:getInstanceId($refi)"/>
-        <xsl:variable name="actions" select="js:getAction(string($form-control/@data-action))"/>
+        <xsl:variable name="actions-raw" as="item()*" select="js:getAction(string($form-control/@data-action))"/>
+        <xsl:variable name="actions" as="map(*)*" select="array:flatten($actions-raw)"/>
         
         <!--        <xsl:sequence select="sfp:logInfo(concat('[xforms-value-changed] Evaluating data ref: ', $refi))"/>-->
         
@@ -5552,9 +5582,12 @@
             </xsl:document>
         </xsl:variable>
         <xsl:variable name="updatedNode" as="node()" select="xforms:evaluate-xpath-with-context-node($refi,$instanceXML,())"/>
+        <xsl:variable name="old-value" as="xs:string" select="string($updatedNode)"/>
         <xsl:variable name="new-value" as="xs:string">
             <xsl:apply-templates select="$form-control" mode="get-field"/>
         </xsl:variable>
+        <xsl:variable name="is-select-control" as="xs:boolean" select="local-name($form-control) = 'select'"/>
+        <xsl:variable name="selection-changed" as="xs:boolean" select="$is-select-control and $old-value ne $new-value"/>
         <xsl:variable name="updatedInstanceXML" as="element()">
             <xsl:choose>
                 <xsl:when test="$instanceDoc//node()[. is $updatedNode]">
@@ -5579,6 +5612,32 @@
         <!-- TEST-TRACE: PERF-6a – mark mutated instance so refreshRepeats-JS can skip unaffected repeats -->
         <xsl:sequence select="js:addDirtyInstance($instance-id)"/>
         <xsl:sequence select="js:setDeferredUpdateFlags(('recalculate','revalidate','refresh'))" />    
+        <xsl:if test="$selection-changed">
+            <xsl:variable name="deselect-actions-adjusted" as="map(*)*">
+                <xsl:for-each select="$actions[map:get(.,'@event') = 'xforms-deselect']">
+                    <xsl:sequence select="map:put(.,'handler-status','inner')"/>
+                </xsl:for-each>
+            </xsl:variable>
+            <xsl:variable name="select-actions-adjusted" as="map(*)*">
+                <xsl:for-each select="$actions[map:get(.,'@event') = 'xforms-select']">
+                    <xsl:sequence select="map:put(.,'handler-status','inner')"/>
+                </xsl:for-each>
+            </xsl:variable>
+            <xsl:if test="normalize-space($old-value) ne ''">
+                <xsl:for-each select="$deselect-actions-adjusted">
+                    <xsl:call-template name="applyActions">
+                        <xsl:with-param name="action-map" select="." tunnel="yes"/>
+                    </xsl:call-template>
+                </xsl:for-each>
+            </xsl:if>
+            <xsl:if test="normalize-space($new-value) ne ''">
+                <xsl:for-each select="$select-actions-adjusted">
+                    <xsl:call-template name="applyActions">
+                        <xsl:with-param name="action-map" select="." tunnel="yes"/>
+                    </xsl:call-template>
+                </xsl:for-each>
+            </xsl:if>
+        </xsl:if>
 
         <!-- 
             MD 2020-04-13 
@@ -5588,12 +5647,12 @@
         -->
         <xsl:variable name="value-changed-actions" as="map(*)*" select="$actions[map:get(.,'@event') = 'xforms-value-changed']"/>
         <xsl:variable name="is-non-incremental-select" as="xs:boolean" select="
-            local-name($form-control) = 'select'
+            $is-select-control
             and not(xforms:hasClass($form-control,'incremental'))"/>
         <xsl:variable name="value-changed-actions-adjusted" as="map(*)*">
             <xsl:choose>
-                <xsl:when test="$is-non-incremental-select">
-                    <!-- Keep non-incremental select sequencing from auto-dispatching
+                <xsl:when test="$is-select-control">
+                    <!-- Keep select/select1 sequencing from auto-dispatching
                          the outermost deferred update cycle via wrapper actions. -->
                     <xsl:for-each select="$value-changed-actions">
                         <xsl:sequence select="map:put(.,'handler-status','inner')"/>
@@ -5604,9 +5663,11 @@
                 </xsl:otherwise>
             </xsl:choose>
         </xsl:variable>
-        <xsl:call-template name="xforms-value-changed">
-            <xsl:with-param name="when-value-changed" select="$value-changed-actions-adjusted" tunnel="yes"/>
-        </xsl:call-template>
+        <xsl:if test="not($is-non-incremental-select) and (not($is-select-control) or $selection-changed)">
+            <xsl:call-template name="xforms-value-changed">
+                <xsl:with-param name="when-value-changed" select="$value-changed-actions-adjusted" tunnel="yes"/>
+            </xsl:call-template>
+        </xsl:if>
         
         </xsl:if><!-- end not(data-readonly) guard -->
               
@@ -5826,9 +5887,16 @@
                 <xsl:sequence select="js:addPendingMutation('append', $instance-context, count($post-insert-items))"/>
             </xsl:if>
             <xsl:sequence select="js:setDeferredUpdateFlags(('rebuild','recalculate','revalidate','refresh'))"/>
+            <xsl:variable name="insert-event-context" as="map(*)">
+                <xsl:map>
+                    <xsl:map-entry key="'position'" select="$effective-position"/>
+                    <xsl:map-entry key="'inserted-nodes'" select="$nodes-to-insert"/>
+                </xsl:map>
+            </xsl:variable>
             
             <xsl:call-template name="xforms-event-handler">
                 <xsl:with-param name="event-name" select="'xforms-insert'" as="xs:string" tunnel="yes"/>
+                <xsl:with-param name="event-context" select="$insert-event-context" as="map(*)" tunnel="yes"/>
             </xsl:call-template>
             
         </xsl:if>
@@ -5906,6 +5974,22 @@
                 then xforms:evaluate-xpath-with-context-node($ref-qualified,$instanceXML,())
                 else ()
             )"/>
+        <xsl:variable name="delete-location" as="xs:integer?" select="
+            if (exists($delete-node))
+            then (
+                if ($delete-node[1] instance of attribute())
+                then ()
+                else count($delete-node[1]/preceding-sibling::*) + 1
+            )
+            else ()"/>
+        <xsl:variable name="delete-event-context" as="map(*)">
+            <xsl:map>
+                <xsl:if test="exists($delete-location)">
+                    <xsl:map-entry key="'delete-location'" select="$delete-location"/>
+                </xsl:if>
+                <xsl:map-entry key="'deleted-nodes'" select="$delete-node"/>
+            </xsl:map>
+        </xsl:variable>
          
         <!--<xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> ref-qualified = <xsl:sequence select="$ref-qualified"/>; delete-node = <xsl:sequence select="fn:serialize($delete-node)"/></xsl:message>-->
         
@@ -5956,6 +6040,7 @@
         
         <xsl:call-template name="xforms-event-handler">
             <xsl:with-param name="event-name" select="'xforms-delete'" as="xs:string" tunnel="yes"/>
+            <xsl:with-param name="event-context" select="$delete-event-context" as="map(*)" tunnel="yes"/>
         </xsl:call-template>
         
         <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> END</xsl:message>

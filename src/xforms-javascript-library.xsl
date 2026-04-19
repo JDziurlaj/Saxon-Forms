@@ -15,6 +15,7 @@
         var bindings = [];
         var actions = {};
         var eventActions = {};
+        var currentEventContextStack = [];
         var switches = {}; // map switch ID to array of case IDs
         var switchSelections = {};
         var caseSwitches = {}; // map case ID to ID of parent switch
@@ -61,6 +62,7 @@
             bindings = [];
             actions = {};
             eventActions = {};
+            currentEventContextStack = [];
             switches = {}; // map switch ID to array of case IDs
             switchSelections = {};
             caseSwitches = {}; // map case ID to ID of parent switch
@@ -264,6 +266,36 @@
         var getEventAction = function(name){
             return eventActions[name];
         }
+        var pushCurrentEventContext = function(context){
+            currentEventContextStack.push(context || {});
+            return true;
+        }
+        
+        var popCurrentEventContext = function(){
+            if (currentEventContextStack.length > 0) {
+                currentEventContextStack.pop();
+            }
+            return true;
+        }
+        
+        var getCurrentEventContext = function(){
+            if (currentEventContextStack.length > 0) {
+                return currentEventContextStack[currentEventContextStack.length - 1];
+            }
+            return null;
+        }
+        
+        var getCurrentEventProperty = function(name){
+            var ctx = getCurrentEventContext();
+            if (!ctx) {
+                return null;
+            }
+            if (typeof ctx.get === 'function') {
+                return ctx.get(name);
+            }
+            return ctx[name];
+        }
+        
                 
         var updateAction = function(actioni, key, value){
             actioni[key] = value;

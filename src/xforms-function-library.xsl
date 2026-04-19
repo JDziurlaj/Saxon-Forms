@@ -19,7 +19,7 @@
     extension-element-prefixes="ixsl" version="3.0">
     
     <!-- TEST-TRACE: register XForms function names for impose() rewriting; helps ch07 -->
-    <xsl:variable name="xform-functions" select="'if','instance', 'index', 'avg', 'foo', 'context', 'id', 'current-date', 'random', 'property', 'boolean-from-string', 'count-non-empty', 'power', 'choose', 'is-card-number', 'now', 'local-date', 'local-dateTime', 'days-from-date', 'days-to-date', 'seconds-from-dateTime', 'seconds-to-dateTime', 'seconds', 'months', 'adjust-dateTime-to-timezone', 'digest', 'hmac', 'min', 'max'"/>
+    <xsl:variable name="xform-functions" select="'if','instance', 'index', 'avg', 'foo', 'context', 'id', 'current-date', 'random', 'property', 'boolean-from-string', 'count-non-empty', 'power', 'choose', 'event', 'is-card-number', 'now', 'local-date', 'local-dateTime', 'days-from-date', 'days-to-date', 'seconds-from-dateTime', 'seconds-to-dateTime', 'seconds', 'months', 'adjust-dateTime-to-timezone', 'digest', 'hmac', 'min', 'max'"/>
     
     <xsl:function name="xforms:impose" as="xs:string" visibility="public">
         <xsl:param name="input" as="xs:string" />
