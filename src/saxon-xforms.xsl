@@ -491,6 +491,9 @@
         <!-- Keep select/deselect event tracker UI in sync without triggering
              the deferred update cycle (recalculate/revalidate/refresh) until blur. -->
         <xsl:call-template name="refreshRepeats-JS"/>
+        <!-- Apply relevance visibility updates immediately for controls whose
+             @relevant depends on the select/select1 value (e.g. Chapt02/2.3.a). -->
+        <xsl:call-template name="refreshRelevantFields-JS"/>
         <!-- For non-incremental select/select1, defer recalculate/revalidate/refresh
              to focus-loss (blur), while still processing immediate select/deselect. -->
     </xsl:template>
@@ -2406,10 +2409,11 @@
                     </xsl:attribute>
                 </xsl:if>
                  
-                <xsl:apply-templates select="xforms:item" mode="#current">
+                <!-- TEST-TRACE: include xforms:choices in select/select1 native option rendering order;
+                     helps tests/w3c/ch08.spec.ts "8.3.1.a", "8.3.2.a" -->
+                <xsl:apply-templates select="xforms:item | xforms:itemset | xforms:choices" mode="#current">
                     <xsl:with-param name="selectedValue" select="$selectedValue"/>
                 </xsl:apply-templates>
-                <xsl:apply-templates select="xforms:itemset" mode="#current"/>
                 
             </select>
             
@@ -2554,6 +2558,29 @@
             <xsl:apply-templates select="xforms:label"/>
         </option>
 
+    </xsl:template>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Template for xforms:choices element.</xd:p>
+            <xd:p>Generates native HTML optgroup and renders nested items/itemsets.</xd:p>
+        </xd:desc>
+        <xd:param name="selectedValue">Current selection used by nested xforms:item rendering.</xd:param>
+    </xd:doc>
+    <xsl:template match="xforms:choices" mode="get-html">
+        <xsl:param name="selectedValue" as="xs:string" select="''"/>
+        <!-- TEST-TRACE: render xforms:choices as HTML5 optgroup to preserve group labels and nested values;
+             helps tests/w3c/ch08.spec.ts "8.3.1.a", "8.3.2.a" -->
+        <xsl:variable name="rendered-choice-label" as="item()*">
+            <xsl:apply-templates select="xforms:label[1]"/>
+        </xsl:variable>
+        <xsl:variable name="choice-group-label" as="xs:string" select="normalize-space(string($rendered-choice-label))"/>
+        <optgroup>
+            <xsl:attribute name="label" select="if ($choice-group-label != '') then $choice-group-label else ' '"/>
+            <xsl:apply-templates select="xforms:item | xforms:itemset" mode="#current">
+                <xsl:with-param name="selectedValue" select="$selectedValue"/>
+            </xsl:apply-templates>
+        </optgroup>
     </xsl:template>
     
     

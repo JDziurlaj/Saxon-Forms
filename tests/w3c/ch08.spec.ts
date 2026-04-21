@@ -338,25 +338,31 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
   /* You must see an input control with the label "Instance Data". */
   test("8.2.1.a — 8.2.1.a label element references instance data", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.2/8.2.1/8.2.1.a.xhtml");
-    const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
+    // TEST-TRACE: Assert xf:label @ref resolves from instance data onto rendered input; helps tests/w3c/ch08.spec.ts "8.2.1.a".
+    const inputControl = page.locator("div.xforms-input").filter({ has: page.locator("input.xforms-input") });
+    await expect(inputControl).toHaveCount(1);
+    await expect(inputControl.locator("input.xforms-input")).toHaveAttribute("data-ref", /myinput/);
+    await expect(inputControl.locator("label")).toHaveText(/^\s*Instance Data\s*$/);
   });
 
   /* You must see an input control with the label "Inline Text". */
   test("8.2.1.b — 8.2.1.b label element uses inline text", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.2/8.2.1/8.2.1.b.xhtml");
-    const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
+    // TEST-TRACE: Assert inline xf:label text renders on input control when no binding reference exists; helps tests/w3c/ch08.spec.ts "8.2.1.b".
+    const inputControl = page.locator("div.xforms-input").filter({ has: page.locator("input.xforms-input") });
+    await expect(inputControl).toHaveCount(1);
+    await expect(inputControl.locator("input.xforms-input")).toHaveAttribute("data-ref", /myinput/);
+    await expect(inputControl.locator("label")).toHaveText(/^\s*Inline Text\s*$/);
   });
 
   /* You must see an input control with the label "Instance Data". */
   test("8.2.1.c — 8.2.1.c label element has binding precedence", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.2/8.2.1/8.2.1.c.xhtml");
-    const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
+    // TEST-TRACE: Assert xf:label @ref takes precedence over inline fallback text; helps tests/w3c/ch08.spec.ts "8.2.1.c".
+    const inputControl = page.locator("div.xforms-input").filter({ has: page.locator("input.xforms-input") });
+    await expect(inputControl).toHaveCount(1);
+    await expect(inputControl.locator("input.xforms-input")).toHaveAttribute("data-ref", /myinput/);
+    await expect(inputControl.locator("label")).toHaveText(/^\s*Instance Data\s*$/);
   });
 
   /*
@@ -366,8 +372,29 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
   */
   test("8.3.1.a — 8.3.1.a choices element", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.3/8.3.1/8.3.1.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    // TEST-TRACE: Assert xforms:choices renders as grouped options with expected labels/values; helps tests/w3c/ch08.spec.ts "8.3.1.a".
+    const selectControl = page.locator("div.xforms-select").filter({ has: page.locator("select[multiple]") });
+    const select1Control = page.locator("div.xforms-select").filter({ has: page.locator("select:not([multiple])") });
+    await expect(selectControl).toHaveCount(1);
+    await expect(select1Control).toHaveCount(1);
+
+    const selectChoiceLabels = await selectControl
+      .locator("optgroup")
+      .evaluateAll((groups) => groups.map((group) => group.getAttribute("label") ?? ""));
+    expect(selectChoiceLabels).toEqual(["Group 1", "Group 2", "Group 3"]);
+    const selectChoiceValues = await selectControl
+      .locator("optgroup option")
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    expect(selectChoiceValues).toEqual(["vanilla", "chocolate", "orangeCreamsicle", "fudgeRipple", "yuck", "whyBother"]);
+
+    const select1ChoiceLabels = await select1Control
+      .locator("optgroup")
+      .evaluateAll((groups) => groups.map((group) => group.getAttribute("label") ?? ""));
+    expect(select1ChoiceLabels).toEqual(["Group 4", "Group 5", "Group 6"]);
+    const select1ChoiceValues = await select1Control
+      .locator("optgroup option")
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    expect(select1ChoiceValues).toEqual(["vanilla", "chocolate", "orangeCreamsicle", "fudgeRipple", "yuck", "whyBother"]);
   });
 
   /*
@@ -379,8 +406,37 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
   */
   test("8.3.2.a — 8.3.2.a item element", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.3/8.3.2/8.3.2.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    // TEST-TRACE: Assert mixed item + xforms:choices rendering includes Special Items group and nested values; helps tests/w3c/ch08.spec.ts "8.3.2.a".
+    const selectControl = page.locator("div.xforms-select").filter({ has: page.locator("select[multiple]") });
+    const select1Control = page.locator("div.xforms-select").filter({ has: page.locator("select:not([multiple])") });
+    await expect(selectControl).toHaveCount(1);
+    await expect(select1Control).toHaveCount(1);
+
+    const selectValues = await selectControl
+      .locator("option")
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    expect(selectValues).toEqual(["item1", "item2", "item3"]);
+    const selectSpecialGroups = await selectControl
+      .locator("optgroup")
+      .evaluateAll((groups) => groups.map((group) => group.getAttribute("label") ?? ""));
+    expect(selectSpecialGroups).toEqual(["Special Items"]);
+    const selectSpecialValues = await selectControl
+      .locator("optgroup option")
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    expect(selectSpecialValues).toEqual(["item3"]);
+
+    const select1Values = await select1Control
+      .locator("option")
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    expect(select1Values).toEqual(["item4", "item5", "item6"]);
+    const select1SpecialGroups = await select1Control
+      .locator("optgroup")
+      .evaluateAll((groups) => groups.map((group) => group.getAttribute("label") ?? ""));
+    expect(select1SpecialGroups).toEqual(["Special Items"]);
+    const select1SpecialValues = await select1Control
+      .locator("optgroup option")
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    expect(select1SpecialValues).toEqual(["item6"]);
   });
 
   /*
