@@ -445,9 +445,15 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
   */
   test("8.3.3.b — 8.3.3.b precedence for value element", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.3/8.3.3/8.3.3.b.xhtml");
-    const outputs = page.locator('.xforms-output');
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
+    // TEST-TRACE: Assert xf:value @ref precedence drives output to Neapolitan after selection; helps tests/w3c/ch08.spec.ts "8.3.3.b".
+    const flavorSelect = page.locator("div.xforms-select select");
+    await expect(flavorSelect).toHaveCount(1);
+    await flavorSelect.selectOption({ label: "Vanilla" });
+    await page.waitForTimeout(250);
+
+    const selectedFlavorOutput = page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..");
+    await expect(selectedFlavorOutput).toHaveCount(1);
+    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*Neapolitan/);
   });
 });
 
@@ -462,9 +468,31 @@ test.describe("W3C Ch8 [smoke → behavioral promoted]", () => {
   */
   test("8.1.10.c — three select appearances (full, compact, minimal)", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.1/8.1.10/8.1.10.c.xhtml");
-    const selects = page.locator("select, .xforms-select");
-    const count = await selects.count();
-    expect(count).toBeGreaterThanOrEqual(3);
+    // TEST-TRACE: Assert xf:select appearance wiring and enforced minimal->compact degrade for Chapt08/8.1/8.1.10/8.1.10.c.xhtml.
+    const fullSelect = page.locator("select[data-appearance-requested='full']").first();
+    const compactSelect = page.locator("select[data-appearance-requested='compact']").first();
+    const minimalSelect = page.locator("select[data-appearance-requested='minimal']").first();
+    const selectedFlavorOutput = page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..").first();
+
+    await expect(fullSelect).toHaveCount(1);
+    await expect(fullSelect).toHaveAttribute("data-appearance", "full");
+    await expect(fullSelect).toHaveAttribute("multiple", /^(true|multiple)$/);
+
+    await expect(compactSelect).toHaveCount(1);
+    await expect(compactSelect).toHaveAttribute("data-appearance", "compact");
+    await expect(compactSelect).toHaveAttribute("multiple", /^(true|multiple)$/);
+
+    await expect(minimalSelect).toHaveCount(1);
+    await expect(minimalSelect).toHaveAttribute("data-appearance", "compact");
+    await expect(minimalSelect).toHaveAttribute("data-appearance-degraded", "true");
+    await expect(minimalSelect).toHaveAttribute("multiple", /^(true|multiple)$/);
+
+    await fullSelect.selectOption(["v"]);
+    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*v/);
+    await compactSelect.selectOption(["s"]);
+    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*s/);
+    await minimalSelect.selectOption(["c"]);
+    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*c/);
   });
 
   /*
@@ -474,9 +502,30 @@ test.describe("W3C Ch8 [smoke → behavioral promoted]", () => {
   */
   test("8.1.11.c — three select1 appearances (full, compact, minimal)", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.1/8.1.11/8.1.11.c.xhtml");
-    const selects = page.locator("select, .xforms-select1, input[type=radio]");
-    const count = await selects.count();
-    expect(count).toBeGreaterThanOrEqual(3);
+    // TEST-TRACE: Assert xf:select1 appearance wiring for full/compact/minimal and output updates for each control in Chapt08/8.1/8.1.11/8.1.11.c.xhtml.
+    const fullSelect1 = page.locator("select[data-appearance-requested='full']").first();
+    const compactSelect1 = page.locator("select[data-appearance-requested='compact']").first();
+    const minimalSelect1 = page.locator("select[data-appearance-requested='minimal']").first();
+    const selectedFlavorOutput = page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..").first();
+
+    await expect(fullSelect1).toHaveCount(1);
+    await expect(fullSelect1).toHaveAttribute("data-appearance", "full");
+    await expect(fullSelect1).toHaveAttribute("size", "3");
+
+    await expect(compactSelect1).toHaveCount(1);
+    await expect(compactSelect1).toHaveAttribute("data-appearance", "compact");
+    await expect(compactSelect1).toHaveAttribute("size", "2");
+
+    await expect(minimalSelect1).toHaveCount(1);
+    await expect(minimalSelect1).toHaveAttribute("data-appearance", "minimal");
+    await expect(minimalSelect1).not.toHaveAttribute("size", /.*/);
+
+    await fullSelect1.selectOption("v");
+    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*v/);
+    await compactSelect1.selectOption("s");
+    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*s/);
+    await minimalSelect1.selectOption("c");
+    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*c/);
   });
 
   /*

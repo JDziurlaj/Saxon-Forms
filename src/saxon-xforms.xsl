@@ -494,6 +494,9 @@
         <!-- Apply relevance visibility updates immediately for controls whose
              @relevant depends on the select/select1 value (e.g. Chapt02/2.3.a). -->
         <xsl:call-template name="refreshRelevantFields-JS"/>
+        <!-- TEST-TRACE: keep bound outputs in sync on select/select1 change even when
+             non-incremental deferred cycle waits for blur; helps tests/w3c/ch08.spec.ts "8.3.3.b". -->
+        <xsl:call-template name="refreshOutputs-JS"/>
         <!-- For non-incremental select/select1, defer recalculate/revalidate/refresh
              to focus-loss (blur), while still processing immediate select/deselect. -->
     </xsl:template>
@@ -2363,6 +2366,23 @@
                 <xsl:with-param name="incremental" as="xs:string?" select="@incremental"/>
             </xsl:call-template>
         </xsl:variable>
+        <xsl:variable name="appearance-requested-raw" as="xs:string" select="lower-case(normalize-space(string(@appearance)))"/>
+        <xsl:variable name="appearance-requested" as="xs:string" select="
+            if ($appearance-requested-raw = ('full','compact','minimal'))
+            then $appearance-requested-raw
+            else (if (local-name() = 'select') then 'full' else 'minimal')"/>
+        <xsl:variable name="appearance-effective" as="xs:string" select="
+            if (local-name() = 'select' and $appearance-requested = 'minimal')
+            then 'compact'
+            else $appearance-requested"/>
+        <xsl:variable name="option-count" as="xs:integer" select="
+            if (count(descendant::xforms:item) gt 0)
+            then count(descendant::xforms:item)
+            else 1"/>
+        <xsl:variable name="compact-size" as="xs:integer" select="
+            if ($option-count gt 1)
+            then 2
+            else 1"/>
                          
         <div>
             <xsl:call-template name="copy-custom-data-attributes"/>
@@ -2378,6 +2398,13 @@
                 <xsl:attribute name="class" select="$htmlClass"/>
                 <xsl:attribute name="instance-context" select="$instance-context"/>
                 <xsl:attribute name="data-ref" select="$nodeset"/>
+                <xsl:attribute name="data-appearance-requested" select="$appearance-requested"/>
+                <xsl:attribute name="data-appearance" select="$appearance-effective"/>
+                <xsl:if test="local-name() = 'select' and $appearance-requested = 'minimal'">
+                    <!-- TEST-TRACE: native HTML has no true minimal multi-select widget,
+                         so enforce minimal->compact degradation for xf:select; helps tests/w3c/ch08.spec.ts "8.1.10.c". -->
+                    <xsl:attribute name="data-appearance-degraded" select="'true'"/>
+                </xsl:if>
                 
                 <xsl:if test="exists($binding) and exists($binding/@constraint)">
                     <xsl:attribute name="data-constraint" select="$binding/@constraint"/>
@@ -2404,9 +2431,16 @@
                 
                 <xsl:if test="local-name() = 'select'">
                     <xsl:attribute name="multiple">true</xsl:attribute>
-                    <xsl:attribute name="size">
-                        <xsl:value-of select="count(descendant::xforms:item)"/>
-                    </xsl:attribute>
+                    <xsl:attribute name="size" select="
+                        if ($appearance-effective = 'full')
+                        then string($option-count)
+                        else string($compact-size)"/>
+                </xsl:if>
+                <xsl:if test="local-name() = 'select1' and $appearance-effective = ('full','compact')">
+                    <xsl:attribute name="size" select="
+                        if ($appearance-effective = 'full')
+                        then string($option-count)
+                        else string($compact-size)"/>
                 </xsl:if>
                  
                 <!-- TEST-TRACE: include xforms:choices in select/select1 native option rendering order;
@@ -2528,6 +2562,10 @@
                 <xsl:when test="exists(@bind) and exists($bindingi/@calculate)">
                     <xsl:sequence select="xforms:evaluate-xpath-with-context-node('string(' || $bindingi/@calculate || ')',$instanceField,())"/>
                 </xsl:when>
+                <xsl:when test="exists(@ref) and exists($instanceField)">
+                    <!-- @ref on value takes precedence over inline content -->
+                    <xsl:value-of select="$instanceField"/>
+                </xsl:when>
                 <xsl:when test="exists(@value)">
                     <xsl:sequence select="xforms:evaluate-xpath-with-context-node('string(' || @value || ')',$instanceField,())"/>
                 </xsl:when>
@@ -2548,11 +2586,16 @@
     </xd:doc>
     <xsl:template match="xforms:item" mode="get-html">
         <xsl:param name="selectedValue" as="xs:string" select="''"/>
+        <xsl:variable name="option-value-attribute" as="attribute(value)?">
+            <xsl:apply-templates select="xforms:value[1]"/>
+        </xsl:variable>
         
         <option>
-            <xsl:apply-templates select="xforms:value"/>
-            <xsl:if test="$selectedValue = xs:string(xforms:value/text())">
-                <xsl:attribute name="selected" select="$selectedValue"/>
+            <xsl:if test="exists($option-value-attribute)">
+                <xsl:sequence select="$option-value-attribute"/>
+            </xsl:if>
+            <xsl:if test="$selectedValue = string($option-value-attribute)">
+                <xsl:attribute name="selected" select="'selected'"/>
             </xsl:if>
 
             <xsl:apply-templates select="xforms:label"/>
@@ -3282,8 +3325,9 @@
         </xd:desc>
     </xd:doc>
     <xsl:template match="*:select" mode="get-field">
-        <xsl:message>Aw geez ZI hope I don't below up here.</xsl:message>
-        <xsl:sequence select="ixsl:get(./option[ixsl:get(., 'selected') = true()], 'value')"/>
+        <!-- TEST-TRACE: include nested option descendants so select/select1 values are read
+             when choices render via optgroup; helps tests/w3c/ch08.spec.ts "8.1.10.c". -->
+        <xsl:sequence select="ixsl:get(.//option[ixsl:get(., 'selected') = true()], 'value')"/>
     </xsl:template>
 
     <xd:doc scope="component">
@@ -3325,8 +3369,9 @@
     </xd:doc>
     <xsl:template match="*:select" mode="set-field">
         <xsl:param name="value" select="''" tunnel="yes"/>
-
-        <xsl:for-each select="./option[@value = $value]">
+        <!-- TEST-TRACE: include nested option descendants so refresh can reselect values
+             when choices render via optgroup; helps tests/w3c/ch08.spec.ts "8.1.10.c". -->
+        <xsl:for-each select=".//option[@value = $value]">
             <ixsl:set-property name="selected" select="true()" object="."/>
         </xsl:for-each>
     </xsl:template>
