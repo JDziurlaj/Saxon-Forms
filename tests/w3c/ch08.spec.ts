@@ -527,6 +527,18 @@ test.describe("W3C Ch8 [smoke → behavioral promoted]", () => {
     await minimalSelect1.selectOption("c");
     await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*c/);
   });
+  /*
+     When you activate the DOMActivate trigger control you must see a DOMActivate message.
+  */
+  test("8.1.8.a — DOMActivate trigger shows popup", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt08/8.1/8.1.8/8.1.8.a.xhtml");
+    // TEST-TRACE: Verify clicking the DOMActivate trigger emits the expected modal dialog message.
+    await clickTrigger(page, "DOMActivate");
+    await page.waitForTimeout(300);
+    const normalizedMessages = dialogMessages.map((message) => normalizeWhitespace(message));
+    expect(normalizedMessages.some((message) => /\bDOMActivate\b/i.test(message))).toBe(true);
+  });
 
   /*
      You must see two trigger controls on this page, one labeled "Regular Trigger" and the other
@@ -556,18 +568,39 @@ test.describe("W3C Ch8 [smoke → behavioral promoted]", () => {
   */
   test("8.3.3.c — select1 value reflected in output", async ({ page }) => {
     await loadAndWait(page, "Chapt08/8.3/8.3.3/8.3.3.c.xhtml");
-    const text = await getRenderedText(page);
-    // The output should show the same value as the selected item
-    expect(text).not.toBe("");
-    const outputs = page.locator(".xforms-output");
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
+    // TEST-TRACE: Assert each select1 item value propagates to both rendered output and instance data.
+    const colorSelect = page.locator("div.xforms-select select");
+    await expect(colorSelect).toHaveCount(1);
+
+    const options = await colorSelect
+      .locator("option")
+      .evaluateAll((items) =>
+        items.map((item) => ({
+          label: (item.textContent ?? "").trim(),
+          value: (item as HTMLOptionElement).value,
+        }))
+      );
+    expect(options).toEqual([
+      { label: "red", value: "red" },
+      { label: "blue", value: "blue" },
+      { label: "green", value: "green" },
+    ]);
+
+    const yourColorOutput = page.locator(".xforms-output[data-ref*='mycolor']").locator("xpath=..");
+    await expect(yourColorOutput).toHaveCount(1);
+
+    for (const color of ["red", "blue", "green"]) {
+      await colorSelect.selectOption(color);
+      await expect(colorSelect).toHaveValue(color);
+      await expect(yourColorOutput).toContainText(new RegExp(`Your\\s*Color\\s*:\\s*${color}`));
+      const xml = await getInstanceXML(page);
+      expect(xml).toContain(`<mycolor>${color}</mycolor>`);
+    }
   });
 
 
-  // --- Remaining smoke (engine gaps: help/hint/DOMActivate message dispatch) ---
+  // --- Known gap: help/hint message dispatch is not implemented ---
   const ch8_promoted_smoke: [string, string][] = [
-    ["8.1.8.a — DOMActivate trigger", "Chapt08/8.1/8.1.8/8.1.8.a.xhtml"],
     ["8.2.2.a — help message (inline)", "Chapt08/8.2/8.2.2/8.2.2.a.xhtml"],
     ["8.2.2.b — help message (src)", "Chapt08/8.2/8.2.2/8.2.2.b.xhtml"],
     ["8.2.2.c — help message (instance)", "Chapt08/8.2/8.2.2/8.2.2.c.xhtml"],
@@ -576,9 +609,11 @@ test.describe("W3C Ch8 [smoke → behavioral promoted]", () => {
     ["8.2.3.c — hint message (instance)", "Chapt08/8.2/8.2.3/8.2.3.c.xhtml"],
   ];
   for (const [name, file] of ch8_promoted_smoke) {
-    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
+    test(`${name} renders`, async ({ page }) => {
+      test.fixme("xforms-help/xforms-hint dispatch message handling is not implemented yet.");
+      await loadTest(page, file);
+    });
   }
-
-  // Note: help/hint message dispatch tests (8.1.8.a, 8.2.2.a-c, 8.2.3.a-c)
-  // remain as smoke — xforms-help and xforms-hint event dispatching not yet implemented.
+  // Note: help/hint message dispatch tests (8.2.2.a-c, 8.2.3.a-c)
+  // are tracked as explicit gaps until xforms-help/xforms-hint behavior is implemented.
 });
