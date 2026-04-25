@@ -1,4 +1,4 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, collectDialogMessages, clickTrigger, getFormControlText } from "./helpers";
+import { test, expect, loadTest, loadAndWait, getRenderedText, collectDialogMessages, clickTrigger, getFormControlText, getEventModelResults } from "./helpers";
 
 test.describe("W3C Chapter 10 — XForms Actions", () => {
   /* After you activate the Fire Test trigger the value in the Car Model output must be "BMW". */
@@ -86,25 +86,52 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     const triggers = page.locator("button.xforms-trigger");
     await expect(triggers).toHaveCount(7);
     const triggerLabels = (await triggers.allInnerTexts()).map((label) => label.replace(/\s+/g, " ").trim());
-    const expectedByTriggerIndex: string[][] = [
-      ["1", "2", "3", "4", "5", "5", "6", "0"],
-      ["1", "2", "5", "3", "4", "5", "6", "0"],
-      ["1", "2", "3", "5", "4", "5", "6", "0"],
-      ["1", "5", "2", "3", "4", "5", "6", "0"],
-      ["1", "2", "3", "4", "5", "5", "6", "0"],
-      ["1", "2", "3", "4", "5", "5", "6", "0"],
-      ["1", "2", "3", "4", "5", "5", "0"],
-    ];
+    const parseExpectedSequence = (triggerLabel: string): string[] => {
+      const sequenceMatch = triggerLabel.match(/Test\s+[A-F]\s*:\s*([0-9 ]+)/i);
+      if (!sequenceMatch) return [];
+      return sequenceMatch[1].trim().split(/\s+/).filter(Boolean);
+    };
+    const getRenderedSequence = async (): Promise<string[]> =>
+      (await page.locator("[data-repeat-item] .xforms-output").allInnerTexts())
+        .map((value) => value.replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+    const getListSizes = async (): Promise<{ x: number; y: number }> => {
+      const text = await getRenderedText(page);
+      const sizeXMatch = text.match(/Size of List X:\s*(\d+)/i);
+      const sizeYMatch = text.match(/Size of List Y:\s*(\d+)/i);
+      expect(sizeXMatch).not.toBeNull();
+      expect(sizeYMatch).not.toBeNull();
+      return {
+        x: Number(sizeXMatch?.[1] ?? NaN),
+        y: Number(sizeYMatch?.[1] ?? NaN),
+      };
+    };
 
-    for (let index = 0; index < expectedByTriggerIndex.length; index++) {
+    for (let index = 0; index < triggerLabels.length; index++) {
       await triggers.nth(index).click();
       await page.waitForTimeout(300);
-      const outputs = page.locator(".xforms-output");
-      const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
-      expect.soft(
-        values,
-        `Unexpected sequence for ${triggerLabels[index]}`
-      ).toEqual(expectedByTriggerIndex[index]);
+      const sequenceValues = await getRenderedSequence();
+      const listSizes = await getListSizes();
+      if (index < 6) {
+        const expectedSequence = parseExpectedSequence(triggerLabels[index]);
+        expect.soft(
+          sequenceValues,
+          `Unexpected sequence for ${triggerLabels[index]}`
+        ).toEqual(expectedSequence);
+        expect.soft(
+          listSizes,
+          `Unexpected list sizes for ${triggerLabels[index]}`
+        ).toEqual({ x: expectedSequence.length, y: 0 });
+      } else {
+        expect.soft(
+          sequenceValues,
+          `Unexpected sequence for ${triggerLabels[index]}`
+        ).toEqual(["1", "2", "3", "4", "5"]);
+        expect.soft(
+          listSizes,
+          `Unexpected list sizes for ${triggerLabels[index]}`
+        ).toEqual({ x: 5, y: 0 });
+      }
     }
   });
 
@@ -114,16 +141,73 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   */
   test("10.3.e insert action using position attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.3/10.3.e.xhtml");
-    const outputs = page.locator('.xforms-output');
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
+    const triggers = page.locator("button.xforms-trigger");
+    await expect(triggers).toHaveCount(4);
+    const triggerLabels = (await triggers.allInnerTexts()).map((label) => label.replace(/\s+/g, " ").trim());
+    const parseExpectedSequence = (triggerLabel: string): string[] => {
+      const sequenceMatch = triggerLabel.match(/Test\s+[A-C]\s*:\s*([0-9 ]+)/i);
+      if (!sequenceMatch) return [];
+      return sequenceMatch[1].trim().split(/\s+/).filter(Boolean);
+    };
+    const getRenderedSequence = async (): Promise<string[]> =>
+      (await page.locator("[data-repeat-item] .xforms-output").allInnerTexts())
+        .map((value) => value.replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+    const getListSizes = async (): Promise<{ x: number; y: number }> => {
+      const text = await getRenderedText(page);
+      const sizeXMatch = text.match(/Size of List X:\s*(\d+)/i);
+      const sizeYMatch = text.match(/Size of List Y:\s*(\d+)/i);
+      expect(sizeXMatch).not.toBeNull();
+      expect(sizeYMatch).not.toBeNull();
+      return {
+        x: Number(sizeXMatch?.[1] ?? NaN),
+        y: Number(sizeYMatch?.[1] ?? NaN),
+      };
+    };
+
+    for (let index = 0; index < triggerLabels.length; index++) {
+      await triggers.nth(index).click();
+      await page.waitForTimeout(300);
+      const sequenceValues = await getRenderedSequence();
+      const listSizes = await getListSizes();
+      const expectedSequence = parseExpectedSequence(triggerLabels[index]);
+      if (expectedSequence.length > 0) {
+        expect.soft(
+          sequenceValues,
+          `Unexpected sequence for ${triggerLabels[index]}`
+        ).toEqual(expectedSequence);
+        expect.soft(
+          listSizes,
+          `Unexpected list sizes for ${triggerLabels[index]}`
+        ).toEqual({ x: expectedSequence.length, y: 0 });
+      } else {
+        expect.soft(
+          sequenceValues,
+          `Unexpected sequence for ${triggerLabels[index]}`
+        ).toEqual(["1", "2", "3", "4", "5"]);
+        expect.soft(
+          listSizes,
+          `Unexpected list sizes for ${triggerLabels[index]}`
+        ).toEqual({ x: 5, y: 0 });
+      }
+    }
   });
 
-  /* You must not see the value "4.00" : */
-  test("10.3.j insert action — must not show 4.00", async ({ page }) => {
+  /*
+     You must not see the value "4.00", "5.00", or "6.00" in the three output controls.
+  */
+  test("10.3.j insert action — copied price attributes are not inserted", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.3/10.3.j.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).not.toContain("4.00");
+    const outputs = page.locator(".xforms-output");
+    await expect(outputs).toHaveCount(3);
+    await expect(outputs.nth(0)).toHaveText(/^\s*$/);
+    await expect(outputs.nth(1)).toHaveText(/^\s*$/);
+    await expect(outputs.nth(2)).toHaveText(/^3\.00$/);
+
+    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim());
+    expect(values).not.toContain("4.00");
+    expect(values).not.toContain("5.00");
+    expect(values).not.toContain("6.00");
   });
 
   /* You must see only the number 10: */
@@ -182,9 +266,44 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
      number 2.
   */
   test("10.5.a setindex element rules", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.5/10.5.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const getCurrentIndex = async (): Promise<number> => {
+      const text = await getFormControlText(page);
+      const indexMatch = text.match(/\bindex\s*:\s*(\d+)/i);
+      expect(indexMatch).not.toBeNull();
+      return Number(indexMatch?.[1] ?? NaN);
+    };
+
+    await expect(page.getByRole("button", { name: "Set index To -1", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Set index To 100", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Set index To 2", exact: true })).toBeVisible();
+    expect(await getCurrentIndex()).toBe(1);
+
+    const beforeNegativeIndex = dialogMessages.length;
+    await page.getByRole("button", { name: "Set index To -1", exact: true }).click();
+    await page.waitForTimeout(300);
+    const negativeIndexMessages = dialogMessages.slice(beforeNegativeIndex);
+    expect(
+      negativeIndexMessages.filter((message) => /xforms-scroll-first/i.test(message))
+    ).toHaveLength(3);
+    expect(await getCurrentIndex()).toBe(1);
+
+    const beforeLargeIndex = dialogMessages.length;
+    await page.getByRole("button", { name: "Set index To 100", exact: true }).click();
+    await page.waitForTimeout(300);
+    const largeIndexMessages = dialogMessages.slice(beforeLargeIndex);
+    expect(
+      largeIndexMessages.filter((message) => /xforms-scroll-last/i.test(message))
+    ).toHaveLength(3);
+    expect(await getCurrentIndex()).toBe(3);
+
+    const beforeMiddleIndex = dialogMessages.length;
+    await page.getByRole("button", { name: "Set index To 2", exact: true }).click();
+    await page.waitForTimeout(300);
+    const middleIndexMessages = dialogMessages.slice(beforeMiddleIndex);
+    expect(middleIndexMessages).toHaveLength(0);
+    expect(await getCurrentIndex()).toBe(2);
   });
 
   /*
@@ -194,9 +313,52 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
      followed by an xforms-select(in) message.
   */
   test("10.6.a events dispatched by toggle element", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.6/10.6.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const inCaseLabel = page.getByText('You are now in the "in" case', { exact: true });
+    const outCaseLabel = page.getByText('You are now in the "out" case', { exact: true });
+    const getRecentToggleSignals = async (beforeDialogCount: number, beforeEventCount: number): Promise<string[]> => {
+      const dialogSignals = dialogMessages
+        .slice(beforeDialogCount)
+        .map((message) => message.replace(/\s+/g, " ").trim().toLowerCase())
+        .filter((message) => /xforms-(?:de)?select\(/i.test(message));
+      if (dialogSignals.length > 0) {
+        return dialogSignals;
+      }
+      return (await getEventModelResults(page))
+        .slice(beforeEventCount)
+        .map((value) => value.replace(/\s+/g, " ").trim().toLowerCase())
+        .filter((message) => /xforms-(?:de)?select\(/i.test(message));
+    };
+
+    await expect(page.getByRole("button", { name: "Show Out Case", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Show In Case", exact: true })).toBeHidden();
+    await expect(inCaseLabel).toBeVisible();
+    await expect(outCaseLabel).toBeHidden();
+
+    const beforeShowOut = dialogMessages.length;
+    const beforeShowOutEvents = (await getEventModelResults(page)).length;
+    await clickTrigger(page, "Show Out Case");
+    const outCaseSignals = await getRecentToggleSignals(beforeShowOut, beforeShowOutEvents);
+    // if (outCaseSignals.length > 0) {
+    expect(outCaseSignals).toEqual(["xforms-deselect(in)", "xforms-select(out)"]);
+    // }
+    await expect(page.getByRole("button", { name: "Show In Case", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Show Out Case", exact: true })).toBeHidden();
+    await expect(outCaseLabel).toBeVisible();
+    await expect(inCaseLabel).toBeHidden();
+
+    const beforeShowIn = dialogMessages.length;
+    const beforeShowInEvents = (await getEventModelResults(page)).length;
+    await clickTrigger(page, "Show In Case");
+    const inCaseSignals = await getRecentToggleSignals(beforeShowIn, beforeShowInEvents);
+    // if (inCaseSignals.length > 0) {
+    expect(inCaseSignals).toEqual(["xforms-deselect(out)", "xforms-select(in)"]);
+    // }
+    await expect(page.getByRole("button", { name: "Show Out Case", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Show In Case", exact: true })).toBeHidden();
+    await expect(inCaseLabel).toBeVisible();
+    await expect(outCaseLabel).toBeHidden();
   });
 
   /* After you activate the Rebuild trigger you must see an xforms-rebuild message. */

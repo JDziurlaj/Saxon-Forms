@@ -1,15 +1,4 @@
-import {  test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML, getFormControlText } from "./helpers";
-
-const ch9_smoke: [string, string][] = [
-  ["9.2.1.a2 — switch receives events", "Chapt09/9.2/9.2.1/9.2.1.a2.xhtml"],  // depends on event dispatch to switch/case
-  ["9.3.7.b — copy binding exception", "Chapt09/9.3/9.3.7/9.3.7.b.xhtml"],  // expects xforms-binding-exception message or fatal error
-];
-
-test.describe("W3C Ch9 — Container Form Controls [smoke]", () => {
-  for (const [name, file] of ch9_smoke) {
-    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
-  }
-});
+import {  test, expect, loadAndWait, getRenderedText, getInstanceXML, getFormControlText, collectDialogMessages, normalizeWhitespace } from "./helpers";
 
 test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
   // -----------------------------------------------------------------
@@ -63,17 +52,33 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
      label for the entire group. The group labeled "Shipping Address" must include the inputs Street
      Name and City. The group labeled "Shipping Date" must include the inputs Day and Month.
   */
-  /* TEST-TRACE: use getFormControlText to avoid matching instruction text;
+  /* TEST-TRACE: scope assertions to each logical xforms-group and verify group label + child inputs;
      helps tests/w3c/ch09.spec.ts "9.1.1.b" */
   test("9.1.1.b — Shipping Address group has Street Name and City; Shipping Date has Day and Month", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.1/9.1.1/9.1.1.b.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("Shipping Address");
-    expect(text).toContain("Shipping Date");
-    expect(text).toContain("Street Name");
-    expect(text).toContain("City");
-    expect(text).toContain("Day");
-    expect(text).toContain("Month");
+
+    const groupsWithInputs = page.locator("div.xforms-group").filter({ has: page.locator("div.xforms-input") });
+    await expect(groupsWithInputs).toHaveCount(2);
+
+    const shippingAddressGroup = groupsWithInputs.filter({ has: page.getByText("Shipping Address", { exact: true }) });
+    await expect(shippingAddressGroup).toHaveCount(1);
+    await expect(shippingAddressGroup.locator("xpath=./label")).toHaveText(/^Shipping Address$/);
+    await expect(shippingAddressGroup.locator("input[data-ref*='shipTo/street']")).toHaveCount(1);
+    await expect(shippingAddressGroup.locator("input[data-ref*='shipTo/city']")).toHaveCount(1);
+    await expect(shippingAddressGroup.getByText("Street Name", { exact: false })).toBeVisible();
+    await expect(shippingAddressGroup.getByText("City", { exact: false })).toBeVisible();
+    await expect(shippingAddressGroup.getByText("Day", { exact: false })).toHaveCount(0);
+    await expect(shippingAddressGroup.getByText("Month", { exact: false })).toHaveCount(0);
+
+    const shippingDateGroup = groupsWithInputs.filter({ has: page.getByText("Shipping Date", { exact: true }) });
+    await expect(shippingDateGroup).toHaveCount(1);
+    await expect(shippingDateGroup.locator("xpath=./label")).toHaveText(/^Shipping Date$/);
+    await expect(shippingDateGroup.locator("input[data-ref*='shipDate/day']")).toHaveCount(1);
+    await expect(shippingDateGroup.locator("input[data-ref*='shipDate/month']")).toHaveCount(1);
+    await expect(shippingDateGroup.getByText("Day", { exact: false })).toBeVisible();
+    await expect(shippingDateGroup.getByText("Month", { exact: false })).toBeVisible();
+    await expect(shippingDateGroup.getByText("Street Name", { exact: false })).toHaveCount(0);
+    await expect(shippingDateGroup.getByText("City", { exact: false })).toHaveCount(0);
   });
 
   /*
@@ -119,6 +124,32 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     await page.waitForTimeout(500);
     await expect(caseInBtn).toBeVisible();
     await expect(caseOutBtn).toBeHidden();
+  });
+
+  /*
+     When you choose "yes" in the select1 control, you should see the message "Switch is readonly"
+     and the select1 control should be readonly too.
+  */
+  test("9.2.1.a2 — switch readonly event and readonly select1 behavior", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt09/9.2/9.2.1/9.2.1.a2.xhtml");
+    // TEST-TRACE: keep strict 9.2.1.a2 pass criteria without xfail masking so readonly regressions fail visibly.
+    const haveCarSelect = page.locator("div.xforms-select select");
+    await expect(haveCarSelect).toHaveCount(1);
+    await expect(haveCarSelect).toHaveValue("no");
+
+    await haveCarSelect.selectOption("yes");
+    await page.waitForTimeout(300);
+    await expect(haveCarSelect).toHaveValue("yes");
+    const normalizedMessages = dialogMessages.slice(beforeSelectionMessages).map((message) => normalizeWhitespace(message));
+    expect(normalizedMessages.some((message) => /Switch is readonly/i.test(message))).toBe(true);
+
+    await haveCarSelect.selectOption("no");
+    await page.waitForTimeout(300);
+    await expect(haveCarSelect).toHaveValue("yes");
+
+    const xml = await getInstanceXML(page);
+    expect(xml).toContain("<haveCar>yes</haveCar>");
   });
 
   /*
@@ -278,25 +309,55 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
   */
   test("9.3.1.e — repeat shows 3 line items (a/3.00, b/32.25, c/132.99) with insert and delete", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.3/9.3.1/9.3.1.e.xhtml");
+    const getCurrentIndex = async (): Promise<number> => {
+      const text = await getFormControlText(page);
+      const indexMatch = text.match(/Current index\s*:\s*(\d+)/i);
+      expect(indexMatch).not.toBeNull();
+      return Number(indexMatch?.[1] ?? NaN);
+    };
+    const readLineRows = async (): Promise<Array<{ price: string; name: string }>> =>
+      page.locator("[data-repeat-item]").evaluateAll((rows) =>
+        rows.map((row) => {
+          const inputs = Array.from(row.querySelectorAll("input")) as HTMLInputElement[];
+          const priceInput = inputs.find((input) => (input.getAttribute("data-ref") || "").includes("price"));
+          const nameInput = inputs.find((input) => (input.getAttribute("data-ref") || "").includes("@name"));
+          return {
+            price: priceInput?.value ?? "",
+            name: nameInput?.value ?? "",
+          };
+        })
+      );
     // Initially 3 repeat items
     const items = page.locator('[data-repeat-item]');
     await expect(items).toHaveCount(3);
-    // Verify instance contains expected data
-    const xml = await getInstanceXML(page);
-    expect(xml).toContain('name="a"');
-    expect(xml).toContain('name="b"');
-    expect(xml).toContain('name="c"');
-    expect(xml).toContain("3.00");
-    expect(xml).toContain("32.25");
-    expect(xml).toContain("132.99");
+    // Verify initial line values
+    const initialRows = await readLineRows();
+    expect(initialRows).toEqual([
+      { name: "a", price: "3.00" },
+      { name: "b", price: "32.25" },
+      { name: "c", price: "132.99" },
+    ]);
+
+    const beforeInsertIndex = await getCurrentIndex();
+    expect(beforeInsertIndex).toBeGreaterThanOrEqual(1);
+    expect(beforeInsertIndex).toBeLessThanOrEqual(initialRows.length);
     // Insert trigger adds a new item
     await page.getByRole("button", { name: "Insert New Item After The Current One" }).click();
     await page.waitForTimeout(500);
-    await expect(items).toHaveCount(4);
+    await expect(items).toHaveCount(initialRows.length + 1);
+    // Current index identifies where the inserted row was placed
+    const afterInsertIndex = await getCurrentIndex();
+    expect(afterInsertIndex).toBe(Math.min(beforeInsertIndex + 1, initialRows.length + 1));
+
+    const rowsAfterInsert = await readLineRows();
+    expect(rowsAfterInsert).toHaveLength(initialRows.length + 1);
+    expect(rowsAfterInsert[afterInsertIndex - 1]).toEqual({ name: "", price: "0.00" });
+    const rowsWithoutInserted = rowsAfterInsert.filter((_, index) => index !== afterInsertIndex - 1);
+    expect(rowsWithoutInserted).toEqual(initialRows);
     // Remove trigger deletes the current item
     await page.getByRole("button", { name: "Remove Current Item" }).click();
     await page.waitForTimeout(500);
-    await expect(items).toHaveCount(3);
+    await expect(items).toHaveCount(initialRows.length);
   });
 
   /*
@@ -312,25 +373,46 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     // 3 repeat items
     const items = page.locator('[data-repeat-item]');
     await expect(items).toHaveCount(3);
-    // All 3 show "You are in the In case" and "Go To Out Case" triggers
-    const inLabels = page.locator('.xforms-output', { hasText: "You are in the In case" });
-    await expect(inLabels).toHaveCount(3);
-    const outTriggers = page.getByRole("button", { name: "Go To Out Case" });
-    await expect(outTriggers).toHaveCount(3);
-    // Toggle the first one
-    await outTriggers.first().click();
-    await page.waitForTimeout(500);
-    // First item: "You are in the Out case" + "Go To In Case"
-    const outLabels = page.locator('.xforms-output', { hasText: "You are in the Out case" });
-    await expect(outLabels).toHaveCount(1);
-    // Other two unchanged
-    const remainingInLabels = page.locator('.xforms-output', { hasText: "You are in the In case" });
-    await expect(remainingInLabels).toHaveCount(2);
-    // Restore first item
-    const inTrigger = page.getByRole("button", { name: "Go To In Case" });
-    await inTrigger.click();
-    await page.waitForTimeout(500);
-    await expect(page.locator('.xforms-output', { hasText: "You are in the In case" })).toHaveCount(3);
+    const expectInState = async (row: ReturnType<typeof items.nth>) => {
+      await expect(row.locator('.xforms-output', { hasText: "You are in the In case" })).toBeVisible();
+      await expect(row.locator('.xforms-output', { hasText: "You are in the Out case" })).toBeHidden();
+      await expect(row.getByRole("button", { name: "Go To Out Case" })).toBeVisible();
+      await expect(row.getByRole("button", { name: "Go To In Case" })).toBeHidden();
+    };
+    const expectOutState = async (row: ReturnType<typeof items.nth>) => {
+      await expect(row.locator('.xforms-output', { hasText: "You are in the Out case" })).toBeVisible();
+      await expect(row.locator('.xforms-output', { hasText: "You are in the In case" })).toBeHidden();
+      await expect(row.getByRole("button", { name: "Go To In Case" })).toBeVisible();
+      await expect(row.getByRole("button", { name: "Go To Out Case" })).toBeHidden();
+    };
+
+    // Initial state: all three sets in \"In\" case
+    for (let index = 0; index < 3; index++) {
+      await expectInState(items.nth(index));
+    }
+
+    // Validate each set toggles independently and other two remain unchanged
+    for (let activeIndex = 0; activeIndex < 3; activeIndex++) {
+      const activeRow = items.nth(activeIndex);
+
+      await activeRow.getByRole("button", { name: "Go To Out Case" }).click();
+      await page.waitForTimeout(500);
+      await expectOutState(activeRow);
+
+      for (let otherIndex = 0; otherIndex < 3; otherIndex++) {
+        if (otherIndex === activeIndex) continue;
+        await expectInState(items.nth(otherIndex));
+      }
+
+      await activeRow.getByRole("button", { name: "Go To In Case" }).click();
+      await page.waitForTimeout(500);
+      await expectInState(activeRow);
+
+      for (let otherIndex = 0; otherIndex < 3; otherIndex++) {
+        if (otherIndex === activeIndex) continue;
+        await expectInState(items.nth(otherIndex));
+      }
+    }
   });
 
   /*
@@ -388,19 +470,69 @@ test.describe("W3C Chapter 9 — group bind relevance", () => {
   });
 });
 
-
-const ch09_gaps_smoke: [string, string][] = [
-  ["9.2.3.1.a", "Chapt09/9.2/9.2.3/9.2.3.1/9.2.3.1.a.xhtml"],  // depends on form submission lifecycle
-  ["9.2.3.a", "Chapt09/9.2/9.2.3/9.2.3.a.xhtml"],  // expects modal message after trigger activation
-];
-
-test.describe("W3C Chapt09 [smoke gaps]", () => {
-  for (const [name, file] of ch09_gaps_smoke) {
-    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
-  }
-});
-
 test.describe("W3C Ch9 [behavioral promoted]", () => {
+  /*
+     When you activate the In Case trigger it must be replaced by the Out Case trigger. When you
+     activate the Out Case trigger it must be replaced by the In Case trigger.
+  */
+  test("9.2.3.1.a — case element child of toggle element", async ({ page }) => {
+    await loadAndWait(page, "Chapt09/9.2/9.2.3/9.2.3.1/9.2.3.1.a.xhtml");
+    const inCaseTrigger = page.getByRole("button", { name: "In Case" });
+    const outCaseTrigger = page.getByRole("button", { name: "Out Case" });
+
+    await expect(inCaseTrigger).toBeVisible();
+    await expect(outCaseTrigger).toBeHidden();
+
+    await inCaseTrigger.click();
+    await page.waitForTimeout(300);
+    await expect(outCaseTrigger).toBeVisible();
+    await expect(inCaseTrigger).toBeHidden();
+
+    await outCaseTrigger.click();
+    await page.waitForTimeout(300);
+    await expect(inCaseTrigger).toBeVisible();
+    await expect(outCaseTrigger).toBeHidden();
+  });
+
+  /*
+     If you are in the "in" case and you activate the Show Out Case trigger you must see an
+     xforms-deselect(in) message followed by an xforms-select(out) message. If you are in the "out"
+     case and you activate the Show In Case trigger you must see an xforms-deselect(out) message
+     followed by an xforms-select(in) message.
+  */
+  test("9.2.3.a — toggle dispatches deselect/select messages in order", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt09/9.2/9.2.3/9.2.3.a.xhtml");
+
+    const showOutCase = page.getByRole("button", { name: "Show Out Case" });
+    const showInCase = page.getByRole("button", { name: "Show In Case" });
+    await expect(showOutCase).toBeVisible();
+    await expect(showInCase).toBeHidden();
+
+    const beforeOutToggle = dialogMessages.length;
+    await showOutCase.click();
+    await page.waitForTimeout(300);
+    await expect(showInCase).toBeVisible();
+    await expect(showOutCase).toBeHidden();
+    const outToggleMessages = dialogMessages.slice(beforeOutToggle).map((value) => normalizeWhitespace(value));
+    const deselectInIndex = outToggleMessages.findIndex((value) => /xforms-deselect\(in\)/i.test(value));
+    const selectOutIndex = outToggleMessages.findIndex((value) => /xforms-select\(out\)/i.test(value));
+    expect(deselectInIndex).toBeGreaterThanOrEqual(0);
+    expect(selectOutIndex).toBeGreaterThanOrEqual(0);
+    expect(deselectInIndex).toBeLessThan(selectOutIndex);
+
+    const beforeInToggle = dialogMessages.length;
+    await showInCase.click();
+    await page.waitForTimeout(300);
+    await expect(showOutCase).toBeVisible();
+    await expect(showInCase).toBeHidden();
+    const inToggleMessages = dialogMessages.slice(beforeInToggle).map((value) => normalizeWhitespace(value));
+    const deselectOutIndex = inToggleMessages.findIndex((value) => /xforms-deselect\(out\)/i.test(value));
+    const selectInIndex = inToggleMessages.findIndex((value) => /xforms-select\(in\)/i.test(value));
+    expect(deselectOutIndex).toBeGreaterThanOrEqual(0);
+    expect(selectInIndex).toBeGreaterThanOrEqual(0);
+    expect(deselectOutIndex).toBeLessThan(selectInIndex);
+  });
   /*
      Activating different triggers will place the the switch element into different cases. When in
      the In case, you must see a Go To Out Case trigger. When in the Out case, you must see a Go To
@@ -409,8 +541,31 @@ test.describe("W3C Ch9 [behavioral promoted]", () => {
   */
   test("9.2.3.1.b — 9.2.3.1.b case element child of the toggle element precedence testing", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.2/9.2.3/9.2.3.1/9.2.3.1.b.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    await expect(page.getByText("You are in the In case", { exact: false })).toBeVisible();
+    const goToOutCase = page.getByRole("button", { name: "Go To Out Case" });
+    await expect(goToOutCase).toBeVisible();
+
+    await goToOutCase.click();
+    await page.waitForTimeout(300);
+    await expect(page.getByText("You are in the Out case", { exact: false })).toBeVisible();
+    const goToExitCase = page.getByRole("button", { name: "Go To Exit Case" });
+    const goToInCase = page.getByRole("button", { name: "Go To In Case" });
+    await expect(goToExitCase).toBeVisible();
+    await expect(goToInCase).toBeVisible();
+
+    await goToExitCase.click();
+    await page.waitForTimeout(300);
+    await expect(page.getByText("You are in the Exit case", { exact: false })).toBeVisible();
+    const exitGoToOutCase = page.getByRole("button", { name: "Go To Out Case" });
+    await expect(exitGoToOutCase).toBeVisible();
+    await expect(goToExitCase).toBeHidden();
+    await expect(goToInCase).toBeHidden();
+
+    await exitGoToOutCase.click();
+    await page.waitForTimeout(300);
+    await expect(page.getByText("You are in the Out case", { exact: false })).toBeVisible();
+    await expect(goToExitCase).toBeVisible();
+    await expect(goToInCase).toBeVisible();
   });
 
   /*
@@ -419,8 +574,18 @@ test.describe("W3C Ch9 [behavioral promoted]", () => {
   */
   test("9.3.6.a — 9.3.6.a itemset element example", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.3/9.3.6/9.3.6.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe('');
+    const flavorSelects = page.locator("div.xforms-select select");
+    await expect(flavorSelects).toHaveCount(2);
+
+    for (let index = 0; index < 2; index++) {
+      const labels = await flavorSelects
+        .nth(index)
+        .locator("option")
+        .evaluateAll((options) =>
+          options.map((option) => (option.textContent ?? "").trim()).filter((label) => label.length > 0)
+        );
+      expect(labels).toEqual(expect.arrayContaining(["Vanilla", "Strawberry", "Chocolate"]));
+    }
   });
 
   /*
@@ -430,7 +595,52 @@ test.describe("W3C Ch9 [behavioral promoted]", () => {
   */
   test("9.3.7.a — 9.3.7.a copy element", async ({ page }) => {
     await loadAndWait(page, "Chapt09/9.3/9.3.7/9.3.7.a.xhtml");
-    const text = await getRenderedText(page);
-    expect(text).not.toBe("");
+    const flavorSelect = page.locator("div.xforms-select select");
+    await expect(flavorSelect).toHaveCount(1);
+
+    const icecreamOrderOutput = page.locator(".xforms-output[data-ref*='order/flavor']").locator("xpath=..");
+    if ((await icecreamOrderOutput.count()) > 0) {
+      await expect(icecreamOrderOutput.first()).toBeHidden();
+    }
+
+    await flavorSelect.selectOption({ label: "vanilla" });
+    await page.waitForTimeout(300);
+    await expect(icecreamOrderOutput).toHaveCount(1);
+    await expect(icecreamOrderOutput.first()).toBeVisible();
+    await expect(icecreamOrderOutput.first()).toContainText(/Icecream Order\s*:\s*vanilla/i);
+
+    await flavorSelect.selectOption([]);
+    await page.waitForTimeout(300);
+    await expect(icecreamOrderOutput.first()).toBeHidden();
+  });
+
+  /*
+     When you try to select a flavor from the select control you must see an
+     xforms-binding-exception message or a fatal error due to an xforms-binding-exception.
+  */
+  test("9.3.7.b — copy across model raises binding exception", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => {
+      pageErrors.push(normalizeWhitespace(error.message));
+    });
+    await loadAndWait(page, "Chapt09/9.3/9.3.7/9.3.7.b.xhtml");
+    // TEST-TRACE: assert copy/model mismatch surfaces as xforms-binding-exception dialog or fatal xforms-binding-exception error text.
+    const flavorSelect = page.locator("div.xforms-select select");
+    await expect(flavorSelect).toHaveCount(1);
+    const beforeSelectionMessages = dialogMessages.length;
+    const beforeSelectionErrors = pageErrors.length;
+    await flavorSelect.selectOption({ label: "vanilla" });
+    await page.waitForTimeout(300);
+
+    const normalizedMessages = dialogMessages.slice(beforeSelectionMessages).map((message) => normalizeWhitespace(message));
+    const normalizedErrors = pageErrors.slice(beforeSelectionErrors);
+    const formControlText = normalizeWhitespace(await getFormControlText(page));
+    const sawBindingExceptionDialog = normalizedMessages.some((message) => /\bxforms-binding-exception\b/i.test(message));
+    const sawFatalBindingExceptionError = normalizedErrors.some(
+      (message) => /\bfatal error\b/i.test(message) && /\bxforms-binding-exception\b/i.test(message)
+    );
+    const sawFatalBindingExceptionInForm = /\bfatal error\b/i.test(formControlText) && /\bxforms-binding-exception\b/i.test(formControlText);
+    expect(sawBindingExceptionDialog || sawFatalBindingExceptionError || sawFatalBindingExceptionInForm).toBe(true);
   });
 });
