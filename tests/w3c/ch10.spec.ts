@@ -410,16 +410,20 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   */
   test("10.17.a — 10.17.a conditional execution of XForms actions", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.17/10.17.a.xhtml");
+    const assertTimesTableValues = (renderedText: string, expectedValues: number[]): void => {
+      expectedValues.forEach((expectedValue, zeroBasedIndex) => {
+        const multiplier = zeroBasedIndex + 1;
+        expect(renderedText).toMatch(new RegExp(`2\\s*x\\s*${multiplier}\\s*=\\s*${expectedValue}\\b`, "i"));
+      });
+    };
 
     await clickTrigger(page, "Enter Correct Answers");
     let text = await getFormControlText(page);
-    expect(text).toMatch(/2\s*x\s*1\s*=\s*2\b/i);
-    expect(text).toMatch(/2\s*x\s*5\s*=\s*10\b/i);
+    assertTimesTableValues(text, [2, 4, 6, 8, 10]);
 
     await clickTrigger(page, "Enter Incorrect Answers");
     text = await getFormControlText(page);
-    expect(text).toMatch(/2\s*x\s*1\s*=\s*0\b/i);
-    expect(text).toMatch(/2\s*x\s*5\s*=\s*0\b/i);
+    assertTimesTableValues(text, [0, 0, 0, 0, 0]);
   });
 
   /*
@@ -637,9 +641,11 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   /* When you activate the Reset trigger the value in the input control must NOT change to "Audi". */
   test("10.8.f — 10.8.f dispatch element dispatches cancelled predefined event", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.8/10.8.f.xhtml");
-    const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
+    const carInput = page.locator("input.xforms-input");
+    await expect(carInput).toHaveValue("Kia");
+    await clickTrigger(page, "Reset");
+    await expect(carInput).toHaveValue("Kia");
+    await expect(carInput).not.toHaveValue("Audi");
   });
 
   /*
@@ -658,8 +664,12 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
 
   /* When you activate the Reset trigger you must see an xforms-reset message. */
   test("10.13.a — reset trigger renders", async ({ page }) => {
-    await loadTest(page, "Chapt10/10.13/10.13.a.xhtml");
-    // Note: xforms-reset message dispatch not yet implemented
+    const msgs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.13/10.13.a.xhtml");
+    const beforeCount = msgs.length;
+    await clickTrigger(page, "Reset");
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.some((message) => /xforms-reset/i.test(message))).toBe(true);
   });
 
   /* When you activate the See Message trigger you must see a message that says "Hello, world!". */
@@ -677,8 +687,13 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
      a custom-event message.
   */
   test("10.8.1.a — dispatch rebuild renders", async ({ page }) => {
-    await loadTest(page, "Chapt10/10.8/10.8.1/10.8.1.a.xhtml");
-    // Note: xforms-rebuild message dispatch not yet generating modal
+    const msgs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.8/10.8.1/10.8.1.a.xhtml");
+    const beforeCount = msgs.length;
+    await clickTrigger(page, "Rebuild");
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.some((message) => /xforms-rebuild/i.test(message))).toBe(true);
+    expect(newMessages.some((message) => /custom-event/i.test(message))).toBe(false);
   });
 
   /*
@@ -691,19 +706,22 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     const beforeCount = msgs.length;
     await clickTrigger(page, "Rebuild");
     const newMessages = msgs.slice(beforeCount);
-    expect(newMessages).toEqual(["custom-event"]);
+    expect(newMessages.some((message) => /xforms-rebuild/i.test(message))).toBe(true);
+    expect(newMessages.some((message) => /custom-event/i.test(message))).toBe(false);
   });
 
   /*
      After you activate the Rebuild trigger you must see an xforms-rebuild message. You must not see
      a custom-event message.
   */
-  test("10.8.1.c — dispatch rebuild with if condition (false)", async ({ page }) => {
+  test("10.8.1.c — dispatch name child @value precedence", async ({ page }) => {
     const msgs = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.8/10.8.1/10.8.1.c.xhtml");
+    const beforeCount = msgs.length;
     await clickTrigger(page, "Rebuild");
-    // if condition is false, should NOT see rebuild message
-    expect(msgs.some(m => /xforms-rebuild/i.test(m))).toBe(false);
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.some((message) => /xforms-rebuild/i.test(message))).toBe(true);
+    expect(newMessages.some((message) => /custom-event/i.test(message))).toBe(false);
   });
 
   /* After you activate the Fire Custom Event trigger you must see a custom-event message. */

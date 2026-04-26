@@ -870,6 +870,18 @@
         <xsl:variable name="refi" as="xs:string" select="map:get($this-properties,'nodeset')"/>
         <xsl:variable name="context-nodeset" as="xs:string" select="map:get($this-properties,'context-nodeset')"/>
         <xsl:variable name="this-instance-id" as="xs:string" select="map:get($this-properties,'instance-context')"/>
+        <xsl:variable name="default-observer-id" as="xs:string?" select="
+            if (exists((ancestor-or-self::*[@id])[1]/@id))
+            then string((ancestor-or-self::*[@id])[1]/@id)
+            else ()"/>
+        <xsl:variable name="resolved-observer-id" as="xs:string?" select="
+            if (exists(@*:observer))
+            then string(@*:observer)
+            else $default-observer-id"/>
+        <xsl:variable name="resolved-default-action" as="xs:string?" select="
+            if (exists((@*:defaultAction, ancestor-or-self::*[@*:defaultAction][1]/@*:defaultAction)[1]))
+            then string((@*:defaultAction, ancestor-or-self::*[@*:defaultAction][1]/@*:defaultAction)[1])
+            else ()"/>
                 
         <xsl:variable name="action-map" as="map(*)">
             <xsl:map>
@@ -934,6 +946,12 @@
                 <xsl:if test="exists(@*:event)">
                     <xsl:map-entry key="'@event'" select="string(@*:event)" />
                 </xsl:if>
+                <xsl:if test="exists($resolved-observer-id)">
+                    <xsl:map-entry key="'@observer'" select="$resolved-observer-id" />
+                </xsl:if>
+                <xsl:if test="exists($resolved-default-action)">
+                    <xsl:map-entry key="'@defaultAction'" select="$resolved-default-action" />
+                </xsl:if>
                 
                 <!-- attributes of dispatch action -->
                 <xsl:if test="exists(@name)">
@@ -941,6 +959,12 @@
                 </xsl:if>
                 <xsl:if test="exists(@targetid)">
                     <xsl:map-entry key="'@targetid'" select="string(@targetid)" />
+                </xsl:if>
+                <xsl:if test="exists(@bubbles)">
+                    <xsl:map-entry key="'@bubbles'" select="string(@bubbles)" />
+                </xsl:if>
+                <xsl:if test="exists(@cancelable)">
+                    <xsl:map-entry key="'@cancelable'" select="string(@cancelable)" />
                 </xsl:if>
                 <xsl:if test="exists(@delay)">
                     <xsl:map-entry key="'@delay'" select="string(@delay)" />
@@ -1073,6 +1097,204 @@
         
         
 
+    </xsl:function>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Parse a boolean-like event property with a default fallback.</xd:p>
+        </xd:desc>
+        <xd:param name="value">Event property value.</xd:param>
+        <xd:param name="default-value">Fallback value if the property is absent or invalid.</xd:param>
+    </xd:doc>
+    <xsl:function name="xforms:event-flag" as="xs:boolean">
+        <xsl:param name="value" as="item()*"/>
+        <xsl:param name="default-value" as="xs:boolean"/>
+        <xsl:variable name="normalized" as="xs:string?" select="
+            if (exists($value))
+            then lower-case(normalize-space(string($value[1])))
+            else ()"/>
+        <xsl:choose>
+            <xsl:when test="empty($normalized) or $normalized = ''">
+                <xsl:sequence select="$default-value"/>
+            </xsl:when>
+            <xsl:when test="$normalized = ('true','1')">
+                <xsl:sequence select="true()"/>
+            </xsl:when>
+            <xsl:when test="$normalized = ('false','0')">
+                <xsl:sequence select="false()"/>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:sequence select="$default-value"/>
+            </xsl:otherwise>
+        </xsl:choose>
+    </xsl:function>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Get the effective default model ID from the loaded XForm.</xd:p>
+        </xd:desc>
+    </xd:doc>
+    <xsl:function name="xforms:get-default-model-id" as="xs:string">
+        <xsl:sequence select="
+            if (exists($models-global[1]/@id))
+            then string($models-global[1]/@id)
+            else $global-default-model-id"/>
+    </xsl:function>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Get the implicit default instance ID for a model.</xd:p>
+        </xd:desc>
+        <xd:param name="model-id">Model identifier.</xd:param>
+    </xd:doc>
+    <xsl:function name="xforms:get-model-implicit-default-instance-id" as="xs:string">
+        <xsl:param name="model-id" as="xs:string"/>
+        <xsl:sequence select="
+            if ($model-id = xforms:get-default-model-id())
+            then $global-default-instance-id
+            else concat($model-id, '-', $global-default-instance-id)"/>
+    </xsl:function>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Resolve registered instance IDs for a model.</xd:p>
+        </xd:desc>
+        <xd:param name="model-id">Model identifier.</xd:param>
+    </xd:doc>
+    <xsl:function name="xforms:get-model-instance-ids" as="xs:string*">
+        <xsl:param name="model-id" as="xs:string"/>
+        <xsl:variable name="model-node" as="element(xforms:model)?" select="
+            (
+                $models-global[@id = $model-id],
+                if ($model-id = xforms:get-default-model-id()) then $models-global[1] else (),
+                if ($model-id = $global-default-model-id) then $models-global[1] else ()
+            )[1]"/>
+        <xsl:variable name="implicit-default-instance-id" as="xs:string"
+            select="xforms:get-model-implicit-default-instance-id($model-id)"/>
+        <xsl:sequence select="
+            for $pos in 1 to count($model-node/xforms:instance)
+            return
+                if (exists($model-node/xforms:instance[$pos]/@id))
+                then string($model-node/xforms:instance[$pos]/@id)
+                else
+                    if ($pos = 1)
+                    then $implicit-default-instance-id
+                    else concat($implicit-default-instance-id, '-', $pos)
+            "/>
+    </xsl:function>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Get event target observer path (target then ancestors) from the source XForm document.</xd:p>
+        </xd:desc>
+        <xd:param name="target-id">Dispatched target ID.</xd:param>
+        <xd:param name="bubbles">Whether event bubbling is enabled.</xd:param>
+    </xd:doc>
+    <xsl:function name="xforms:get-event-target-path" as="xs:string*">
+        <xsl:param name="target-id" as="xs:string?"/>
+        <xsl:param name="bubbles" as="xs:boolean"/>
+        <xsl:variable name="normalized-target" as="xs:string?" select="
+            if (exists($target-id) and normalize-space($target-id) != '')
+            then normalize-space($target-id)
+            else ()"/>
+        <xsl:variable name="base-target" as="xs:string?" select="
+            if (exists($normalized-target))
+            then replace($normalized-target, '-[0-9]+$', '')
+            else ()"/>
+        <xsl:variable name="xforms-doc" as="document-node()?" select="js:getXFormsDoc()"/>
+        <xsl:variable name="target-node" as="element()?" select="
+            if (exists($xforms-doc) and exists($normalized-target))
+            then (
+                $xforms-doc//*[@id = $normalized-target],
+                if (exists($base-target) and $base-target != $normalized-target) then $xforms-doc//*[@id = $base-target] else ()
+            )[1]
+            else ()"/>
+        <xsl:variable name="path-from-doc" as="xs:string*" select="
+            if (exists($target-node))
+            then $target-node/ancestor-or-self::*[@id]/@id ! string(.)
+            else ()"/>
+        <xsl:choose>
+            <xsl:when test="empty($normalized-target)">
+                <xsl:sequence select="()"/>
+            </xsl:when>
+            <xsl:when test="$bubbles">
+                <xsl:sequence select="distinct-values(($path-from-doc, $normalized-target, if ($base-target != $normalized-target) then $base-target else ()))"/>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:sequence select="(($path-from-doc[1], $normalized-target, if ($base-target != $normalized-target) then $base-target else ()))[1]"/>
+            </xsl:otherwise>
+        </xsl:choose>
+    </xsl:function>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Check whether an event action matches the current event target path.</xd:p>
+        </xd:desc>
+        <xd:param name="action-map">Event action map.</xd:param>
+        <xd:param name="target-path">Target path (self/ancestors with @id).</xd:param>
+        <xd:param name="target-id">Direct target ID.</xd:param>
+    </xd:doc>
+    <xsl:function name="xforms:event-action-matches-target" as="xs:boolean">
+        <xsl:param name="action-map" as="map(*)"/>
+        <xsl:param name="target-path" as="xs:string*"/>
+        <xsl:param name="target-id" as="xs:string?"/>
+        <xsl:variable name="observer" as="xs:string?" select="
+            if (exists(map:get($action-map, '@observer')) and normalize-space(string(map:get($action-map, '@observer'))) != '')
+            then normalize-space(string(map:get($action-map, '@observer')))
+            else ()"/>
+        <xsl:sequence select="
+            if (empty($observer))
+            then true()
+            else (
+                if (exists($target-path))
+                then $observer = $target-path
+                else (
+                    if (exists($target-id))
+                    then $observer = $target-id
+                    else true()
+                )
+            )
+            "/>
+    </xsl:function>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Get event actions matching event name and observer/target constraints.</xd:p>
+        </xd:desc>
+        <xd:param name="event-name">Name of event.</xd:param>
+        <xd:param name="event-context">Event context map.</xd:param>
+    </xd:doc>
+    <xsl:function name="xforms:get-matching-event-actions" as="map(*)*">
+        <xsl:param name="event-name" as="xs:string"/>
+        <xsl:param name="event-context" as="map(*)?"/>
+        <xsl:variable name="context" as="map(*)" select="($event-context, map{})[1]"/>
+        <xsl:variable name="target-id" as="xs:string?" select="
+            if (exists((map:get($context, 'targetid'), map:get($context, 'target-id'))[1]) and normalize-space(string((map:get($context, 'targetid'), map:get($context, 'target-id'))[1])) != '')
+            then normalize-space(string((map:get($context, 'targetid'), map:get($context, 'target-id'))[1]))
+            else ()"/>
+        <xsl:variable name="bubbles" as="xs:boolean" select="xforms:event-flag(map:get($context, 'bubbles'), true())"/>
+        <xsl:variable name="target-path" as="xs:string*" select="xforms:get-event-target-path($target-id, $bubbles)"/>
+        <xsl:variable name="actions" as="map(*)*" select="js:getEventAction($event-name)"/>
+        <xsl:sequence select="$actions[xforms:event-action-matches-target(., $target-path, $target-id)]"/>
+    </xsl:function>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Determine whether a cancelable event's default action is cancelled.</xd:p>
+        </xd:desc>
+        <xd:param name="event-name">Name of event.</xd:param>
+        <xd:param name="event-context">Event context map.</xd:param>
+    </xd:doc>
+    <xsl:function name="xforms:is-event-default-cancelled" as="xs:boolean">
+        <xsl:param name="event-name" as="xs:string"/>
+        <xsl:param name="event-context" as="map(*)?"/>
+        <xsl:variable name="context" as="map(*)" select="($event-context, map{})[1]"/>
+        <xsl:variable name="cancelable" as="xs:boolean" select="xforms:event-flag(map:get($context, 'cancelable'), false())"/>
+        <xsl:variable name="matching-actions" as="map(*)*" select="xforms:get-matching-event-actions($event-name, $context)"/>
+        <xsl:sequence select="
+            $cancelable and
+            exists($matching-actions[lower-case(normalize-space(string(map:get(., '@defaultAction')))) = 'cancel'])
+            "/>
     </xsl:function>
     
 
@@ -1582,6 +1804,26 @@
         <xsl:if test="exists($actions)">
             <xsl:sequence select="js:addAction($model-ref, $actions)" />
             <xsl:message use-when="$debugMode">[xforms:model] actions within model have been set</xsl:message>
+        </xsl:if>
+        <xsl:if test="exists(@*:event)">
+            <xsl:variable name="model-default-instance-id" as="xs:string"
+                select="(xforms:get-model-instance-ids($model-ref), xforms:get-model-implicit-default-instance-id($model-ref))[1]"/>
+            <xsl:variable name="model-event-action" as="map(*)">
+                <xsl:map>
+                    <xsl:map-entry key="'name'" select="'action'"/>
+                    <xsl:map-entry key="'handler-status'" select="'inner'"/>
+                    <xsl:map-entry key="'instance-context'" select="$model-default-instance-id"/>
+                    <xsl:map-entry key="'@event'" select="string(@*:event)"/>
+                    <xsl:if test="exists(@id)">
+                        <xsl:map-entry key="'@observer'" select="string(@id)"/>
+                    </xsl:if>
+                    <xsl:if test="exists(@*:defaultAction)">
+                        <xsl:map-entry key="'@defaultAction'" select="string(@*:defaultAction)"/>
+                    </xsl:if>
+                </xsl:map>
+            </xsl:variable>
+            <xsl:variable name="event-actions" as="map(*)*" select="js:getEventAction(string(@*:event))"/>
+            <xsl:sequence select="js:addEventAction(string(@*:event), ($event-actions, $model-event-action))"/>
         </xsl:if>
         
         <xsl:message use-when="$debugMode">[xforms:model] END</xsl:message>
@@ -3205,6 +3447,12 @@
 
         <xsl:if test="exists($action-map)">
             <xsl:choose>
+                <!-- TEST-TRACE: top-level event actions (e.g. XHTML head/body children) are
+                     registration-only; emitting map items into the HTML result tree causes
+                     XPTY0004 \"A map can't be a child of an XML node\". -->
+                <xsl:when test="exists(@*:event) and (not(parent::xforms:*) or parent::xforms:xform)">
+                    <xsl:sequence select="js:addAction($myid, $action-map)"/>
+                </xsl:when>
                 <!-- TEST-TRACE: body-level actions with ev:observer must be registered via JS,
                      not output as map values (which would fail inside xsl:result-document);
                      helps tests/w3c/ch10.spec.ts "10.3.a", "10.4.a" -->
@@ -5325,15 +5573,21 @@
     <xsl:template name="xforms-event-handler">
         <xsl:param name="event-name" as="xs:string" tunnel="yes"/>
         <xsl:param name="event-context" as="map(*)?" required="no" select="map{}" tunnel="yes"/>
+        <xsl:variable name="safe-event-context" as="map(*)" select="($event-context, map{})[1]"/>
         <xsl:variable name="log-label" as="xs:string" select="'[xforms-event-handler for ' || $event-name || ']'"/>
         <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> START</xsl:message>
-        <xsl:sequence select="js:pushCurrentEventContext(($event-context, map{})[1])"/>
+        <xsl:sequence select="js:pushCurrentEventContext($safe-event-context)"/>
         
-        <xsl:variable name="actions" select="js:getEventAction($event-name)" as="map(*)*"/>
+        <xsl:variable name="cancelable" as="xs:boolean" select="xforms:event-flag(map:get($safe-event-context, 'cancelable'), false())"/>
+        <xsl:variable name="actions" as="map(*)*" select="xforms:get-matching-event-actions($event-name, $safe-event-context)"/>
+        <xsl:variable name="actions-to-run" as="map(*)*" select="
+            if ($cancelable)
+            then $actions[lower-case(normalize-space(string(map:get(., '@defaultAction')))) != 'cancel']
+            else $actions"/>
                 
-        <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> Number of actions: <xsl:sequence select="count($actions)"/></xsl:message>
+        <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> Number of actions: <xsl:sequence select="count($actions-to-run)"/></xsl:message>
         
-        <xsl:for-each select="$actions">
+        <xsl:for-each select="$actions-to-run">
             <xsl:variable name="action-map" select="."/>
             <xsl:call-template name="applyActions">
                 <xsl:with-param name="action-map" select="$action-map" tunnel="yes"/>
@@ -6129,31 +6383,92 @@
     <xsl:template name="action-dispatch">
         <xsl:param name="action-map" required="yes" as="map(*)" tunnel="yes"/>
         
+        <xsl:variable name="nested-actions-array" select="map:get($action-map, 'nested-actions')" as="array(map(*))?"/>
+        <xsl:variable name="nested-actions" as="map(*)*">
+            <xsl:sequence select="array:flatten($nested-actions-array)"/>
+        </xsl:variable>
+        <xsl:variable name="name-action" as="map(*)?" select="($nested-actions[map:get(., 'name') = 'name'])[1]"/>
+        <xsl:variable name="targetid-action" as="map(*)?" select="($nested-actions[map:get(., 'name') = 'targetid'])[1]"/>
         
-        <xsl:message use-when="$debugMode">[action-dispatch] action map: 
-            name      = <xsl:value-of select="map:get($action-map,'@name')"/>
-        </xsl:message>
+        <xsl:variable name="instance-context" as="xs:string" select="map:get($action-map, 'instance-context')"/>
+        <xsl:variable name="instanceXML" as="element()?" select="xforms:instance($instance-context)"/>
+        <xsl:variable name="dispatch-context-ref" as="xs:string?" select="map:get($action-map, '@context')"/>
+        <xsl:variable name="dispatch-context-node" as="node()?" select="
+            if (exists($dispatch-context-ref) and $dispatch-context-ref != '' and exists($instanceXML))
+            then (xforms:evaluate-xpath-with-context-node($dispatch-context-ref,$instanceXML,()))[1]
+            else $instanceXML"/>
         
-        <xsl:variable name="event-name" as="xs:string" select="map:get($action-map,'@name')"/>
-        <xsl:variable name="event-delay" as="xs:string?" select="map:get($action-map,'@delay')"/>
+        <xsl:variable name="name-from-child" as="xs:string?">
+            <xsl:choose>
+                <xsl:when test="exists($name-action) and exists(map:get($name-action, '@value')) and exists($dispatch-context-node)">
+                    <xsl:try>
+                        <xsl:sequence select="string(xforms:evaluate-xpath-with-context-node(map:get($name-action, '@value'),$dispatch-context-node,()))"/>
+                        <xsl:catch>
+                            <xsl:sequence select="string(map:get($name-action, '@value'))"/>
+                        </xsl:catch>
+                    </xsl:try>
+                </xsl:when>
+                <xsl:when test="exists($name-action) and exists(map:get($name-action, '@value'))">
+                    <xsl:sequence select="string(map:get($name-action, '@value'))"/>
+                </xsl:when>
+                <xsl:when test="exists($name-action)">
+                    <xsl:sequence select="normalize-space(string(map:get($name-action, 'value')))"/>
+                </xsl:when>
+                <xsl:otherwise/>
+            </xsl:choose>
+        </xsl:variable>
+        <xsl:variable name="targetid-from-child" as="xs:string?">
+            <xsl:choose>
+                <xsl:when test="exists($targetid-action) and exists(map:get($targetid-action, '@value')) and exists($dispatch-context-node)">
+                    <xsl:try>
+                        <xsl:sequence select="string(xforms:evaluate-xpath-with-context-node(map:get($targetid-action, '@value'),$dispatch-context-node,()))"/>
+                        <xsl:catch>
+                            <xsl:sequence select="string(map:get($targetid-action, '@value'))"/>
+                        </xsl:catch>
+                    </xsl:try>
+                </xsl:when>
+                <xsl:when test="exists($targetid-action) and exists(map:get($targetid-action, '@value'))">
+                    <xsl:sequence select="string(map:get($targetid-action, '@value'))"/>
+                </xsl:when>
+                <xsl:when test="exists($targetid-action)">
+                    <xsl:sequence select="normalize-space(string(map:get($targetid-action, 'value')))"/>
+                </xsl:when>
+                <xsl:otherwise/>
+            </xsl:choose>
+        </xsl:variable>
         
-        <xsl:variable name="delay" as="xs:integer" select="if ($event-delay castable as xs:nonNegativeInteger) then xs:integer($event-delay) else 0"/>
+        <xsl:variable name="event-name" as="xs:string?" select="
+            if (exists(($name-from-child, map:get($action-map, '@name'))[1]) and normalize-space(string(($name-from-child, map:get($action-map, '@name'))[1])) != '')
+            then normalize-space(string(($name-from-child, map:get($action-map, '@name'))[1]))
+            else ()"/>
+        <xsl:variable name="event-targetid" as="xs:string?" select="
+            if (exists(($targetid-from-child, map:get($action-map, '@targetid'))[1]) and normalize-space(string(($targetid-from-child, map:get($action-map, '@targetid'))[1])) != '')
+            then normalize-space(string(($targetid-from-child, map:get($action-map, '@targetid'))[1]))
+            else ()"/>
+        <xsl:variable name="event-bubbles" as="xs:boolean" select="xforms:event-flag(map:get($action-map, '@bubbles'), true())"/>
+        <xsl:variable name="event-cancelable" as="xs:boolean" select="xforms:event-flag(map:get($action-map, '@cancelable'), false())"/>
+        <xsl:variable name="dispatch-event-context" as="map(*)">
+            <xsl:map>
+                <xsl:if test="exists($event-targetid)">
+                    <xsl:map-entry key="'targetid'" select="$event-targetid"/>
+                </xsl:if>
+                <xsl:map-entry key="'bubbles'" select="$event-bubbles"/>
+                <xsl:map-entry key="'cancelable'" select="$event-cancelable"/>
+            </xsl:map>
+        </xsl:variable>
         
-        <!-- 
-            TO DO: figure out how to use delay
-            
-            Want to use
-            
-            <ixsl:promise select="ixsl:sleep($delay)" on-completion="xforms:eventHandler"/>
-            
-            but holding on to the event name is difficult,
-            
-            and the context item needs to be a node. 
-            Not sure how to achieve this.
-        -->
-        <xsl:call-template name="xforms-event-handler">
-            <xsl:with-param name="event-name" select="$event-name" as="xs:string" tunnel="yes"/>
-        </xsl:call-template>
+        <xsl:if test="exists($event-name)">
+            <xsl:message use-when="$debugMode">[action-dispatch] action map: 
+                name      = <xsl:value-of select="$event-name"/>
+                targetid  = <xsl:value-of select="$event-targetid"/>
+                bubbles   = <xsl:value-of select="$event-bubbles"/>
+                cancelable= <xsl:value-of select="$event-cancelable"/>
+            </xsl:message>
+            <xsl:call-template name="xforms-event-handler">
+                <xsl:with-param name="event-name" select="$event-name" as="xs:string" tunnel="yes"/>
+                <xsl:with-param name="event-context" select="$dispatch-event-context" as="map(*)" tunnel="yes"/>
+            </xsl:call-template>
+        </xsl:if>
         
     </xsl:template>
    
@@ -6393,10 +6708,51 @@
         <xsl:variable name="new-index" as="xs:integer">
             <xsl:evaluate xpath="xforms:impose($new-index-ref)"/>
         </xsl:variable>
+        <xsl:variable name="repeat-size" as="xs:integer" select="xs:integer(js:getRepeatSize($repeatID))"/>
+        <xsl:variable name="effective-index" as="xs:integer" select="
+            if ($repeat-size lt 1)
+            then 0
+            else (
+                if ($new-index lt 1)
+                then 1
+                else (
+                    if ($new-index gt $repeat-size)
+                    then $repeat-size
+                    else $new-index
+                )
+            )"/>
         
 <!--        <xsl:message use-when="$debugMode">[action-setindex] $action-map = <xsl:value-of select="serialize($action-map)"/></xsl:message>-->
         
-        <xsl:sequence select="js:setRepeatIndex($repeatID,$new-index)"/>
+        <xsl:sequence select="js:setRepeatIndex($repeatID,$effective-index)"/>
+        <xsl:call-template name="refreshOutputs-JS"/>
+        <xsl:call-template name="refreshElementsUsingIndexFunction-JS"/>
+        <xsl:if test="$repeat-size gt 0 and $new-index lt 1">
+            <xsl:variable name="scroll-first-context" as="map(*)">
+                <xsl:map>
+                    <xsl:map-entry key="'targetid'" select="$repeatID"/>
+                    <xsl:map-entry key="'bubbles'" select="false()"/>
+                    <xsl:map-entry key="'cancelable'" select="false()"/>
+                </xsl:map>
+            </xsl:variable>
+            <xsl:call-template name="xforms-event-handler">
+                <xsl:with-param name="event-name" select="'xforms-scroll-first'" as="xs:string" tunnel="yes"/>
+                <xsl:with-param name="event-context" select="$scroll-first-context" as="map(*)" tunnel="yes"/>
+            </xsl:call-template>
+        </xsl:if>
+        <xsl:if test="$repeat-size gt 0 and $new-index gt $repeat-size">
+            <xsl:variable name="scroll-last-context" as="map(*)">
+                <xsl:map>
+                    <xsl:map-entry key="'targetid'" select="$repeatID"/>
+                    <xsl:map-entry key="'bubbles'" select="false()"/>
+                    <xsl:map-entry key="'cancelable'" select="false()"/>
+                </xsl:map>
+            </xsl:variable>
+            <xsl:call-template name="xforms-event-handler">
+                <xsl:with-param name="event-name" select="'xforms-scroll-last'" as="xs:string" tunnel="yes"/>
+                <xsl:with-param name="event-context" select="$scroll-last-context" as="map(*)" tunnel="yes"/>
+            </xsl:call-template>
+        </xsl:if>
         
     </xsl:template>
     
@@ -6445,9 +6801,51 @@
     <xsl:template name="action-reset">
         <xsl:param name="action-map" required="yes" as="map(*)" tunnel="yes"/>
         
-        <xsl:message use-when="$debugMode">[action-reset] Reset triggered — restoring initial instances</xsl:message>
-        <xsl:sequence select="js:restoreInitialInstances()"/>
-        <xsl:sequence select="js:setDeferredUpdateFlags(('rebuild','recalculate','revalidate','refresh'))"/>
+        <xsl:variable name="requested-model-id" as="xs:string?" select="map:get($action-map, '@model')"/>
+        <xsl:variable name="target-model-id" as="xs:string" select="
+            if (exists($requested-model-id) and normalize-space($requested-model-id) != '')
+            then normalize-space($requested-model-id)
+            else xforms:get-default-model-id()"/>
+        <xsl:variable name="target-instance-ids" as="xs:string*" select="xforms:get-model-instance-ids($target-model-id)"/>
+        <xsl:variable name="implicit-default-instance-id" as="xs:string"
+            select="xforms:get-model-implicit-default-instance-id($target-model-id)"/>
+        <xsl:variable name="reset-event-context" as="map(*)">
+            <xsl:map>
+                <xsl:map-entry key="'targetid'" select="$target-model-id"/>
+                <xsl:map-entry key="'bubbles'" select="false()"/>
+                <xsl:map-entry key="'cancelable'" select="true()"/>
+            </xsl:map>
+        </xsl:variable>
+        <xsl:variable name="default-action-cancelled" as="xs:boolean"
+            select="xforms:is-event-default-cancelled('xforms-reset', $reset-event-context)"/>
+        
+        <xsl:message use-when="$debugMode">[action-reset] Reset triggered for model '<xsl:value-of select="$target-model-id"/>' (cancelled=<xsl:value-of select="$default-action-cancelled"/>)</xsl:message>
+        
+        <xsl:call-template name="xforms-event-handler">
+            <xsl:with-param name="event-name" select="'xforms-reset'" as="xs:string" tunnel="yes"/>
+            <xsl:with-param name="event-context" select="$reset-event-context" as="map(*)" tunnel="yes"/>
+        </xsl:call-template>
+        
+        <xsl:if test="not($default-action-cancelled)">
+            <xsl:for-each select="$target-instance-ids">
+                <xsl:variable name="instance-id" as="xs:string" select="."/>
+                <xsl:variable name="initial-instance" as="element()?" select="js:getInitialInstance($instance-id)"/>
+                <xsl:if test="exists($initial-instance)">
+                    <xsl:sequence select="js:setInstance($instance-id,$initial-instance)"/>
+                </xsl:if>
+            </xsl:for-each>
+            <xsl:if test="$target-model-id = xforms:get-default-model-id() and exists($target-instance-ids[1])">
+                <xsl:variable name="primary-instance-id" as="xs:string" select="$target-instance-ids[1]"/>
+                <xsl:variable name="primary-instance" as="element()?" select="js:getInitialInstance($primary-instance-id)"/>
+                <xsl:if test="exists($primary-instance)">
+                    <xsl:sequence select="js:setDefaultInstance($primary-instance)"/>
+                    <xsl:if test="$implicit-default-instance-id != $primary-instance-id">
+                        <xsl:sequence select="js:setInstance($implicit-default-instance-id,$primary-instance)"/>
+                    </xsl:if>
+                </xsl:if>
+            </xsl:if>
+            <xsl:sequence select="js:setDeferredUpdateFlags(('rebuild','recalculate','revalidate','refresh'))"/>
+        </xsl:if>
     </xsl:template>
     
     <xd:doc scope="component">
@@ -6492,11 +6890,36 @@
         <xsl:variable name="case-id" as="xs:string?" select="($case-id-scoped,$requested-case-id)[1]"/>
         <xsl:variable name="switch-id" as="xs:string?" select="if (exists($switch-id-scoped)) then $switch-id-scoped else (if (exists($case-id)) then js:getCaseSwitch($case-id) else ())"/>
         <xsl:variable name="current-switch-selection" as="xs:string" select="js:getSwitchSelection($switch-id)"/>
+        <xsl:variable name="current-case-base" as="xs:string?" select="
+            if (normalize-space($current-switch-selection) != '')
+            then (
+                string((ixsl:page()//*[@id eq $current-switch-selection][1]/@data-case-id-base)[1]),
+                replace($current-switch-selection, '-[0-9]+$', '')
+            )[1]
+            else ()"/>
+        <xsl:variable name="selected-case-base" as="xs:string?" select="
+            if (exists($case-id))
+            then (
+                $requested-case-id,
+                string((ixsl:page()//*[@id eq $case-id][1]/@data-case-id-base)[1]),
+                replace($case-id, '-[0-9]+$', '')
+            )[1]
+            else ()"/>
         
         <xsl:if test="exists($switch-id) and exists($case-id)">
-            <xsl:call-template name="xforms-deselect">
-                <xsl:with-param name="case-id" as="xs:string" select="$current-switch-selection"/>
-            </xsl:call-template>
+            <xsl:if test="exists($current-case-base)">
+                <xsl:variable name="deselect-event-context" as="map(*)">
+                    <xsl:map>
+                        <xsl:map-entry key="'targetid'" select="$current-case-base"/>
+                        <xsl:map-entry key="'bubbles'" select="false()"/>
+                        <xsl:map-entry key="'cancelable'" select="false()"/>
+                    </xsl:map>
+                </xsl:variable>
+                <xsl:call-template name="xforms-event-handler">
+                    <xsl:with-param name="event-name" select="'xforms-deselect'" as="xs:string" tunnel="yes"/>
+                    <xsl:with-param name="event-context" select="$deselect-event-context" as="map(*)" tunnel="yes"/>
+                </xsl:call-template>
+            </xsl:if>
             
             <xsl:sequence select="js:deselectCase($current-switch-selection)"/>
             <xsl:sequence select="js:selectCase($case-id)"/>
@@ -6513,9 +6936,19 @@
                 <ixsl:remove-attribute name="style" object="$case-on"/>
             </xsl:if>
             
-            <xsl:call-template name="xforms-select">
-                <xsl:with-param name="case-id" as="xs:string" select="$case-id"/>
-            </xsl:call-template>
+            <xsl:if test="exists($selected-case-base)">
+                <xsl:variable name="select-event-context" as="map(*)">
+                    <xsl:map>
+                        <xsl:map-entry key="'targetid'" select="$selected-case-base"/>
+                        <xsl:map-entry key="'bubbles'" select="false()"/>
+                        <xsl:map-entry key="'cancelable'" select="false()"/>
+                    </xsl:map>
+                </xsl:variable>
+                <xsl:call-template name="xforms-event-handler">
+                    <xsl:with-param name="event-name" select="'xforms-select'" as="xs:string" tunnel="yes"/>
+                    <xsl:with-param name="event-context" select="$select-event-context" as="map(*)" tunnel="yes"/>
+                </xsl:call-template>
+            </xsl:if>
         </xsl:if>
         <xsl:message use-when="$debugMode">[action-toggle] END</xsl:message>
     </xsl:template>
