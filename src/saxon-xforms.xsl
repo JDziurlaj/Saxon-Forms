@@ -594,19 +594,11 @@
                     if (exists($context-model/@id))
                     then string($context-model/@id)
                     else $global-default-model-id"/>
-                <xsl:variable name="default-model-id-local" as="xs:string" select="
-                    if (exists($models-global[1]/@id))
-                    then string($models-global[1]/@id)
-                    else $global-default-model-id"/>
                 <xsl:variable name="local-default-instance" as="element(xforms:instance)?" select="$context-model/xforms:instance[1]"/>
                 <xsl:variable name="context-default-instance-id" as="xs:string" select="
                     if (exists($local-default-instance/@id))
                     then xs:string($local-default-instance/@id)
-                    else (
-                        if ($context-model-id = $default-model-id-local)
-                        then $global-default-instance-id
-                        else concat($context-model-id, '-', $global-default-instance-id)
-                    )"/>
+                    else xforms:get-model-implicit-default-instance-id($context-model-id)"/>
                 <xsl:choose>
                     <xsl:when test="exists($local-default-instance)">
                         <xsl:sequence select="$context-default-instance-id"/>
@@ -691,18 +683,10 @@
             if (exists($context-model/@id))
             then string($context-model/@id)
             else $global-default-model-id"/>
-        <xsl:variable name="default-model-id-local" as="xs:string" select="
-            if (exists($models-global[1]/@id))
-            then string($models-global[1]/@id)
-            else $global-default-model-id"/>
         <xsl:variable name="context-default-instance-id" as="xs:string" select="
             if (exists($context-model/xforms:instance[1]/@id))
             then string($context-model/xforms:instance[1]/@id)
-            else (
-                if ($context-model-id = $default-model-id-local)
-                then $global-default-instance-id
-                else concat($context-model-id, '-', $global-default-instance-id)
-            )"/>
+            else xforms:get-model-implicit-default-instance-id($context-model-id)"/>
         <xsl:variable name="context-default-nodeset" as="xs:string" select="concat('instance(''', $context-default-instance-id, ''')')"/>
         
         <xsl:variable name="context-nodeset" as="xs:string" select="
@@ -4743,6 +4727,9 @@
         <xsl:variable name="model-key" as="xs:string" select="if (exists($model/@id)) then xs:string($model/@id) else $default-model-id"/>
         
         <xsl:variable name="instances" as="element(xforms:instance)*" select="$model/xforms:instance"/>       
+        <xsl:variable name="implicit-instance-key-base" as="xs:string"
+            select="xforms:get-model-implicit-default-instance-id($model-key)"/>
+        <xsl:variable name="instance-keys" as="xs:string*" select="xforms:get-model-instance-ids($model-key)"/>
         
         <xsl:for-each select="$instances">
             <!-- TEST-TRACE: widen type from element()? to element()* so multi-root inline
@@ -4785,18 +4772,8 @@
             <xsl:variable name="instance-with-explicit-namespaces" as="element()">
                 <xsl:apply-templates select="$instance-data-single" mode="namespace-fix"/>
             </xsl:variable>
-            <xsl:variable name="implicit-instance-key-base" as="xs:string" select="
-                if ($model-key = $default-model-id)
-                then $global-default-instance-id
-                else concat($model-key, '-', $global-default-instance-id)"/>
-            <xsl:variable name="instance-key" as="xs:string" select="
-                if (exists(@id))
-                then xs:string(@id)
-                else (
-                    if (position() = 1)
-                    then $implicit-instance-key-base
-                    else concat($implicit-instance-key-base, '-', position())
-                )"/>
+            <xsl:variable name="instance-position" as="xs:integer" select="position()"/>
+            <xsl:variable name="instance-key" as="xs:string" select="$instance-keys[$instance-position]"/>
             <!--<xsl:message use-when="$debugMode">[xforms-model-construct] Setting instance with ID '<xsl:sequence select="$instance-key"/>': <xsl:sequence select="fn:serialize($instance-with-explicit-namespaces)"/></xsl:message>-->
             <xsl:sequence select="js:setInstance($instance-key,$instance-with-explicit-namespaces)"/>
             <!-- TEST-TRACE: snapshot initial instance for xf:reset;
