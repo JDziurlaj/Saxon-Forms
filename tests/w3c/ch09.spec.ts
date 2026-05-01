@@ -1,4 +1,4 @@
-import {  test, expect, loadAndWait, getRenderedText, getInstanceXML, getFormControlText, collectDialogMessages, normalizeWhitespace } from "./helpers";
+import { test, expect, loadAndWait, getRenderedText, getInstanceXML, getFormControlText, collectDialogMessages, normalizeWhitespace } from "./helpers";
 
 test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
   // -----------------------------------------------------------------
@@ -455,9 +455,7 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     expect(itemValues[1]).toBe("windshield wipers tires exhaust air freshener");
     expect(itemValues.slice(2)).toEqual(["windshield wipers", "tires", "exhaust", "air freshener"]);
   });
-});
 
-test.describe("W3C Chapter 9 — group bind relevance", () => {
   /*
      You must not be able to see the Street Name and City input controls or they must be somehow
      unavailable to you.
@@ -468,9 +466,7 @@ test.describe("W3C Chapter 9 — group bind relevance", () => {
     const streetLabel = page.getByText("Street Name", { exact: true });
     await expect(streetLabel).toBeHidden();
   });
-});
 
-test.describe("W3C Ch9 [behavioral promoted]", () => {
   /*
      When you activate the In Case trigger it must be replaced by the Out Case trigger. When you
      activate the Out Case trigger it must be replaced by the In Case trigger.

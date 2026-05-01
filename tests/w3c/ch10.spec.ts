@@ -66,7 +66,8 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     await loadAndWait(page, "Chapt10/10.3/10.3.a.xhtml");
     const outputs = page.locator(".xforms-output");
     const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
-    expect(values.slice(4, 10)).toEqual(["4", "5", "6", "6", "6", "6"]);
+    // TEST-TRACE: assert all 10.3.a "You must see..." clauses (1,2,3,3 / 4,5,6,6,6,6 / 0,0).
+    expect(values).toEqual(["1", "2", "3", "3", "4", "5", "6", "6", "6", "6", "0", "0"]);
   });
 
   /* You must see the correct values for each output control below. */
@@ -432,9 +433,20 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
      negative test".
   */
   test("10.17.b — 10.17.b conditional execution of XForms actions using action element", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
     await loadAndWait(page, "Chapt10/10.17/10.17.b.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).not.toContain("This is the negative test");
+    // TEST-TRACE: 10.17.b.xhtml uses modal xforms:message; assert positive emits and negative does not.
+    const beforePositiveTestMessages = dialogMessages.length;
+    await clickTrigger(page, "Positive Test");
+    const positiveTestMessages = dialogMessages.slice(beforePositiveTestMessages);
+    expect(positiveTestMessages).toContain("This is the positive test");
+    expect(positiveTestMessages.some((message) => /This is the negative test/i.test(message))).toBe(false);
+
+    const beforeNegativeTestMessages = dialogMessages.length;
+    await clickTrigger(page, "Negative Test");
+    const negativeTestMessages = dialogMessages.slice(beforeNegativeTestMessages);
+    expect(negativeTestMessages).toHaveLength(0);
+    expect(dialogMessages.some((message) => /This is the negative test/i.test(message))).toBe(false);
   });
 
   /*
@@ -447,8 +459,29 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   test("10.17.c — 10.17.c conditional execution of XForms actions - Automatic Focus Advancement example", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.17/10.17.c.xhtml");
     const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
+    await expect(inputs).toHaveCount(4);
+    const areaCodeInput = inputs.nth(0);
+    const exchangeInput = inputs.nth(1);
+    const localInput = inputs.nth(2);
+    const extensionInput = inputs.nth(3);
+
+    // TEST-TRACE: assert 10.17.c setfocus thresholds (3 chars to Exchange, 3 to Local, 4 to Extension).
+    await areaCodeInput.focus();
+    await expect(areaCodeInput).toBeFocused();
+    await areaCodeInput.type("12");
+    await expect(areaCodeInput).toBeFocused();
+    await areaCodeInput.type("3");
+    await expect(exchangeInput).toBeFocused();
+
+    await exchangeInput.type("45");
+    await expect(exchangeInput).toBeFocused();
+    await exchangeInput.type("6");
+    await expect(localInput).toBeFocused();
+
+    await localInput.type("789");
+    await expect(localInput).toBeFocused();
+    await localInput.type("0");
+    await expect(extensionInput).toBeFocused();
   });
 
   /*
@@ -458,9 +491,27 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   */
   test("10.17.d — 10.17.d conditional execution of XForms actions - Handling Focus for Empty Repeats example", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.17/10.17.d.xhtml");
-    const outputs = page.locator('.xforms-output');
-    const count = await outputs.count();
-    expect(count).toBeGreaterThan(0);
+    const insertRowTrigger = page.getByRole("button", { name: "Insert Row", exact: true });
+    const deleteRowTriggers = page.getByRole("button", { name: "Delete Row", exact: true });
+    const rowOutputs = page.locator("[data-repeat-item] .xforms-output");
+
+    // TEST-TRACE: assert 10.17.d row delete removes trigger/output each time and last delete moves focus to Insert Row.
+    await expect(insertRowTrigger).toBeVisible();
+    await expect(deleteRowTriggers).toHaveCount(3);
+    await expect(rowOutputs).toHaveCount(3);
+
+    for (let remainingRows = 3; remainingRows >= 1; remainingRows--) {
+      await expect(deleteRowTriggers).toHaveCount(remainingRows);
+      await expect(rowOutputs).toHaveCount(remainingRows);
+      await deleteRowTriggers.first().click();
+      await page.waitForTimeout(300);
+      await expect(deleteRowTriggers).toHaveCount(remainingRows - 1);
+      await expect(rowOutputs).toHaveCount(remainingRows - 1);
+    }
+
+    await expect(deleteRowTriggers).toHaveCount(0);
+    await expect(rowOutputs).toHaveCount(0);
+    await expect(insertRowTrigger).toBeFocused();
   });
 
   /* You must see the value "10" for the Number Of Nodes output : */
@@ -511,10 +562,16 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   /* You must see the correct values for each output control below. */
   test("10.3.b — 10.3.b insert action with bind and model attributes", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.3/10.3.b.xhtml");
-    const firstGroup = page.locator(".xforms-group").filter({ hasText: "You must see the numbers 4, 5, 6, and 6" });
-    const outputs = firstGroup.locator(".xforms-output");
-    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
-    expect(values).toEqual(["4", "5", "6", "6"]);
+    const assertSectionValues = async (sectionLabel: string, expectedValues: string[]): Promise<void> => {
+      const sectionGroup = page.locator(".xforms-group").filter({ hasText: sectionLabel }).first();
+      const sectionOutputs = sectionGroup.locator(".xforms-output");
+      const sectionValues = (await sectionOutputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+      expect(sectionValues).toEqual(expectedValues);
+    };
+    // TEST-TRACE: cover all 10.3.b "You must see..." sections across default model and model=\"mod2\" groups.
+    await assertSectionValues("You must see the numbers 4, 5, 6, and 6", ["4", "5", "6", "6"]);
+    await assertSectionValues("You must see the numbers 7, 8, 9, 10, and 10", ["7", "8", "9", "10", "10"]);
+    await assertSectionValues("You must see the numbers 11, 12, 13, 14, and 14", ["11", "12", "13", "14", "14"]);
   });
 
   /* You must see the value "7" : */
@@ -587,9 +644,23 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   */
   test("10.7.1.a — 10.7.1.a setfocus element with control child element", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.7/10.7.1/10.7.1.a.xhtml");
-    const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
+    const nameInput = page.locator("input.xforms-input[data-ref*='name']");
+    const ageInput = page.locator("input.xforms-input[data-ref*='age']");
+    const dobInput = page.locator("input.xforms-input[data-ref*='dob']");
+    await expect(nameInput).toHaveCount(1);
+    await expect(ageInput).toHaveCount(1);
+    await expect(dobInput).toHaveCount(1);
+
+    // TEST-TRACE: verify 10.7.1.a trigger actions move focus to Age then DOB controls.
+    await nameInput.focus();
+    await expect(nameInput).toBeFocused();
+    await clickTrigger(page, "Set focus to Age field");
+    await expect(ageInput).toBeFocused();
+
+    await nameInput.focus();
+    await expect(nameInput).toBeFocused();
+    await clickTrigger(page, "Set focus to DOB field");
+    await expect(dobInput).toBeFocused();
   });
 
   /*
@@ -599,9 +670,23 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   */
   test("10.7.1.b — 10.7.1.b control element precedence tests", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.7/10.7.1/10.7.1.b.xhtml");
-    const inputs = page.locator('input.xforms-input');
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
+    const nameInput = page.locator("input.xforms-input[data-ref*='name']");
+    const ageInput = page.locator("input.xforms-input[data-ref*='age']");
+    const dobInput = page.locator("input.xforms-input[data-ref*='dob']");
+    await expect(nameInput).toHaveCount(1);
+    await expect(ageInput).toHaveCount(1);
+    await expect(dobInput).toHaveCount(1);
+
+    // TEST-TRACE: verify 10.7.1.b control precedence yields focus to Age then DOB.
+    await nameInput.focus();
+    await expect(nameInput).toBeFocused();
+    await clickTrigger(page, "Set Focus To Age");
+    await expect(ageInput).toBeFocused();
+
+    await nameInput.focus();
+    await expect(nameInput).toBeFocused();
+    await clickTrigger(page, "Set Focus To DOB");
+    await expect(dobInput).toBeFocused();
   });
 
   /*
