@@ -5,11 +5,124 @@ import { test as base, expect } from "@playwright/test";
  * functions used by all per-chapter W3C XForms 1.1 test specs.
  */
 
+const configuredPlaywrightBaseUrl =
+  process.env.PLAYWRIGHT_BASE_URL ||
+  `http://${process.env.PLAYWRIGHT_TEST_HOST || "127.0.0.1"}:${process.env.PLAYWRIGHT_TEST_PORT || "5174"}`;
+const configuredPlaywrightHost = (() => {
+  try {
+    return new URL(configuredPlaywrightBaseUrl).hostname.toLowerCase().replace(/\.$/, "");
+  } catch {
+    return "127.0.0.1";
+  }
+})();
+const localHarnessHosts = new Set<string>([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "[::1]",
+  configuredPlaywrightHost,
+]);
+const echoServiceHosts = new Set<string>([
+  "xformstest.org",
+  "www.xformstest.org",
+  "www.w3.org",
+]);
+const forcedExternalFailureHosts = new Set<string>([
+  "bad.url",
+  "invalid",
+  "invaliduri",
+  "invaliduri.com",
+  "invaliduri.com8565",
+]);
+
 export const test = base.extend<{}>({
   page: async ({ page }, use) => {
-    await page.route(/echo\.sh/, async (route) => {
-      const body = route.request().postData() || "";
-      await route.fulfill({ status: 200, contentType: "text/plain", body });
+    const virtualLocalFiles = new Map<string, string>();
+    const initializedVirtualFiles = new Set<string>();
+    // TEST-TRACE: make external requests deterministic so W3C specs do not fail purely due to internet availability; helps tests/w3c/ch10.spec.ts and tests/w3c/ch11.spec.ts.
+    await page.context().route("**/*", async (route) => {
+      const request = route.request();
+      const method = request.method().toUpperCase();
+      const requestUrl = request.url();
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(requestUrl);
+      } catch {
+        await route.continue();
+        return;
+      }
+
+      const protocol = parsedUrl.protocol.toLowerCase();
+      if (protocol !== "http:" && protocol !== "https:") {
+        await route.continue();
+        return;
+      }
+
+      const pathname = parsedUrl.pathname.toLowerCase();
+      const hostname = parsedUrl.hostname.toLowerCase().replace(/\.$/, "");
+      const key = pathname || requestUrl.toLowerCase();
+
+      if (/\/echo\.sh$/i.test(pathname) && (localHarnessHosts.has(hostname) || echoServiceHosts.has(hostname))) {
+        const body = request.postData() || "";
+        await route.fulfill({ status: 200, contentType: "text/plain", body });
+        return;
+      }
+
+      if (localHarnessHosts.has(hostname)) {
+        if (/(?:myfile|deleteme)\.txt$/i.test(pathname)) {
+          if (key.endsWith("/deleteme.txt") && !initializedVirtualFiles.has(key)) {
+            virtualLocalFiles.set(key, "seed");
+            initializedVirtualFiles.add(key);
+          }
+          if (method === "PUT" || method === "POST") {
+            const body = request.postData() || "";
+            virtualLocalFiles.set(key, body);
+            await route.fulfill({ status: 200, contentType: "text/plain", body });
+            return;
+          }
+          if (method === "DELETE") {
+            virtualLocalFiles.delete(key);
+            await route.fulfill({ status: 200, contentType: "text/plain", body: "" });
+            return;
+          }
+          if (method === "GET") {
+            if (virtualLocalFiles.has(key)) {
+              await route.fulfill({
+                status: 200,
+                contentType: "text/plain",
+                body: virtualLocalFiles.get(key) || "",
+              });
+              return;
+            }
+            await route.fulfill({ status: 404, contentType: "text/plain", body: "Not Found" });
+            return;
+          }
+          await route.fulfill({
+            status: 405,
+            contentType: "text/plain",
+            body: `Unsupported method: ${method}`,
+          });
+          return;
+        }
+
+        await route.continue();
+        return;
+      }
+
+      if (forcedExternalFailureHosts.has(hostname)) {
+        await route.abort("addressunreachable");
+        return;
+      }
+
+      const fallbackBody =
+        method === "HEAD"
+          ? ""
+          : request.postData() || "<?xml version=\"1.0\" encoding=\"UTF-8\"?><data>offline-stub</data>";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/xml",
+        body: fallbackBody,
+      });
     });
     await use(page);
   },
@@ -67,13 +180,51 @@ export async function getInstanceXML(page: any, instanceId?: string): Promise<st
   }, instanceId);
 }
 
-export async function submitAndCapture(page: any, submitButton: any, timeout = 2000) {
+export async function clickAndCaptureRequest(
+  page: any,
+  trigger: any,
+  requestPredicate: (req: any) => boolean,
+  timeout = 2000
+) {
   const requestPromise = page.waitForRequest(
-    (req: any) => req.url().includes("echo.sh"),
+    (req: any) => requestPredicate(req),
     { timeout }
   ).catch(() => null);
-  await submitButton.click();
+  await trigger.click();
   return requestPromise;
+}
+
+export async function submitAndCapture(page: any, submitButton: any, timeout = 2000) {
+  return clickAndCaptureRequest(
+    page,
+    submitButton,
+    (req: any) => /\/echo\.sh(?:\?|$)/i.test(req.url()),
+    timeout
+  );
+}
+
+export async function waitForCondition(
+  page: any,
+  predicate: () => Promise<boolean> | boolean,
+  options?: {
+    timeoutMs?: number;
+    intervalMs?: number;
+    description?: string;
+  }
+) {
+  const timeoutMs = options?.timeoutMs ?? 3_000;
+  const intervalMs = options?.intervalMs ?? 100;
+  const description = options?.description ?? "condition";
+  const startedAt = Date.now();
+  let attempts = 0;
+  while ((Date.now() - startedAt) < timeoutMs) {
+    attempts += 1;
+    if (await predicate()) {
+      return;
+    }
+    await page.waitForTimeout(intervalMs);
+  }
+  throw new Error(`Timed out after ${timeoutMs}ms waiting for ${description} (attempts: ${attempts}).`);
 }
 
 export async function isUnavailable(input: any): Promise<boolean> {
@@ -141,7 +292,9 @@ export async function expectDialogAfterTrigger(
 ) {
   const beforeCount = dialogMessages.length;
   await clickTrigger(page, triggerLabel);
-  await page.waitForTimeout(300);
-  const newMessages = dialogMessages.slice(beforeCount);
-  expect(newMessages.some((message) => messagePattern.test(message))).toBe(true);
+  await waitForCondition(
+    page,
+    () => dialogMessages.slice(beforeCount).some((message) => messagePattern.test(message)),
+    { description: `dialog matching ${messagePattern}` }
+  );
 }
