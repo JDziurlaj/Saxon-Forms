@@ -1,4 +1,4 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, collectDialogMessages, clickTrigger, getFormControlText, getEventModelResults } from "./helpers";
+import { test, expect, loadAndWait, getRenderedText, collectDialogMessages, clickTrigger, getFormControlText, getEventModelResults } from "./helpers";
 
 test.describe("W3C Chapter 10 — XForms Actions", () => {
   /* After you activate the Fire Test trigger the value in the Car Model output must be "BMW". */
@@ -972,29 +972,321 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
 });
 
 
-const ch10_gaps_smoke: [string, string][] = [
-  ["10.14.1.a", "Chapt10/10.14/10.14.1/10.14.1.a.xhtml"],  // depends on form submission lifecycle
-  ["10.14.1.b", "Chapt10/10.14/10.14.1/10.14.1.b.xhtml"],  // depends on form submission lifecycle
-  ["10.14.a", "Chapt10/10.14/10.14.a.xhtml"],  // depends on load action (page navigation)
-  ["10.14.b", "Chapt10/10.14/10.14.b.xhtml"],  // depends on load action (page navigation)
-  ["10.15.a", "Chapt10/10.15/10.15.a.xhtml"],  // expects modal message after trigger activation
-  ["10.16.a", "Chapt10/10.16/10.16.a.xhtml"],  // depends on event dispatch sequencing
-  ["10.16.b", "Chapt10/10.16/10.16.b.xhtml"],  // expects modal message after trigger activation
-  ["10.3.f", "Chapt10/10.3/10.3.f.xhtml"],  // expects modal message after trigger activation
-  ["10.3.i", "Chapt10/10.3/10.3.i.xhtml"],  // expects modal message from event handler
-  ["10.4.g", "Chapt10/10.4/10.4.g.xhtml"],  // expects modal message from event handler
-  ["10.8.3.a", "Chapt10/10.8/10.8.3/10.8.3.a.xhtml"],  // expects modal message after trigger activation
-  ["10.8.3.b", "Chapt10/10.8/10.8.3/10.8.3.b.xhtml"],  // expects modal message after trigger activation
-  ["10.8.3.c", "Chapt10/10.8/10.8.3/10.8.3.c.xhtml"],  // expects modal message after trigger activation
-  ["10.8.c", "Chapt10/10.8/10.8.c.xhtml"],  // expects modal message after trigger activation
-  ["10.f", "Chapt10/10.f.xhtml"],  // expects modal message after trigger activation
-  ["10.g", "Chapt10/10.g.xhtml"],  // expects modal message after trigger activation
-  ["10.h", "Chapt10/10.h.xhtml"],  // expects modal message after trigger activation
-  ["10.i", "Chapt10/10.i.xhtml"],  // expects modal message after trigger activation
-];
 
 test.describe("W3C Chapt10 [smoke gaps]", () => {
-  for (const [name, file] of ch10_gaps_smoke) {
-    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
+  const xformsSpecUrl = /w3\.org\/TR\/xforms11\/?/i;
+
+  async function assertDialogPatternsAfterTrigger(
+    page: any,
+    dialogMessages: string[],
+    triggerLabel: string,
+    requiredPatterns: RegExp[],
+    timeout = 10_000
+  ): Promise<string[]> {
+    const beforeCount = dialogMessages.length;
+    await clickTrigger(page, triggerLabel);
+    await expect.poll(
+      () =>
+        requiredPatterns.every((pattern) =>
+          dialogMessages.slice(beforeCount).some((message) => pattern.test(message))
+        ),
+      { timeout }
+    ).toBe(true);
+    return dialogMessages.slice(beforeCount);
   }
+
+  async function measureRebuildDispatchLatency(
+    page: any,
+    dialogEvents: { message: string; timestamp: number }[],
+    triggerLabel: string
+  ): Promise<number> {
+    const beforeCount = dialogEvents.length;
+    const startedAt = Date.now();
+    await clickTrigger(page, triggerLabel);
+    await expect.poll(
+      () =>
+        dialogEvents.slice(beforeCount).find((event) => /^xforms-rebuild$/i.test(event.message))
+          ?.timestamp ?? null,
+      { timeout: 12_000 }
+    ).not.toBeNull();
+    const eventTimestamp = dialogEvents
+      .slice(beforeCount)
+      .find((event) => /^xforms-rebuild$/i.test(event.message))
+      ?.timestamp;
+    return Number(eventTimestamp ?? startedAt) - startedAt;
+  }
+
+  async function assertDelayedDispatchAppearsSlower(page: any, file: string) {
+    const dialogEvents: { message: string; timestamp: number }[] = [];
+    page.on("dialog", async (dialog: any) => {
+      dialogEvents.push({
+        message: dialog.message().replace(/\s+/g, " ").trim(),
+        timestamp: Date.now(),
+      });
+      await dialog.dismiss();
+    });
+    await loadAndWait(page, file);
+    const withoutDelayMs = await measureRebuildDispatchLatency(
+      page,
+      dialogEvents,
+      "Rebuild Without Delay"
+    );
+    const withDelayMs = await measureRebuildDispatchLatency(
+      page,
+      dialogEvents,
+      "Rebuild With Delay"
+    );
+    expect(withDelayMs).toBeGreaterThan(withoutDelayMs);
+  }
+
+  /* After trigger activation this page must be replaced by the XForms 1.1 specification (child resource precedence). */
+  test("10.14.1.a — load resource child element has precedence", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.14/10.14.1/10.14.1.a.xhtml");
+    await clickTrigger(page, "Go To The XForms 1.1 Spec");
+    // TEST-TRACE: promote 10.14.1.a from render smoke check to resource-precedence navigation assertion.
+    await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
+  });
+
+  /* After trigger activation this page must be replaced by the XForms 1.1 specification (value attribute precedence). */
+  test("10.14.1.b — load value attribute has precedence", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.14/10.14.1/10.14.1.b.xhtml");
+    await clickTrigger(page, "Go To The XForms 1.1 Spec");
+    // TEST-TRACE: promote 10.14.1.b from render smoke check to value-precedence navigation assertion.
+    await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
+  });
+
+  /* Activating each trigger must navigate to the XForms 1.1 specification. */
+  test("10.14.a — load element attributes navigate to XForms spec", async ({ page }) => {
+    const triggerLabels = [
+      "Load Xforms Spec From resource Attribute",
+      "Load Xforms Spec From ref Attribute",
+      "Load Xforms Spec From bind Attribute",
+    ];
+    // TEST-TRACE: promote 10.14.a from render smoke check by asserting all resource/ref/bind load paths navigate.
+    for (const triggerLabel of triggerLabels) {
+      await loadAndWait(page, "Chapt10/10.14/10.14.a.xhtml");
+      await clickTrigger(page, triggerLabel);
+      await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
+    }
+  });
+
+  /* Show default and replace must replace this page, while show=new must open the spec without replacing this page. */
+  test("10.14.b — load show attribute semantics", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.14/10.14.b.xhtml");
+    await clickTrigger(page, "Show Not Defined");
+    // TEST-TRACE: promote 10.14.b from render smoke check by asserting show-not-defined behaves like replace.
+    await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
+
+    await loadAndWait(page, "Chapt10/10.14/10.14.b.xhtml");
+    await clickTrigger(page, "Show=Replace");
+    // TEST-TRACE: assert explicit show=replace replaces current page with the target spec URL.
+    await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
+
+    await loadAndWait(page, "Chapt10/10.14/10.14.b.xhtml");
+    const popupPromise = page.waitForEvent("popup", { timeout: 15_000 });
+    await clickTrigger(page, "Show=New");
+    const popup = await popupPromise;
+    await popup.waitForLoadState("domcontentloaded", { timeout: 15_000 });
+    // TEST-TRACE: assert show=new opens the target spec in a new window and preserves this form.
+    expect(popup.url()).toMatch(xformsSpecUrl);
+    await expect(page.getByRole("button", { name: "Show=New", exact: true })).toBeVisible();
+    await popup.close().catch(() => {});
+  });
+
+  /* When either trigger is activated you must see an xforms-submit-done message. */
+  test("10.15.a — send element emits submit-done for both submissions", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.15/10.15.a.xhtml");
+    // TEST-TRACE: promote 10.15.a from render smoke check to per-trigger submit completion message assertions.
+    await assertDialogPatternsAfterTrigger(page, dialogMessages, "Send Color", [/^xforms-submit-done$/i]);
+    await assertDialogPatternsAfterTrigger(page, dialogMessages, "Send Condition", [/^xforms-submit-done$/i]);
+  });
+
+  /* Both triggers must display "Instance Message", with bind/ref data taking precedence over inline content. */
+  test("10.16.a — message bind/ref precedence over inline text", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.16/10.16.a.xhtml");
+    const bindMessages = await assertDialogPatternsAfterTrigger(
+      page,
+      dialogMessages,
+      "Message with bind attribute",
+      [/^Instance Message$/i]
+    );
+    const refMessages = await assertDialogPatternsAfterTrigger(
+      page,
+      dialogMessages,
+      "Message with ref attribute",
+      [/^Instance Message$/i]
+    );
+    // TEST-TRACE: promote 10.16.a from render smoke check to bind/ref precedence assertions over inline content.
+    expect(bindMessages.some((message) => /^Inline Message$/i.test(message))).toBe(false);
+    expect(refMessages.some((message) => /^Inline Message$/i.test(message))).toBe(false);
+  });
+
+  /* Modal, modeless, and ephemeral triggers must each display their corresponding message text. */
+  test("10.16.b — message level variants display expected text", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.16/10.16.b.xhtml");
+    const beforeModalMessages = dialogMessages.length;
+    await clickTrigger(page, "Display Modal Message");
+    await expect.poll(
+      () => dialogMessages.slice(beforeModalMessages).some((message) => /^Modal Message$/i.test(message)),
+      { timeout: 10_000 }
+    ).toBe(true);
+
+    await clickTrigger(page, "Display Modeless Message");
+    await expect.poll(
+      async () => /INFO:\s*Modeless Message/i.test(await getFormControlText(page)),
+      { timeout: 10_000 }
+    ).toBe(true);
+
+    await clickTrigger(page, "Display Ephemeral Message");
+    await expect.poll(
+      async () => /INFO:\s*Ephemeral Message/i.test(await getFormControlText(page)),
+      { timeout: 10_000 }
+    ).toBe(true);
+    // TEST-TRACE: 10.16.b modal uses dialog while modeless/ephemeral render via INFO log lines on page.
+  });
+
+  /* Each insert trigger must emit xforms-insert and place a new 0.00/empty row at the expected position. */
+  test("10.3.f — insert action repeat positioning and defaults", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    const baseLines = [
+      { price: "3.00", name: "a" },
+      { price: "32.25", name: "b" },
+      { price: "132.99", name: "c" },
+    ];
+    const scenarios: Array<{ triggerLabel: string; insertedIndex: number }> = [
+      { triggerLabel: "Insert At index 1", insertedIndex: 0 },
+      { triggerLabel: "Insert At index 1.5", insertedIndex: 1 },
+      { triggerLabel: "Insert At index 100", insertedIndex: 3 },
+    ];
+    const readLines = async (): Promise<Array<{ price: string; name: string }>> => {
+      const rows = page.locator("[data-repeat-item]");
+      const count = await rows.count();
+      const lines: Array<{ price: string; name: string }> = [];
+      for (let index = 0; index < count; index++) {
+        const rowInputs = rows.nth(index).locator("input.xforms-input");
+        lines.push({
+          price: (await rowInputs.nth(0).inputValue()).trim(),
+          name: (await rowInputs.nth(1).inputValue()).trim(),
+        });
+      }
+      return lines;
+    };
+
+    // TEST-TRACE: promote 10.3.f from render smoke check to insert-event, position, and default-value assertions.
+    for (const { triggerLabel, insertedIndex } of scenarios) {
+      await loadAndWait(page, "Chapt10/10.3/10.3.f.xhtml");
+      expect(await readLines()).toEqual(baseLines);
+      await assertDialogPatternsAfterTrigger(page, dialogMessages, triggerLabel, [/^xforms-insert$/i]);
+      const expected = [...baseLines];
+      expected.splice(insertedIndex, 0, { price: "0.00", name: "" });
+      expect(await readLines()).toEqual(expected);
+    }
+  });
+
+  /* On xforms-ready insert, you must see xforms-insert and Node Count output must be 6. */
+  test("10.3.i — xforms-ready insert emits event and updates node count", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.3/10.3.i.xhtml");
+    await expect.poll(
+      () => dialogMessages.some((message) => /^xforms-insert$/i.test(message)),
+      { timeout: 10_000 }
+    ).toBe(true);
+    // TEST-TRACE: promote 10.3.i from render smoke check to xforms-ready insert event and node-count assertions.
+    expect(await getFormControlText(page)).toMatch(/Node Count\s*:\s*6/i);
+  });
+
+  /* On xforms-ready delete, you must see xforms-delete and the numbers 1/2/3 must not appear below. */
+  test("10.4.g — xforms-ready delete emits event and clears repeated values", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.4/10.4.g.xhtml");
+    await expect.poll(
+      () => dialogMessages.some((message) => /^xforms-delete$/i.test(message)),
+      { timeout: 10_000 }
+    ).toBe(true);
+    // TEST-TRACE: promote 10.4.g from render smoke check to delete-event and post-delete visibility assertions.
+    await expect(page.locator(".xforms-output")).toHaveCount(0);
+  });
+
+  /* Both triggers must emit xforms-rebuild, with delayed dispatch firing slower than no-delay dispatch. */
+  test("10.8.3.a — dispatch delay child element behavior", async ({ page }) => {
+    // TEST-TRACE: promote 10.8.3.a from render smoke check to delay-precedence timing assertion.
+    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.a.xhtml");
+  });
+
+  /* Both triggers must emit xforms-rebuild, with delay child overriding delay attribute. */
+  test("10.8.3.b — dispatch delay element precedence over attribute", async ({ page }) => {
+    // TEST-TRACE: promote 10.8.3.b from render smoke check to delay-element precedence timing assertion.
+    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.b.xhtml");
+  });
+
+  /* Both triggers must emit xforms-rebuild, with delay @value overriding inline delay content. */
+  test("10.8.3.c — dispatch delay value attribute precedence", async ({ page }) => {
+    // TEST-TRACE: promote 10.8.3.c from render smoke check to delay-value precedence timing assertion.
+    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.c.xhtml");
+  });
+
+  /* Both triggers must emit xforms-rebuild, with delay attribute slower than no-delay dispatch. */
+  test("10.8.c — dispatch delay attribute behavior", async ({ page }) => {
+    // TEST-TRACE: promote 10.8.c from render smoke check to delay-attribute timing assertion.
+    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.c.xhtml");
+  });
+
+  /* Insert trigger must display xforms:action, xforms-rebuild, xforms-recalculate, xforms-revalidate, and xforms-refresh. */
+  test("10.f — insert in action emits required lifecycle messages", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.f.xhtml");
+    // TEST-TRACE: promote 10.f from render smoke check to required lifecycle message assertions.
+    await assertDialogPatternsAfterTrigger(page, dialogMessages, "Insert", [
+      /^xforms:action$/i,
+      /^xforms-rebuild$/i,
+      /^xforms-recalculate$/i,
+      /^xforms-revalidate$/i,
+      /^xforms-refresh$/i,
+    ]);
+  });
+
+  /* Delete trigger must display xforms:action, xforms-rebuild, xforms-recalculate, xforms-revalidate, and xforms-refresh. */
+  test("10.g — delete in action emits required lifecycle messages", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.g.xhtml");
+    // TEST-TRACE: promote 10.g from render smoke check to required lifecycle message assertions.
+    await assertDialogPatternsAfterTrigger(page, dialogMessages, "Delete", [
+      /^xforms:action$/i,
+      /^xforms-rebuild$/i,
+      /^xforms-recalculate$/i,
+      /^xforms-revalidate$/i,
+      /^xforms-refresh$/i,
+    ]);
+  });
+
+  /* Set Value trigger must display xforms:action, xforms-recalculate, xforms-revalidate, and xforms-refresh. */
+  test("10.h — setvalue in action emits required lifecycle messages", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.h.xhtml");
+    const newMessages = await assertDialogPatternsAfterTrigger(page, dialogMessages, "Set Value", [
+      /^xforms:action$/i,
+      /^xforms-recalculate$/i,
+      /^xforms-revalidate$/i,
+      /^xforms-refresh$/i,
+    ]);
+    // TEST-TRACE: promote 10.h from render smoke check to required lifecycle message assertions and no-rebuild check.
+    expect(newMessages.some((message) => /^xforms-rebuild$/i.test(message))).toBe(false);
+  });
+
+  /* Insert/reset trigger must display xforms-rebuild, xforms-recalculate, xforms-revalidate, xforms-refresh, and xforms:action. */
+  test("10.i — insert and reset in action emit required lifecycle messages", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.i.xhtml");
+    // TEST-TRACE: promote 10.i from render smoke check to required lifecycle message assertions.
+    await assertDialogPatternsAfterTrigger(page, dialogMessages, "Insert", [
+      /^xforms:action$/i,
+      /^xforms-rebuild$/i,
+      /^xforms-recalculate$/i,
+      /^xforms-revalidate$/i,
+      /^xforms-refresh$/i,
+    ]);
+  });
 });

@@ -34,7 +34,7 @@
         
         <xf:bind id="test-relevant" nodeset="instance('hello')/demo:CatNameForDisplayCheck" relevant="text() = 'Scout'"/>
         
-        <xf:submission id="test" ref="instance('hello')" instance="hello"/>
+        <xf:submission id="test" ref="instance('hello')" instance="hello" resource="/api/echo" method="post"/>
         
         
     </xf:model>

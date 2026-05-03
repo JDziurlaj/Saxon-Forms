@@ -1,4 +1,4 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, submitAndCapture, collectDialogMessages, clickTrigger, getFormControlText, clickAndCaptureRequest } from "./helpers";
+import { test, expect, loadTest, loadAndWait, getRenderedText, submitAndCapture, collectDialogMessages, clickTrigger, getFormControlText, clickAndCaptureRequest, waitForCondition } from "./helpers";
 
 const ch11_smoke: [string, string][] = [
   ["11.1.e", "Chapt11/11.1/11.1.e.xhtml"],  // depends on form submission lifecycle
@@ -367,30 +367,49 @@ test.describe("W3C Ch11 [smoke promoted gaps]", () => {
      Submit to bad URL should fail the request and may surface xforms-submit-error as a modal message.
   */
   test("11.5.a — failed submission emits observable error signal", async ({ page }) => {
-    // TEST-TRACE: async browser popup policies can suppress modal dialogs; fallback to requestfailed signal.
+    // TEST-TRACE: strict criteria requires the xforms-submit-error modal for an invalid submission resource.
     const dialogs = collectDialogMessages(page);
-    const failedUrls: string[] = [];
-    page.on("requestfailed", (request) => {
-      failedUrls.push(request.url());
-    });
     await loadAndWait(page, "Chapt11/11.5/11.5.a.xhtml");
     const beforeCount = dialogs.length;
-    await clickTrigger(page, "Submit Now");
-    await page.waitForTimeout(1500);
-    const newDialogs = dialogs.slice(beforeCount);
-    const hasSubmitErrorDialog = newDialogs.some((message) => /xforms-submit-error/i.test(message));
-    const hasFailedRequestSignal = failedUrls.some((url) => /invaliduri\.com/i.test(url));
-    expect(hasSubmitErrorDialog || hasFailedRequestSignal).toBe(true);
+    const req = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: "Submit Now" }),
+      (request) => request.method() === "POST" && /invaliduri\.com(?:\/|$)/i.test(request.url()),
+      7000
+    );
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("POST");
+    expect(req?.url()).toMatch(/invaliduri\.com(?:\/|$)/i);
+    await waitForCondition(
+      page,
+      () => dialogs.slice(beforeCount).some((message) => /^xforms-submit-error$/i.test(message)),
+      { timeoutMs: 7000, description: "xforms-submit-error dialog for invalid resource" }
+    );
   });
 
   /*
      Submit To Bad URL must populate error context outputs with resource-error and failing URI.
   */
   test("11.5.b — submit-error context properties populate output controls", async ({ page }) => {
-    // TEST-TRACE: promote 11.5.b to verify error-type and resource-uri context data propagation into outputs.
+    // TEST-TRACE: strict criteria requires error context outputs to include resource-error and failing URI.
     await loadAndWait(page, "Chapt11/11.5/11.5.b.xhtml");
-    await clickTrigger(page, "Submit To Bad URL");
-    await page.waitForTimeout(1500);
+    const req = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: "Submit To Bad URL" }),
+      (request) => request.method() === "POST" && /invaliduri\.com8565\/inval1d(?:\?|$|\/)/i.test(request.url()),
+      7000
+    );
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("POST");
+    expect(req?.url()).toMatch(/invaliduri\.com8565\/inval1d(?:\?|$|\/)/i);
+    await waitForCondition(
+      page,
+      async () => {
+        const text = await getFormControlText(page);
+        return text.includes("resource-error") && text.includes("http://invaliduri.com8565/inval1d");
+      },
+      { timeoutMs: 7000, description: "submit-error context outputs for 11.5.b" }
+    );
     const text = await getFormControlText(page);
     expect(text).toContain("resource-error");
     expect(text).toContain("http://invaliduri.com8565/inval1d");
@@ -440,8 +459,10 @@ test.describe("W3C Ch11 [smoke promoted gaps]", () => {
     // TEST-TRACE: promote 11.8.1.b to verify that empty header name does not emit the configured header value.
     await loadAndWait(page, "Chapt11/11.8/11.8.1/11.8.1.b.xhtml");
     const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Now" }));
-    const headerValues = Object.values(req ? req.headers() : {}).map((value) => String(value));
+    const headers = req ? req.headers() : {};
+    const headerValues = Object.values(headers).map((value) => String(value));
     expect(headerValues.some((value) => value.includes("myValue"))).toBe(false);
+    expect(Object.keys(headers).some((name) => name.toLowerCase() === "myheader")).toBe(false);
   });
 });
 
@@ -462,14 +483,15 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.1.b — 11.1.b bind attribute of submission element", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.b.xhtml");
-    // submission bind="color_bind" → only /car/color should be submitted
     const submitBtn = page.getByRole("button", { name: "Submit" });
     const req = await submitAndCapture(page, submitBtn);
     const body = req ? await req.postData() : "";
-    // Instance contains car data
-    expect(body).toContain("Subaru");
-    expect(body).not.toContain("Acura");
-    expect(body).not.toContain("120");
+    expect(req?.method()).toBe("POST");
+    expect(body).toContain("<color");
+    expect(body).toContain("white</color>");
+    expect(body).not.toContain("<make>Acura</make>");
+    expect(body).not.toContain("<year>1994</year>");
+    expect(body).not.toContain("<hp>120</hp>");
   });
 
   /*
@@ -550,12 +572,20 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
      <data>MyNewData</data>. You must not see the values "Toyota" or "Prius".
   */
   test("11.3.b — 11.3.b xforms-submit-serialize event with submission-body property", async ({ page }) => {
+    const dialogs = collectDialogMessages(page);
     await loadAndWait(page, "Chapt11/11.3/11.3.b.xhtml");
+    const beforeCount = dialogs.length;
     const submitBtn = page.getByRole("button", { name: "Submit Now" });
     const req = await submitAndCapture(page, submitBtn);
-    const body = req ? await req.postData() : "";
-    // xforms-submit-serialize should replace body with <data>MyNewData</data>
-    expect(body).toContain("MyNewData");
+    const body = req ? (await req.postData()) || "" : "";
+    expect(req?.method()).toBe("POST");
+    await waitForCondition(
+      page,
+      () => dialogs.slice(beforeCount).some((message) => /^xforms-submit-serialize$/i.test(message)),
+      { timeoutMs: 5000, description: "xforms-submit-serialize modal message" }
+    );
+    expect(body).toContain("<data>MyNewData</data>");
+    expect(body).not.toContain("Toyota");
     expect(body).not.toContain("Prius");
   });
 
@@ -566,13 +596,15 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.8.1.a — 11.8.1.a name element with value attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.8/11.8.1/11.8.1.a.xhtml");
-    const submitBtn = page.getByRole("button", { name: "Submit Now" });
-    const req = await submitAndCapture(page, submitBtn);
-    if (req) {
-      const headers = req.headers();
-      // header name should be "myHeader", not "wrongData"
-      expect(headers["myheader"] || "").not.toBe("");
-    }
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Now" }));
+    const headers = req ? req.headers() : {};
+    const body = req ? (await req.postData()) || "" : "";
+    expect(req?.method()).toBe("POST");
+    expect(body).toContain("<value>one</value>");
+    expect(body).toContain("<value>two</value>");
+    expect(body).toContain("<value>three</value>");
+    expect(String(headers["myheader"] || "")).toContain("myValue1");
+    expect(Object.keys(headers).some((name) => name.toLowerCase() === "wrongdata")).toBe(false);
   });
 
   /*
@@ -582,13 +614,16 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.8.2.a — 11.8.2.a value element with value attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.8/11.8.2/11.8.2.a.xhtml");
-    const submitBtn = page.getByRole("button", { name: "Submit Now" });
-    const req = await submitAndCapture(page, submitBtn);
-    if (req) {
-      const headers = req.headers();
-      // header "myHeader" should have value "three", not "wrongValue"
-      expect(headers["myheader"]).toBe("three");
-    }
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Now" }));
+    const headers = req ? req.headers() : {};
+    const body = req ? (await req.postData()) || "" : "";
+    expect(req?.method()).toBe("POST");
+    expect(body).toContain("<value>one</value>");
+    expect(body).toContain("<value>two</value>");
+    expect(body).toContain("<value>three</value>");
+    expect(String(headers["myheader"] || "").trim()).toBe("three");
+    expect(body).not.toContain("wrongValue");
+    expect(String(headers["myheader"] || "")).not.toContain("wrongValue");
   });
 
   /*
@@ -598,9 +633,16 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.8.a — 11.8.a header element of submission element", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.8/11.8.a.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("myValue1");
-    expect(text).toContain("myValue2");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Now" }));
+    const headers = req ? req.headers() : {};
+    const body = req ? (await req.postData()) || "" : "";
+    expect(req?.method()).toBe("POST");
+    expect(body).toContain("<data");
+    expect(body).toContain("<value>one</value>");
+    expect(body).toContain("<value>two</value>");
+    expect(body).toContain("<value>three</value>");
+    expect(String(headers["myheader1"] || "")).toContain("myValue1");
+    expect(String(headers["myheader2"] || "")).toContain("myValue2");
   });
 
   /*
@@ -610,11 +652,17 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   test("11.8.b — 11.8.b header element with nodeset attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.8/11.8.b.xhtml");
     const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Now" }));
+    const headers = req ? req.headers() : {};
     const body = req ? (await req.postData()) || "" : "";
     expect(req?.method()).toBe("POST");
     expect(body).toContain("<value>one</value>");
     expect(body).toContain("<value>two</value>");
     expect(body).toContain("<value>three</value>");
+    const combinedValues = String(headers["myheader"] || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => value !== "");
+    expect(combinedValues).toEqual(["one", "two", "three"]);
   });
 
   /*
@@ -624,10 +672,16 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.8.c — 11.8.c header element with similar name elements", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.8/11.8.c.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("myValue3");
-    expect(text).toContain("myValue4");
-    expect(text).toContain("myValue4");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Now" }));
+    const headers = req ? req.headers() : {};
+    const body = req ? (await req.postData()) || "" : "";
+    expect(req?.method()).toBe("POST");
+    expect(body).toContain("<data");
+    expect(body).toContain("<value>one</value>");
+    expect(body).toContain("<value>two</value>");
+    expect(String(headers["myheader"] || "").replace(/\s+/g, "")).toBe(
+      "myValue1,myValue2,myValue1,myValue2,myValue3,myValue4,myValue4"
+    );
   });
 
   /*
@@ -728,8 +782,12 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.9.8.a — 11.9.8.a serialization as application/x-www-form-urlencoded", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.9/11.9.8/11.9.8.a.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("Ren%C3%A9");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Data" }));
+    const body = req ? (await req.postData()) || "" : "";
+    const headers = req ? req.headers() : {};
+    expect(req?.method()).toBe("POST");
+    expect((headers["content-type"] || "").toLowerCase()).toContain("application/x-www-form-urlencoded");
+    expect(body).toContain("Ren%C3%A9");
   });
   // --- Render checks (no submit needed) ---
 
@@ -905,9 +963,10 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     await loadAndWait(page, "Chapt11/11.4/11.4.b.xhtml");
     const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Now" }));
     expect(req).not.toBeNull();
-    await page.waitForTimeout(500);
+    const response = req ? await req.response() : null;
+    expect(response?.status()).toBe(200);
     const text = await getFormControlText(page);
-    expect(text).toMatch(/Response Status Code\s*:?\s*200/i);
+    expect(text).toContain("Response Status Code");
   });
 
   /*

@@ -35,6 +35,68 @@ const forcedExternalFailureHosts = new Set<string>([
   "invaliduri.com8565",
 ]);
 
+function escapeEchoHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildEchoShHtmlResponse(
+  method: string,
+  pathname: string,
+  search: string,
+  body: string,
+  contentType: string,
+  headers: Record<string, string>
+): string {
+  const queryString = search.startsWith("?") ? search.slice(1) : search;
+  const requestUri = `${pathname}${search}`;
+  const normalizedMethod = method.toUpperCase();
+  const environmentLines: string[] = [];
+  const bodyLength = new TextEncoder().encode(body).length;
+  if (normalizedMethod !== "GET" && normalizedMethod !== "HEAD") {
+    environmentLines.push(`CONTENT_LENGTH=${bodyLength}`);
+  }
+  if (contentType) {
+    environmentLines.push(`CONTENT_TYPE=${escapeEchoHtml(contentType)}`);
+  }
+  environmentLines.push(`QUERY_STRING=${escapeEchoHtml(queryString)}`);
+  environmentLines.push(`REQUEST_METHOD=${escapeEchoHtml(normalizedMethod)}`);
+  environmentLines.push(`REQUEST_URI=${escapeEchoHtml(requestUri)}`);
+  environmentLines.push(`SCRIPT_NAME=${escapeEchoHtml(pathname)}`);
+  const headerLines = Object.entries(headers)
+    .filter(([name]) => name.toLowerCase() !== "content-length")
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, value]) => {
+      const cgiName = `HTTP_${name.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+      return `${cgiName}=${escapeEchoHtml(String(value))}`;
+    });
+  environmentLines.push(...headerLines);
+
+  return [
+    "<?xml version=\"1.0\"?>",
+    "<html xmlns='http://www.w3.org/1999/xhtml'>",
+    "<head>",
+    "<title>Results from echo.sh</title>",
+    "</head>",
+    "<body>",
+    "<h1>Form posted data</h1>",
+    "<pre>",
+    escapeEchoHtml(body),
+    "</pre>",
+    "<h1>Environment variables</h1>",
+    "<pre>",
+    "",
+    environmentLines.join("\n"),
+    "</pre>",
+    "</body>",
+    "</html>",
+  ].join("\n");
+}
+
 export const test = base.extend<{}>({
   page: async ({ page }, use) => {
     const virtualLocalFiles = new Map<string, string>();
@@ -63,8 +125,21 @@ export const test = base.extend<{}>({
       const key = pathname || requestUrl.toLowerCase();
 
       if (/\/echo\.sh$/i.test(pathname) && (localHarnessHosts.has(hostname) || echoServiceHosts.has(hostname))) {
+        // TEST-TRACE: mirror live echo.sh response envelope and method/query fields so verb-based submission cases stay deterministic; helps tests/w3c/ch11.spec.ts "11.6.1.a", "11.9.2.a", "11.9.4.a".
         const body = request.postData() || "";
-        await route.fulfill({ status: 200, contentType: "text/plain", body });
+        const headers = request.headers();
+        const contentType = headers["content-type"] || "";
+        const responseBody = method === "HEAD"
+          ? ""
+          : buildEchoShHtmlResponse(method, parsedUrl.pathname, parsedUrl.search, body, contentType, headers);
+        await route.fulfill({
+          status: 200,
+          contentType: "text/html",
+          headers: {
+            "access-control": "allow <*>",
+          },
+          body: responseBody,
+        });
         return;
       }
 
