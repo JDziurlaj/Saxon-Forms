@@ -1040,6 +1040,92 @@ test.describe("W3C Chapt10 [smoke gaps]", () => {
   }
 
   /* After trigger activation this page must be replaced by the XForms 1.1 specification (child resource precedence). */
+
+  /* Each insert trigger must emit xforms-insert and place a new 0.00/empty row at the expected position. */
+  test("10.3.f — insert action repeat positioning and defaults", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    const baseLines = [
+      { price: "3.00", name: "a" },
+      { price: "32.25", name: "b" },
+      { price: "132.99", name: "c" },
+    ];
+    const scenarios: Array<{ triggerLabel: string; insertedIndex: number }> = [
+      { triggerLabel: "Insert At index 1", insertedIndex: 0 },
+      { triggerLabel: "Insert At index 1.5", insertedIndex: 1 },
+      { triggerLabel: "Insert At index 100", insertedIndex: 3 },
+    ];
+    const readLines = async (): Promise<Array<{ price: string; name: string }>> => {
+      const rows = page.locator("[data-repeat-item]");
+      const count = await rows.count();
+      const lines: Array<{ price: string; name: string }> = [];
+      for (let index = 0; index < count; index++) {
+        const rowInputs = rows.nth(index).locator("input.xforms-input");
+        lines.push({
+          price: (await rowInputs.nth(0).inputValue()).trim(),
+          name: (await rowInputs.nth(1).inputValue()).trim(),
+        });
+      }
+      return lines;
+    };
+
+    // TEST-TRACE: promote 10.3.f from render smoke check to insert-event, position, and default-value assertions.
+    for (const { triggerLabel, insertedIndex } of scenarios) {
+      await loadAndWait(page, "Chapt10/10.3/10.3.f.xhtml");
+      expect(await readLines()).toEqual(baseLines);
+      await assertDialogPatternsAfterTrigger(page, dialogMessages, triggerLabel, [/^xforms-insert$/i]);
+      const expected = [...baseLines];
+      expected.splice(insertedIndex, 0, { price: "0.00", name: "" });
+      expect(await readLines()).toEqual(expected);
+    }
+  });
+
+  /* On xforms-ready insert, you must see xforms-insert and Node Count output must be 6. */
+  test("10.3.i — xforms-ready insert emits event and updates node count", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.3/10.3.i.xhtml");
+    await expect.poll(
+      () => dialogMessages.some((message) => /^xforms-insert$/i.test(message)),
+      { timeout: 10_000 }
+    ).toBe(true);
+    // TEST-TRACE: promote 10.3.i from render smoke check to xforms-ready insert event and node-count assertions.
+    expect(await getFormControlText(page)).toMatch(/Node Count\s*:\s*6/i);
+  });
+
+  /* On xforms-ready delete, you must see xforms-delete and the numbers 1/2/3 must not appear below. */
+  test("10.4.g — xforms-ready delete emits event and clears repeated values", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.4/10.4.g.xhtml");
+    await expect.poll(
+      () => dialogMessages.some((message) => /^xforms-delete$/i.test(message)),
+      { timeout: 10_000 }
+    ).toBe(true);
+    // TEST-TRACE: promote 10.4.g from render smoke check to delete-event and post-delete visibility assertions.
+    await expect(page.locator(".xforms-output")).toHaveCount(0);
+  });
+
+  /* Both triggers must emit xforms-rebuild, with delayed dispatch firing slower than no-delay dispatch. */
+  test("10.8.3.a — dispatch delay child element behavior", async ({ page }) => {
+    // TEST-TRACE: promote 10.8.3.a from render smoke check to delay-precedence timing assertion.
+    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.a.xhtml");
+  });
+
+  /* Both triggers must emit xforms-rebuild, with delay child overriding delay attribute. */
+  test("10.8.3.b — dispatch delay element precedence over attribute", async ({ page }) => {
+    // TEST-TRACE: promote 10.8.3.b from render smoke check to delay-element precedence timing assertion.
+    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.b.xhtml");
+  });
+
+  /* Both triggers must emit xforms-rebuild, with delay @value overriding inline delay content. */
+  test("10.8.3.c — dispatch delay value attribute precedence", async ({ page }) => {
+    // TEST-TRACE: promote 10.8.3.c from render smoke check to delay-value precedence timing assertion.
+    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.c.xhtml");
+  });
+
+  /* Both triggers must emit xforms-rebuild, with delay attribute slower than no-delay dispatch. */
+  test("10.8.c — dispatch delay attribute behavior", async ({ page }) => {
+    // TEST-TRACE: promote 10.8.c from render smoke check to delay-attribute timing assertion.
+    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.c.xhtml");
+  });
   test("10.14.1.a — load resource child element has precedence", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.14/10.14.1/10.14.1.a.xhtml");
     await clickTrigger(page, "Go To The XForms 1.1 Spec");
@@ -1146,92 +1232,6 @@ test.describe("W3C Chapt10 [smoke gaps]", () => {
       { timeout: 10_000 }
     ).toBe(true);
     // TEST-TRACE: 10.16.b modal uses dialog while modeless/ephemeral render via INFO log lines on page.
-  });
-
-  /* Each insert trigger must emit xforms-insert and place a new 0.00/empty row at the expected position. */
-  test("10.3.f — insert action repeat positioning and defaults", async ({ page }) => {
-    const dialogMessages = collectDialogMessages(page);
-    const baseLines = [
-      { price: "3.00", name: "a" },
-      { price: "32.25", name: "b" },
-      { price: "132.99", name: "c" },
-    ];
-    const scenarios: Array<{ triggerLabel: string; insertedIndex: number }> = [
-      { triggerLabel: "Insert At index 1", insertedIndex: 0 },
-      { triggerLabel: "Insert At index 1.5", insertedIndex: 1 },
-      { triggerLabel: "Insert At index 100", insertedIndex: 3 },
-    ];
-    const readLines = async (): Promise<Array<{ price: string; name: string }>> => {
-      const rows = page.locator("[data-repeat-item]");
-      const count = await rows.count();
-      const lines: Array<{ price: string; name: string }> = [];
-      for (let index = 0; index < count; index++) {
-        const rowInputs = rows.nth(index).locator("input.xforms-input");
-        lines.push({
-          price: (await rowInputs.nth(0).inputValue()).trim(),
-          name: (await rowInputs.nth(1).inputValue()).trim(),
-        });
-      }
-      return lines;
-    };
-
-    // TEST-TRACE: promote 10.3.f from render smoke check to insert-event, position, and default-value assertions.
-    for (const { triggerLabel, insertedIndex } of scenarios) {
-      await loadAndWait(page, "Chapt10/10.3/10.3.f.xhtml");
-      expect(await readLines()).toEqual(baseLines);
-      await assertDialogPatternsAfterTrigger(page, dialogMessages, triggerLabel, [/^xforms-insert$/i]);
-      const expected = [...baseLines];
-      expected.splice(insertedIndex, 0, { price: "0.00", name: "" });
-      expect(await readLines()).toEqual(expected);
-    }
-  });
-
-  /* On xforms-ready insert, you must see xforms-insert and Node Count output must be 6. */
-  test("10.3.i — xforms-ready insert emits event and updates node count", async ({ page }) => {
-    const dialogMessages = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.3/10.3.i.xhtml");
-    await expect.poll(
-      () => dialogMessages.some((message) => /^xforms-insert$/i.test(message)),
-      { timeout: 10_000 }
-    ).toBe(true);
-    // TEST-TRACE: promote 10.3.i from render smoke check to xforms-ready insert event and node-count assertions.
-    expect(await getFormControlText(page)).toMatch(/Node Count\s*:\s*6/i);
-  });
-
-  /* On xforms-ready delete, you must see xforms-delete and the numbers 1/2/3 must not appear below. */
-  test("10.4.g — xforms-ready delete emits event and clears repeated values", async ({ page }) => {
-    const dialogMessages = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.4/10.4.g.xhtml");
-    await expect.poll(
-      () => dialogMessages.some((message) => /^xforms-delete$/i.test(message)),
-      { timeout: 10_000 }
-    ).toBe(true);
-    // TEST-TRACE: promote 10.4.g from render smoke check to delete-event and post-delete visibility assertions.
-    await expect(page.locator(".xforms-output")).toHaveCount(0);
-  });
-
-  /* Both triggers must emit xforms-rebuild, with delayed dispatch firing slower than no-delay dispatch. */
-  test("10.8.3.a — dispatch delay child element behavior", async ({ page }) => {
-    // TEST-TRACE: promote 10.8.3.a from render smoke check to delay-precedence timing assertion.
-    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.a.xhtml");
-  });
-
-  /* Both triggers must emit xforms-rebuild, with delay child overriding delay attribute. */
-  test("10.8.3.b — dispatch delay element precedence over attribute", async ({ page }) => {
-    // TEST-TRACE: promote 10.8.3.b from render smoke check to delay-element precedence timing assertion.
-    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.b.xhtml");
-  });
-
-  /* Both triggers must emit xforms-rebuild, with delay @value overriding inline delay content. */
-  test("10.8.3.c — dispatch delay value attribute precedence", async ({ page }) => {
-    // TEST-TRACE: promote 10.8.3.c from render smoke check to delay-value precedence timing assertion.
-    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.c.xhtml");
-  });
-
-  /* Both triggers must emit xforms-rebuild, with delay attribute slower than no-delay dispatch. */
-  test("10.8.c — dispatch delay attribute behavior", async ({ page }) => {
-    // TEST-TRACE: promote 10.8.c from render smoke check to delay-attribute timing assertion.
-    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.c.xhtml");
   });
 
   /* Insert trigger must display xforms:action, xforms-rebuild, xforms-recalculate, xforms-revalidate, and xforms-refresh. */

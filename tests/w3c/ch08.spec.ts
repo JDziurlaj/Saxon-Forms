@@ -80,21 +80,6 @@ test.describe("W3C Ch8 §8.3 — Selection Controls [smoke]", () => {
   }
 });
 
-test.describe("W3C Chapter 8 — output bind precedence", () => {
-  /*
-     You must see the value "1032" for the Tax output control and the value "2005" for the Car Year
-     output control.
-  */
-  test("8.1.5.b output with @value and @bind — bind takes precedence", async ({ page }) => {
-    await loadAndWait(page, "Chapt08/8.1/8.1.5/8.1.5.b.xhtml");
-    // Tax output: value="0.024 * /car/price" → 1032
-    // Car Year output: value="/car/price" bind="year_bind" → bind wins, shows 2005
-    const text = await getFormControlText(page);
-    expect(text).toContain("1032");
-    expect(text).toContain("2005");
-  });
-});
-
 test.describe("W3C Ch8 [behavioral promoted]", () => {
   /*
      You must see an xforms-enabled message, an xforms-value-changed message, an xforms-valid
@@ -454,6 +439,21 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
     const selectedFlavorOutput = page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..");
     await expect(selectedFlavorOutput).toHaveCount(1);
     await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*Neapolitan/);
+  });
+});
+
+test.describe("W3C Chapter 8 — output bind precedence", () => {
+  /*
+     You must see the value "1032" for the Tax output control and the value "2005" for the Car Year
+     output control.
+  */
+  test("8.1.5.b output with @value and @bind — bind takes precedence", async ({ page }) => {
+    await loadAndWait(page, "Chapt08/8.1/8.1.5/8.1.5.b.xhtml");
+    // Tax output: value="0.024 * /car/price" → 1032
+    // Car Year output: value="/car/price" bind="year_bind" → bind wins, shows 2005
+    const text = await getFormControlText(page);
+    expect(text).toContain("1032");
+    expect(text).toContain("2005");
   });
 });
 

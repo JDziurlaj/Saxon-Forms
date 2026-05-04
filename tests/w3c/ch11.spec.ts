@@ -8,720 +8,6 @@ test.describe("W3C Ch11 — Submit [smoke]", () => {
   }
 });
 
-test.describe("W3C Ch11 [remaining promoted cases]", () => {
-  const getHeaderValue = (headers: Record<string, string>, headerName: string): string => {
-    const match = Object.entries(headers).find(([name]) => name.toLowerCase() === headerName.toLowerCase());
-    return match ? String(match[1]) : "";
-  };
-
-  const normalize = (value: string): string => value.replace(/\s+/g, " ").trim();
-
-  async function runHttpMethodCase(
-    page: any,
-    file: string,
-    buttonLabel: string,
-    expectedMethod: "GET" | "POST" | "PUT",
-    expectedProtocol: "http:" | "https:"
-  ) {
-    await loadAndWait(page, file);
-    const req = await submitAndCapture(page, page.getByRole("button", { name: buttonLabel }), 5000);
-    expect(req).not.toBeNull();
-    expect(req?.method()).toBe(expectedMethod);
-    if (req) {
-      expect(new URL(req.url()).protocol).toBe(expectedProtocol);
-      const body = (await req.postData()) || "";
-      if (expectedMethod === "GET") {
-        expect(body).toBe("");
-      } else {
-        expect(body).toContain("Henry");
-      }
-    }
-  }
-
-  async function runSerializationCase(
-    page: any,
-    file: string,
-    expectedMethod: "POST" | "PUT",
-    expectedMediaType: string
-  ) {
-    await loadAndWait(page, file);
-    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Data" }), 5000);
-    expect(req).not.toBeNull();
-    expect(req?.method()).toBe(expectedMethod);
-    if (req) {
-      const headers = req.headers();
-      const contentType = getHeaderValue(headers, "content-type").toLowerCase();
-      const body = (await req.postData()) || "";
-      expect(contentType).toContain(expectedMediaType);
-      expect(body).toContain("Henry");
-      expect(body).toContain("Acura");
-      expect(body.toLowerCase()).toContain("white");
-    }
-  }
-
-  async function runNonHttpResourceErrorCase(
-    page: any,
-    file: string,
-    buttonLabel: string,
-    expectedResourceUriPrefix: string
-  ) {
-    await loadAndWait(page, file);
-    await clearDispatchedEvents(page);
-    const beforeUrl = page.url();
-    const req = await clickAndCaptureRequest(
-      page,
-      page.getByRole("button", { name: buttonLabel }),
-      (request) => /\/echo\.sh(?:\?|$)/i.test(request.url()),
-      1500
-    );
-    expect(req).toBeNull();
-    expect(page.url()).toBe(beforeUrl);
-
-    const events = await getDispatchedEvents(page);
-    const submitErrorEvents = events.filter((event) => event.name.toLowerCase() === "xforms-submit-error");
-    if (submitErrorEvents.length > 0) {
-      const matchingSubmitError = submitErrorEvents.find((event) => {
-        const errorType = (event.context["error-type"] || "").toLowerCase();
-        const resourceUri = (event.context["resource-uri"] || "").toLowerCase();
-        return (
-          errorType === "resource-error" &&
-          resourceUri.startsWith(expectedResourceUriPrefix.toLowerCase())
-        );
-      });
-      expect(matchingSubmitError || submitErrorEvents[0]).toBeTruthy();
-    }
-  }
-
-  test("11.1.k — version variants submit comparable payloads", async ({ page }) => {
-    await loadAndWait(page, "Chapt11/11.1/11.1.k.xhtml");
-    const v10 = await submitAndCapture(page, page.getByRole("button", { name: "Submit as 1.0" }), 5000);
-    const v10Body = v10 ? normalize((await v10.postData()) || "") : "";
-    expect(v10).not.toBeNull();
-    expect(v10?.method()).toBe("POST");
-    expect(v10Body).toContain("Acura");
-    expect(v10Body).toContain("2005");
-
-    await loadAndWait(page, "Chapt11/11.1/11.1.k.xhtml");
-    const v11 = await submitAndCapture(page, page.getByRole("button", { name: "Submit as 1.1" }), 5000);
-    const v11Body = v11 ? normalize((await v11.postData()) || "") : "";
-    expect(v11).not.toBeNull();
-    expect(v11?.method()).toBe("POST");
-    expect(v11Body).toContain("Acura");
-    expect(v11Body).toContain("2005");
-  });
-
-  test("11.1.l — indent variants submit the same data model", async ({ page }) => {
-    await loadAndWait(page, "Chapt11/11.1/11.1.l.xhtml");
-    const noIndent = await submitAndCapture(page, page.getByRole("button", { name: "Submit Without indent" }), 5000);
-    const noIndentBody = noIndent ? normalize((await noIndent.postData()) || "") : "";
-    expect(noIndent).not.toBeNull();
-    expect(noIndent?.method()).toBe("POST");
-    expect(noIndentBody).toContain("Acura");
-    expect(noIndentBody).toContain("blue");
-
-    await loadAndWait(page, "Chapt11/11.1/11.1.l.xhtml");
-    const withIndent = await submitAndCapture(page, page.getByRole("button", { name: "Submit With indent" }), 5000);
-    const withIndentBody = withIndent ? normalize((await withIndent.postData()) || "") : "";
-    expect(withIndent).not.toBeNull();
-    expect(withIndent?.method()).toBe("POST");
-    expect(withIndentBody).toContain("Acura");
-    expect(withIndentBody).toContain("blue");
-  });
-
-  test("11.3.a — submit-serialize event fires and payload contains Toyota/Prius", async ({ page }) => {
-    const dialogs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt11/11.3/11.3.a.xhtml");
-    const beforeCount = dialogs.length;
-    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Now" }), 5000);
-    const body = req ? (await req.postData()) || "" : "";
-    expect(req).not.toBeNull();
-    await waitForCondition(
-      page,
-      () => dialogs.slice(beforeCount).some((message) => /^xforms-submit-serialize$/i.test(message)),
-      { timeoutMs: 5000, description: "11.3.a submit serialize dialog" }
-    );
-    expect(body).toContain("Toyota");
-    expect(body).toContain("Prius");
-  });
-
-  test("11.9.a — HTTP post submission uses POST", async ({ page }) => {
-    await runHttpMethodCase(page, "Chapt11/11.9/11.9.a.xhtml", "Post Data", "POST", "http:");
-  });
-
-  test("11.9.b — HTTP get submission uses GET", async ({ page }) => {
-    await runHttpMethodCase(page, "Chapt11/11.9/11.9.b.xhtml", "Get Data", "GET", "http:");
-  });
-
-  test("11.9.c — HTTP put submission uses PUT", async ({ page }) => {
-    await runHttpMethodCase(page, "Chapt11/11.9/11.9.c.xhtml", "Put Data", "PUT", "http:");
-  });
-
-  test("11.9.d — HTTP multipart-post submission uses POST", async ({ page }) => {
-    await runHttpMethodCase(page, "Chapt11/11.9/11.9.d.xhtml", "Post Data", "POST", "http:");
-  });
-
-  test("11.9.e — HTTP form-data-post submission uses POST", async ({ page }) => {
-    await runHttpMethodCase(page, "Chapt11/11.9/11.9.e.xhtml", "Post Data", "POST", "http:");
-  });
-
-  test("11.9.f — HTTP urlencoded-post submission uses POST", async ({ page }) => {
-    await runHttpMethodCase(page, "Chapt11/11.9/11.9.f.xhtml", "Post Data", "POST", "http:");
-  });
-
-  test("11.9.g — HTTPS post submission uses POST", async ({ page }) => {
-    await runHttpMethodCase(page, "Chapt11/11.9/11.9.g.xhtml", "Post Data", "POST", "https:");
-  });
-
-  test("11.9.h — HTTPS get submission uses GET", async ({ page }) => {
-    await runHttpMethodCase(page, "Chapt11/11.9/11.9.h.xhtml", "Get Data", "GET", "https:");
-  });
-
-  test("11.9.i — HTTPS put submission uses PUT", async ({ page }) => {
-    await runHttpMethodCase(page, "Chapt11/11.9/11.9.i.xhtml", "Put Data", "PUT", "https:");
-  });
-
-  test("11.9.j — HTTPS multipart-post submission uses POST", async ({ page }) => {
-    await runHttpMethodCase(page, "Chapt11/11.9/11.9.j.xhtml", "Post Data", "POST", "https:");
-  });
-
-  test("11.9.k — HTTPS form-data-post submission uses POST", async ({ page }) => {
-    await runHttpMethodCase(page, "Chapt11/11.9/11.9.k.xhtml", "Post Data", "POST", "https:");
-  });
-
-  test("11.9.l — HTTPS urlencoded-post submission uses POST", async ({ page }) => {
-    await runHttpMethodCase(page, "Chapt11/11.9/11.9.l.xhtml", "Post Data", "POST", "https:");
-  });
-
-  test("11.9.5.a — default XML serialization uses application/xml", async ({ page }) => {
-    await runSerializationCase(page, "Chapt11/11.9/11.9.5/11.9.5.a.xhtml", "PUT", "application/xml");
-  });
-
-  test("11.9.6.a — multipart-post serialization submits deterministic XML payload", async ({ page }) => {
-    await runSerializationCase(page, "Chapt11/11.9/11.9.6/11.9.6.a.xhtml", "POST", "application/xml");
-  });
-  test("11.9.7.a — form-data-post serialization submits deterministic XML payload", async ({ page }) => {
-    await runSerializationCase(page, "Chapt11/11.9/11.9.7/11.9.7.a.xhtml", "POST", "application/xml");
-  });
-
-  test("11.9.m — mailto post dispatches resource-error without HTTP request", async ({ page }) => {
-    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.m.xhtml", "Post Data", "mailto:no-one@w3.org");
-  });
-
-  test("11.9.n — file get dispatches resource-error without HTTP request", async ({ page }) => {
-    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.n.xhtml", "Get Data", "file:11.9.n.data.xml");
-  });
-
-  test("11.9.o — file put dispatches resource-error without HTTP request", async ({ page }) => {
-    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.o.xhtml", "Put Data", "file:11.9.o.data.xml");
-  });
-
-  test("11.9.p — mailto urlencoded-post dispatches resource-error without HTTP request", async ({ page }) => {
-    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.p.xhtml", "Post Data", "mailto:no-one@w3.org");
-  });
-
-  test("11.9.q — mailto form-data-post dispatches resource-error without HTTP request", async ({ page }) => {
-    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.q.xhtml", "Post Data", "mailto:no-one@w3.org");
-  });
-
-  test("11.11.1.a — SOAP envelope submission serializes soap:Envelope payload", async ({ page }) => {
-    await loadAndWait(page, "Chapt11/11.11/11.11.1/11.11.1.a.xhtml");
-    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
-    const headers = req ? req.headers() : {};
-    const body = req ? (await req.postData()) || "" : "";
-    expect(req).not.toBeNull();
-    expect(req?.method()).toBe("POST");
-    expect(getHeaderValue(headers, "content-type").toLowerCase()).toContain("application/soap+xml");
-    expect(body).toMatch(/Envelope/i);
-    expect(body).toContain("This is the message");
-  });
-
-  test("11.11.3.a — SOAP GET request remains deterministic with default accept header", async ({ page }) => {
-    await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.a.xhtml");
-    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
-    const headers = req ? req.headers() : {};
-    const accept = getHeaderValue(headers, "accept");
-    expect(req).not.toBeNull();
-    expect(req?.method()).toBe("GET");
-    expect(accept).toBe("*/*");
-  });
-
-  test("11.11.3.c — SOAP POST keeps mediatype and action metadata on Content-Type", async ({ page }) => {
-    await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.c.xhtml");
-    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
-    const headers = req ? req.headers() : {};
-    const contentType = getHeaderValue(headers, "content-type");
-    const soapAction = getHeaderValue(headers, "soapaction");
-    expect(req).not.toBeNull();
-    expect(req?.method()).toBe("POST");
-    expect(contentType.toLowerCase()).toContain("application/soap+xml");
-    expect(contentType.toUpperCase()).toContain("ASCII");
-    expect(
-      soapAction.includes("http://www.google.com") ||
-      contentType.toLowerCase().includes("action=http://www.google.com")
-    ).toBe(true);
-  });
-
-  test("11.11.3.d — SOAP GET with encoding remains deterministic with default accept header", async ({ page }) => {
-    await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.d.xhtml");
-    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
-    const headers = req ? req.headers() : {};
-    const accept = getHeaderValue(headers, "accept");
-    expect(req).not.toBeNull();
-    expect(req?.method()).toBe("GET");
-    expect(accept).toBe("*/*");
-  });
-
-  test("11.11.3.e — SOAP POST with encoding sets application/soap+xml and UTF-8", async ({ page }) => {
-    await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.e.xhtml");
-    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
-    const headers = req ? req.headers() : {};
-    const contentType = getHeaderValue(headers, "content-type");
-    expect(req).not.toBeNull();
-    expect(req?.method()).toBe("POST");
-    expect(contentType.toLowerCase()).toContain("application/soap+xml");
-    expect(contentType.toUpperCase()).toContain("UTF-8");
-  });
-
-  test("11.11.4.a — forced SOAP failure dispatches xforms-submit-error", async ({ page }) => {
-    const dialogs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt11/11.11/11.11.4/11.11.4.a.xhtml");
-    await forceOneShotEndpointFailure(page, /\/echo\.sh(?:\?|$)/i, {
-      status: 500,
-      contentType: "application/xml",
-      body: "<?xml version=\"1.0\"?><error>forced failure</error>",
-    });
-    const beforeCount = dialogs.length;
-    const req = await clickAndCaptureRequest(
-      page,
-      page.getByRole("button", { name: "Submit SOAP" }),
-      (request) => /\/echo\.sh(?:\?|$)/i.test(request.url()),
-      5000
-    );
-    expect(req).not.toBeNull();
-    await waitForCondition(
-      page,
-      () => dialogs.slice(beforeCount).some((message) => /^xforms-submit-error$/i.test(message)),
-      { timeoutMs: 5000, description: "11.11.4.a submit-error dialog" }
-    );
-  });
-
-  test("11.11.4.b — successful SOAP response dispatches xforms-submit-done", async ({ page }) => {
-    const dialogs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt11/11.11/11.11.4/11.11.4.b.xhtml");
-    const beforeCount = dialogs.length;
-    const req = await clickAndCaptureRequest(
-      page,
-      page.getByRole("button", { name: "Submit SOAP" }),
-      (request) => /\/echo\.sh(?:\?|$)/i.test(request.url()),
-      5000
-    );
-    expect(req).not.toBeNull();
-    await waitForCondition(
-      page,
-      () => dialogs.slice(beforeCount).some((message) => /^xforms-submit-done$/i.test(message)),
-      { timeoutMs: 5000, description: "11.11.4.b submit-done dialog" }
-    );
-  });
-});
-
-test.describe("W3C Ch11 [smoke promoted gaps]", () => {
-  /*
-     Each submit control below submits the form with a different mode. Both must replace the page
-     with form data containing the value "white".
-  */
-  test("11.1.e — mode attribute submits same color payload", async ({ page }) => {
-    // TEST-TRACE: promote 11.1.e from render smoke to request-body checks for synchronous and asynchronous submissions.
-    await loadAndWait(page, "Chapt11/11.1/11.1.e.xhtml");
-    const syncReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit with Synchronous" }));
-    const syncBody = syncReq ? (await syncReq.postData()) || "" : "";
-    expect(syncBody).toContain("white");
-    expect(syncBody).not.toContain("Acura");
-
-    await loadAndWait(page, "Chapt11/11.1/11.1.e.xhtml");
-    const asyncReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit with Asynchronous" }));
-    const asyncBody = asyncReq ? (await asyncReq.postData()) || "" : "";
-    expect(asyncBody).toContain("white");
-    expect(asyncBody).not.toContain("Acura");
-  });
-
-  /*
-     Each submit control below submits the form with a different method. Both must replace the page
-     with form data containing the values "Infiniti", "G35x", and "2005".
-  */
-  test("11.1.f — method attribute dispatches post and put", async ({ page }) => {
-    // TEST-TRACE: promote 11.1.f to verify HTTP method selection and submitted payload content.
-    await loadAndWait(page, "Chapt11/11.1/11.1.f.xhtml");
-    const postReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit by Post" }));
-    const postBody = postReq ? (await postReq.postData()) || "" : "";
-    expect(postReq?.method()).toBe("POST");
-    expect(postBody).toContain("Infiniti");
-    expect(postBody).toContain("G35x");
-    expect(postBody).toContain("2005");
-
-    await loadAndWait(page, "Chapt11/11.1/11.1.f.xhtml");
-    const putReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit by Put" }));
-    const putBody = putReq ? (await putReq.postData()) || "" : "";
-    expect(putReq?.method()).toBe("PUT");
-    expect(putBody).toContain("Infiniti");
-    expect(putBody).toContain("G35x");
-    expect(putBody).toContain("2005");
-  });
-
-  /*
-     Both submit controls must replace the page with the form data when activated.
-     With relevant=true, non-relevant dateOfPurchase must be excluded; with relevant=false it must be included.
-  */
-  test("11.1.i — relevant attribute controls non-relevant node serialization", async ({ page }) => {
-    // TEST-TRACE: promote 11.1.i to compare serialized request bodies for relevant=true vs relevant=false.
-    await loadAndWait(page, "Chapt11/11.1/11.1.i.xhtml");
-    const relevantTrueReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit (relevant=true)" }));
-    const relevantTrueBody = relevantTrueReq ? (await relevantTrueReq.postData()) || "" : "";
-    expect(relevantTrueBody).toContain("Suzuki");
-    expect(relevantTrueBody).toContain("Hayabusa 1300");
-    expect(relevantTrueBody).not.toContain("2006-04-26");
-
-    await loadAndWait(page, "Chapt11/11.1/11.1.i.xhtml");
-    const relevantFalseReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit (relevant=false)" }));
-    const relevantFalseBody = relevantFalseReq ? (await relevantFalseReq.postData()) || "" : "";
-    expect(relevantFalseBody).toContain("Suzuki");
-    expect(relevantFalseBody).toContain("Hayabusa 1300");
-    expect(relevantFalseBody).toContain("2006-04-26");
-  });
-
-  /*
-     When you activate the Submit submit control the page must be replaced by the form data.
-     The variable on the page for the content type must equal the value "application/xml".
-  */
-  test("11.1.m — mediatype attribute sets application/xml content type", async ({ page }) => {
-    // TEST-TRACE: promote 11.1.m to assert submission content-type header from mediatype attribute.
-    await loadAndWait(page, "Chapt11/11.1/11.1.m.xhtml");
-    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit" }));
-    const headers = req ? req.headers() : {};
-    expect((headers["content-type"] || "").toLowerCase()).toContain("application/xml");
-  });
-
-  /*
-     Submit (UTF-8) must include encoding="UTF-8"; Submit (ISO) must include encoding="ISO-8859-1".
-  */
-  test("11.1.n — encoding attribute controls XML declaration encoding", async ({ page }) => {
-    // TEST-TRACE: promote 11.1.n to verify encoding marker in serialized XML for both submission controls.
-    await loadAndWait(page, "Chapt11/11.1/11.1.n.xhtml");
-    const utfReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit (UTF-8)" }));
-    const utfBody = utfReq ? (await utfReq.postData()) || "" : "";
-    expect(utfBody).toMatch(/encoding=["']UTF-8["']/i);
-
-    await loadAndWait(page, "Chapt11/11.1/11.1.n.xhtml");
-    const isoReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit (ISO)" }));
-    const isoBody = isoReq ? (await isoReq.postData()) || "" : "";
-    expect(isoBody).toMatch(/encoding=["']ISO-8859-1["']/i);
-  });
-
-  /*
-     After activating Submit, XML declaration must not appear at the top of the form data.
-  */
-  test("11.1.o — omit-xml-declaration removes XML declaration", async ({ page }) => {
-    // TEST-TRACE: promote 11.1.o to assert absence of XML declaration in serialized submission body.
-    await loadAndWait(page, "Chapt11/11.1/11.1.o.xhtml");
-    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit" }));
-    const body = req ? (await req.postData()) || "" : "";
-    expect(body).not.toContain("<?xml");
-  });
-
-  /*
-     cdata-section-elements must serialize chosen element content within CDATA sections.
-  */
-  test("11.1.q — cdata-section-elements serializes selected elements as CDATA", async ({ page }) => {
-    // TEST-TRACE: promote 11.1.q to verify CDATA serialization behavior for make and year targets.
-    await loadAndWait(page, "Chapt11/11.1/11.1.q.xhtml");
-    const makeReq = await submitAndCapture(page, page.getByRole("button", { name: 'Submit (cdata="make")' }));
-    const makeBody = makeReq ? (await makeReq.postData()) || "" : "";
-    expect(makeBody).toContain("<![CDATA[Toyota]]>");
-    expect(makeBody).toContain("<model>Acura</model>");
-
-    await loadAndWait(page, "Chapt11/11.1/11.1.q.xhtml");
-    const yearReq = await submitAndCapture(page, page.getByRole("button", { name: 'Submit (cdata="year")' }));
-    const yearBody = yearReq ? (await yearReq.postData()) || "" : "";
-    expect(yearBody).toContain("<![CDATA[2005]]>");
-  });
-
-  /*
-     Activating one replace-instance control must update only that instance output.
-  */
-  test("11.1.s1 [phase1] — relative action URI resolves against source document", async ({ page }) => {
-    // TEST-TRACE: phase-1 micro-test to isolate relative @action request-path resolution from replace-instance update behavior.
-    await loadAndWait(page, "Chapt11/11.1/11.1.s1.xhtml");
-    const observedRequests: string[] = [];
-    page.on("request", (req) => {
-      observedRequests.push(`${req.method()} ${req.url()}`);
-    });
-    const requestPromise = page.waitForRequest(
-      (req) => req.method() === "GET" && /\/w3c-suite\/Chapt11\/11\.1\/11\.1\.s_data\.xml(?:\?|$)/.test(req.url()),
-      { timeout: 3000 }
-    ).catch(() => null);
-    await clickTrigger(page, "Replace Instance 2");
-    const req = await requestPromise;
-    expect(req, `Observed requests:\n${observedRequests.join("\n")}`).not.toBeNull();
-    expect(req?.url()).toContain("/w3c-suite/Chapt11/11.1/11.1.s_data.xml");
-  });
-
-  /*
-     Activating one replace-instance control must update only that instance output.
-  */
-  test("11.1.s1 — instance attribute targets only selected replacement instance", async ({ page }) => {
-    // TEST-TRACE: promote 11.1.s1 by asserting selective instance replacement for only the activated submission.
-    await loadAndWait(page, "Chapt11/11.1/11.1.s1.xhtml");
-    const before = await getFormControlText(page);
-    expect(before).toContain("This is data from instance 1.");
-    expect(before).toContain("This is data from instance 2.");
-    expect(before).toContain("This is data from instance 3.");
-
-    await clickTrigger(page, "Replace Instance 2");
-    await page.waitForTimeout(500);
-    const after = await getFormControlText(page);
-    expect(after).toContain("This is data from instance 1.");
-    expect(after).toContain("This is data from instance 3.");
-    expect(after).toContain("This is the response data.");
-    expect(after).not.toContain("This is data from instance 2.");
-  });
-
-  /*
-     Invalid instance reference must produce xforms-binding-exception message or fatal binding failure.
-  */
-  test("11.1.s2 — invalid instance reference surfaces binding exception", async ({ page }) => {
-    // TEST-TRACE: promote 11.1.s2 to verify binding-exception signaling on invalid submission instance reference.
-    const dialogs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt11/11.1/11.1.s2.xhtml");
-    const beforeCount = dialogs.length;
-    await clickTrigger(page, "Invalid Instance");
-    await page.waitForTimeout(500);
-    const newDialogs = dialogs.slice(beforeCount);
-    const rendered = await getRenderedText(page);
-    expect(
-      newDialogs.some((message) => /xforms-binding-exception/i.test(message)) ||
-      /xforms-binding-exception|fatal/i.test(rendered)
-    ).toBe(true);
-  });
-
-  /*
-     URL-encoded body must use default '&' separator and configured ';' separator respectively.
-  */
-  test("11.1.u — separator attribute changes urlencoded pair separator", async ({ page }) => {
-    // TEST-TRACE: promote 11.1.u to compare urlencoded separator behavior between default and explicit separator.
-    await loadAndWait(page, "Chapt11/11.1/11.1.u.xhtml");
-    const ampReq = await submitAndCapture(page, page.getByRole("button", { name: "Separate With '&'" }));
-    const ampBody = ampReq ? (await ampReq.postData()) || "" : "";
-    expect(ampBody).toContain("carOwner=Greg");
-    expect(ampBody).toContain("make=Toyota");
-    expect(ampBody).toContain("color=Silver");
-    expect(ampBody).toContain("&");
-
-    await loadAndWait(page, "Chapt11/11.1/11.1.u.xhtml");
-    const semiReq = await submitAndCapture(page, page.getByRole("button", { name: "Separate With ';'" }));
-    const semiBody = semiReq ? (await semiReq.postData()) || "" : "";
-    expect(semiBody).toContain("carOwner=Greg");
-    expect(semiBody).toContain("make=Toyota");
-    expect(semiBody).toContain("color=Silver");
-    expect(semiBody).toContain(";");
-  });
-
-  /*
-     Invalid targetref on replace=instance must dispatch xforms-submit-error and expose target-error.
-  */
-  test("11.10.a — invalid targetref dispatches submit-error and target-error type", async ({ page }) => {
-    // TEST-TRACE: promote 11.10.a by asserting xforms-submit-error dialog and target-error output propagation.
-    const dialogs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt11/11.10/11.10.a.xhtml");
-    const beforeCount = dialogs.length;
-    await clickTrigger(page, "Replace Instance");
-    await page.waitForTimeout(500);
-    const newDialogs = dialogs.slice(beforeCount);
-    expect(newDialogs.some((message) => /xforms-submit-error/i.test(message))).toBe(true);
-    const text = await getFormControlText(page);
-    expect(text).toContain("target-error");
-  });
-
-  /*
-     Replace Instance must keep first instance values and update second instance values.
-  */
-  test("11.10.c [phase1] — request path resolution is independent of targetref instance update", async ({ page }) => {
-    // TEST-TRACE: phase-1 micro-test to disambiguate request URI resolution from replace-instance targetref update semantics.
-    await loadAndWait(page, "Chapt11/11.10/11.10.c.xhtml");
-    const observedRequests: string[] = [];
-    const browserLogs: string[] = [];
-    page.on("request", (req) => {
-      observedRequests.push(`${req.method()} ${req.url()}`);
-    });
-    page.on("console", (msg) => {
-      browserLogs.push(msg.text());
-    });
-    const requestPromise = page.waitForRequest(
-      (req) => req.method() === "GET" && /\/w3c-suite\/Chapt11\/11\.10\/11\.10\.data\.xml(?:\?|$)/.test(req.url()),
-      { timeout: 3000 }
-    ).catch(() => null);
-    await clickTrigger(page, "Replace Instance");
-    const req = await requestPromise;
-    expect(req, `Observed requests:\n${observedRequests.join("\n")}`).not.toBeNull();
-    expect(req?.url()).toContain("/w3c-suite/Chapt11/11.10/11.10.data.xml");
-    const after = await getFormControlText(page);
-    expect(after).toContain("Henry");
-    expect(after, `Observed requests:\n${observedRequests.join("\n")}\nBrowser logs:\n${browserLogs.join("\n")}`).toContain("Janel");
-    expect(after).not.toContain("Thomas");
-  });
-
-  /*
-     Replace Instance must keep first instance values and update second instance values.
-  */
-  test("11.10.c — targetref replacement updates only second instance values", async ({ page }) => {
-    // TEST-TRACE: promote 11.10.c to validate selective second-instance replacement semantics after submission.
-    await loadAndWait(page, "Chapt11/11.10/11.10.c.xhtml");
-    const before = await getFormControlText(page);
-    expect(before).toContain("Henry");
-    expect(before).toContain("Acura");
-    expect(before).toContain("white");
-    expect(before).toContain("Thomas");
-    expect(before).toContain("Toyota");
-    expect(before).toContain("silver");
-
-    await clickTrigger(page, "Replace Instance");
-    await page.waitForTimeout(500);
-    const after = await getFormControlText(page);
-    expect(after).toContain("Henry");
-    expect(after).toContain("Acura");
-    expect(after).toContain("white");
-    expect(after).toContain("Janel");
-    expect(after).toContain("Saturn");
-    expect(after).toContain("red");
-    expect(after).not.toContain("Thomas");
-    expect(after).not.toContain("Toyota");
-    expect(after).not.toContain("silver");
-  });
-
-  /*
-     SOAP submission content type must be application/soap+xml.
-  */
-  test("11.11.2.a — SOAP submission sets application/soap+xml content type", async ({ page }) => {
-    // TEST-TRACE: promote 11.11.2.a to assert SOAP mediatype on submission request headers.
-    await loadAndWait(page, "Chapt11/11.11/11.11.2/11.11.2.a.xhtml");
-    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }));
-    const headers = req ? req.headers() : {};
-    expect((headers["content-type"] || "").toLowerCase()).toContain("application/soap+xml");
-  });
-
-  /*
-     SOAP post submission content type must be application/soap+xml.
-  */
-  test("11.11.3.b — SOAP post submission uses SOAP content type", async ({ page }) => {
-    // TEST-TRACE: promote 11.11.3.b to validate SOAP POST method and content-type handling.
-    await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.b.xhtml");
-    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }));
-    const headers = req ? req.headers() : {};
-    expect(req?.method()).toBe("POST");
-    expect((headers["content-type"] || "").toLowerCase()).toContain("application/soap+xml");
-  });
-
-  /*
-     Submit to bad URL should fail the request and may surface xforms-submit-error as a modal message.
-  */
-  test("11.5.a — failed submission emits observable error signal", async ({ page }) => {
-    // TEST-TRACE: strict criteria requires the xforms-submit-error modal for an invalid submission resource.
-    const dialogs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt11/11.5/11.5.a.xhtml");
-    const beforeCount = dialogs.length;
-    const req = await clickAndCaptureRequest(
-      page,
-      page.getByRole("button", { name: "Submit Now" }),
-      (request) => request.method() === "POST" && /invaliduri\.com(?:\/|$)/i.test(request.url()),
-      7000
-    );
-    expect(req).not.toBeNull();
-    expect(req?.method()).toBe("POST");
-    expect(req?.url()).toMatch(/invaliduri\.com(?:\/|$)/i);
-    await waitForCondition(
-      page,
-      () => dialogs.slice(beforeCount).some((message) => /^xforms-submit-error$/i.test(message)),
-      { timeoutMs: 7000, description: "xforms-submit-error dialog for invalid resource" }
-    );
-  });
-
-  /*
-     Submit To Bad URL must populate error context outputs with resource-error and failing URI.
-  */
-  test("11.5.b — submit-error context properties populate output controls", async ({ page }) => {
-    // TEST-TRACE: strict criteria requires error context outputs to include resource-error and failing URI.
-    await loadAndWait(page, "Chapt11/11.5/11.5.b.xhtml");
-    const req = await clickAndCaptureRequest(
-      page,
-      page.getByRole("button", { name: "Submit To Bad URL" }),
-      (request) => request.method() === "POST" && /invaliduri\.com8565\/inval1d(?:\?|$|\/)/i.test(request.url()),
-      7000
-    );
-    expect(req).not.toBeNull();
-    expect(req?.method()).toBe("POST");
-    expect(req?.url()).toMatch(/invaliduri\.com8565\/inval1d(?:\?|$|\/)/i);
-    await waitForCondition(
-      page,
-      async () => {
-        const text = await getFormControlText(page);
-        return text.includes("resource-error") && text.includes("http://invaliduri.com8565/inval1d");
-      },
-      { timeoutMs: 7000, description: "submit-error context outputs for 11.5.b" }
-    );
-    const text = await getFormControlText(page);
-    expect(text).toContain("resource-error");
-    expect(text).toContain("http://invaliduri.com8565/inval1d");
-  });
-
-  /*
-     @resource and resource child element must both target xformstest.org endpoint.
-  */
-  test("11.6.1.a — resource child element and @resource both target submission URI", async ({ page }) => {
-    // TEST-TRACE: promote 11.6.1.a to validate resource element precedence variants submit to the echo endpoint.
-    await loadAndWait(page, "Chapt11/11.6/11.6.1/11.6.1.a.xhtml");
-    const attrReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit (@resource)" }));
-    expect(attrReq?.url()).toContain("echo.sh");
-    expect(attrReq?.method()).toBe("PUT");
-
-    await loadAndWait(page, "Chapt11/11.6/11.6.1/11.6.1.a.xhtml");
-    const childReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit (resource element)" }));
-    expect(childReq?.url()).toContain("echo.sh");
-    expect(childReq?.method()).toBe("PUT");
-  });
-
-  /*
-     resource element value attribute must override fallback element text and bad @resource URI.
-  */
-  test("11.6.1.b — resource element value attribute drives submission endpoint", async ({ page }) => {
-    // TEST-TRACE: promote 11.6.1.b to verify dynamic resource value selects the executable submission URI.
-    await loadAndWait(page, "Chapt11/11.6/11.6.1/11.6.1.b.xhtml");
-    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit" }));
-    expect(req?.url()).toContain("echo.sh");
-    expect(req?.method()).toBe("PUT");
-  });
-
-  /*
-     Method child element value must set request method to post.
-  */
-  test("11.7.1.a — method element value sets request method", async ({ page }) => {
-    // TEST-TRACE: promote 11.7.1.a by asserting method element value expression selects POST request method.
-    await loadAndWait(page, "Chapt11/11.7/11.7.1/11.7.1.a.xhtml");
-    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit With Method" }));
-    expect(req?.method()).toBe("POST");
-  });
-
-  /*
-     Empty header name expression must prevent that header/value pair from being emitted.
-  */
-  test("11.8.1.b — empty header name suppresses header emission", async ({ page }) => {
-    // TEST-TRACE: promote 11.8.1.b to verify that empty header name does not emit the configured header value.
-    await loadAndWait(page, "Chapt11/11.8/11.8.1/11.8.1.b.xhtml");
-    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Now" }));
-    const headers = req ? req.headers() : {};
-    const headerValues = Object.values(headers).map((value) => String(value));
-    expect(headerValues.some((value) => value.includes("myValue"))).toBe(false);
-    expect(Object.keys(headers).some((name) => name.toLowerCase() === "myheader")).toBe(false);
-  });
-});
-
 test.describe("W3C Ch11 [behavioral promoted]", () => {
   /*
      When you activate the Submit Make And Model trigger the page must be replaced by the form data.
@@ -1269,5 +555,719 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     expect(loadReq?.method()).toBe("GET");
     const loadResponse = loadReq ? await loadReq.response() : null;
     expect(loadResponse?.status()).toBe(404);
+  });
+});
+
+test.describe("W3C Ch11 [smoke promoted gaps]", () => {
+  /*
+     Each submit control below submits the form with a different mode. Both must replace the page
+     with form data containing the value "white".
+  */
+  test("11.1.e — mode attribute submits same color payload", async ({ page }) => {
+    // TEST-TRACE: promote 11.1.e from render smoke to request-body checks for synchronous and asynchronous submissions.
+    await loadAndWait(page, "Chapt11/11.1/11.1.e.xhtml");
+    const syncReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit with Synchronous" }));
+    const syncBody = syncReq ? (await syncReq.postData()) || "" : "";
+    expect(syncBody).toContain("white");
+    expect(syncBody).not.toContain("Acura");
+
+    await loadAndWait(page, "Chapt11/11.1/11.1.e.xhtml");
+    const asyncReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit with Asynchronous" }));
+    const asyncBody = asyncReq ? (await asyncReq.postData()) || "" : "";
+    expect(asyncBody).toContain("white");
+    expect(asyncBody).not.toContain("Acura");
+  });
+
+  /*
+     Each submit control below submits the form with a different method. Both must replace the page
+     with form data containing the values "Infiniti", "G35x", and "2005".
+  */
+  test("11.1.f — method attribute dispatches post and put", async ({ page }) => {
+    // TEST-TRACE: promote 11.1.f to verify HTTP method selection and submitted payload content.
+    await loadAndWait(page, "Chapt11/11.1/11.1.f.xhtml");
+    const postReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit by Post" }));
+    const postBody = postReq ? (await postReq.postData()) || "" : "";
+    expect(postReq?.method()).toBe("POST");
+    expect(postBody).toContain("Infiniti");
+    expect(postBody).toContain("G35x");
+    expect(postBody).toContain("2005");
+
+    await loadAndWait(page, "Chapt11/11.1/11.1.f.xhtml");
+    const putReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit by Put" }));
+    const putBody = putReq ? (await putReq.postData()) || "" : "";
+    expect(putReq?.method()).toBe("PUT");
+    expect(putBody).toContain("Infiniti");
+    expect(putBody).toContain("G35x");
+    expect(putBody).toContain("2005");
+  });
+
+  /*
+     Both submit controls must replace the page with the form data when activated.
+     With relevant=true, non-relevant dateOfPurchase must be excluded; with relevant=false it must be included.
+  */
+  test("11.1.i — relevant attribute controls non-relevant node serialization", async ({ page }) => {
+    // TEST-TRACE: promote 11.1.i to compare serialized request bodies for relevant=true vs relevant=false.
+    await loadAndWait(page, "Chapt11/11.1/11.1.i.xhtml");
+    const relevantTrueReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit (relevant=true)" }));
+    const relevantTrueBody = relevantTrueReq ? (await relevantTrueReq.postData()) || "" : "";
+    expect(relevantTrueBody).toContain("Suzuki");
+    expect(relevantTrueBody).toContain("Hayabusa 1300");
+    expect(relevantTrueBody).not.toContain("2006-04-26");
+
+    await loadAndWait(page, "Chapt11/11.1/11.1.i.xhtml");
+    const relevantFalseReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit (relevant=false)" }));
+    const relevantFalseBody = relevantFalseReq ? (await relevantFalseReq.postData()) || "" : "";
+    expect(relevantFalseBody).toContain("Suzuki");
+    expect(relevantFalseBody).toContain("Hayabusa 1300");
+    expect(relevantFalseBody).toContain("2006-04-26");
+  });
+
+  /*
+     When you activate the Submit submit control the page must be replaced by the form data.
+     The variable on the page for the content type must equal the value "application/xml".
+  */
+  test("11.1.m — mediatype attribute sets application/xml content type", async ({ page }) => {
+    // TEST-TRACE: promote 11.1.m to assert submission content-type header from mediatype attribute.
+    await loadAndWait(page, "Chapt11/11.1/11.1.m.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit" }));
+    const headers = req ? req.headers() : {};
+    expect((headers["content-type"] || "").toLowerCase()).toContain("application/xml");
+  });
+
+  /*
+     Submit (UTF-8) must include encoding="UTF-8"; Submit (ISO) must include encoding="ISO-8859-1".
+  */
+  test("11.1.n — encoding attribute controls XML declaration encoding", async ({ page }) => {
+    // TEST-TRACE: promote 11.1.n to verify encoding marker in serialized XML for both submission controls.
+    await loadAndWait(page, "Chapt11/11.1/11.1.n.xhtml");
+    const utfReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit (UTF-8)" }));
+    const utfBody = utfReq ? (await utfReq.postData()) || "" : "";
+    expect(utfBody).toMatch(/encoding=["']UTF-8["']/i);
+
+    await loadAndWait(page, "Chapt11/11.1/11.1.n.xhtml");
+    const isoReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit (ISO)" }));
+    const isoBody = isoReq ? (await isoReq.postData()) || "" : "";
+    expect(isoBody).toMatch(/encoding=["']ISO-8859-1["']/i);
+  });
+
+  /*
+     After activating Submit, XML declaration must not appear at the top of the form data.
+  */
+  test("11.1.o — omit-xml-declaration removes XML declaration", async ({ page }) => {
+    // TEST-TRACE: promote 11.1.o to assert absence of XML declaration in serialized submission body.
+    await loadAndWait(page, "Chapt11/11.1/11.1.o.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit" }));
+    const body = req ? (await req.postData()) || "" : "";
+    expect(body).not.toContain("<?xml");
+  });
+
+  /*
+     cdata-section-elements must serialize chosen element content within CDATA sections.
+  */
+  test("11.1.q — cdata-section-elements serializes selected elements as CDATA", async ({ page }) => {
+    // TEST-TRACE: promote 11.1.q to verify CDATA serialization behavior for make and year targets.
+    await loadAndWait(page, "Chapt11/11.1/11.1.q.xhtml");
+    const makeReq = await submitAndCapture(page, page.getByRole("button", { name: 'Submit (cdata="make")' }));
+    const makeBody = makeReq ? (await makeReq.postData()) || "" : "";
+    expect(makeBody).toContain("<![CDATA[Toyota]]>");
+    expect(makeBody).toContain("<model>Acura</model>");
+
+    await loadAndWait(page, "Chapt11/11.1/11.1.q.xhtml");
+    const yearReq = await submitAndCapture(page, page.getByRole("button", { name: 'Submit (cdata="year")' }));
+    const yearBody = yearReq ? (await yearReq.postData()) || "" : "";
+    expect(yearBody).toContain("<![CDATA[2005]]>");
+  });
+
+  /*
+     Activating one replace-instance control must update only that instance output.
+  */
+  test("11.1.s1 [phase1] — relative action URI resolves against source document", async ({ page }) => {
+    // TEST-TRACE: phase-1 micro-test to isolate relative @action request-path resolution from replace-instance update behavior.
+    await loadAndWait(page, "Chapt11/11.1/11.1.s1.xhtml");
+    const observedRequests: string[] = [];
+    page.on("request", (req) => {
+      observedRequests.push(`${req.method()} ${req.url()}`);
+    });
+    const requestPromise = page.waitForRequest(
+      (req) => req.method() === "GET" && /\/w3c-suite\/Chapt11\/11\.1\/11\.1\.s_data\.xml(?:\?|$)/.test(req.url()),
+      { timeout: 3000 }
+    ).catch(() => null);
+    await clickTrigger(page, "Replace Instance 2");
+    const req = await requestPromise;
+    expect(req, `Observed requests:\n${observedRequests.join("\n")}`).not.toBeNull();
+    expect(req?.url()).toContain("/w3c-suite/Chapt11/11.1/11.1.s_data.xml");
+  });
+
+  /*
+     Activating one replace-instance control must update only that instance output.
+  */
+  test("11.1.s1 — instance attribute targets only selected replacement instance", async ({ page }) => {
+    // TEST-TRACE: promote 11.1.s1 by asserting selective instance replacement for only the activated submission.
+    await loadAndWait(page, "Chapt11/11.1/11.1.s1.xhtml");
+    const before = await getFormControlText(page);
+    expect(before).toContain("This is data from instance 1.");
+    expect(before).toContain("This is data from instance 2.");
+    expect(before).toContain("This is data from instance 3.");
+
+    await clickTrigger(page, "Replace Instance 2");
+    await page.waitForTimeout(500);
+    const after = await getFormControlText(page);
+    expect(after).toContain("This is data from instance 1.");
+    expect(after).toContain("This is data from instance 3.");
+    expect(after).toContain("This is the response data.");
+    expect(after).not.toContain("This is data from instance 2.");
+  });
+
+  /*
+     Invalid instance reference must produce xforms-binding-exception message or fatal binding failure.
+  */
+  test("11.1.s2 — invalid instance reference surfaces binding exception", async ({ page }) => {
+    // TEST-TRACE: promote 11.1.s2 to verify binding-exception signaling on invalid submission instance reference.
+    const dialogs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt11/11.1/11.1.s2.xhtml");
+    const beforeCount = dialogs.length;
+    await clickTrigger(page, "Invalid Instance");
+    await page.waitForTimeout(500);
+    const newDialogs = dialogs.slice(beforeCount);
+    const rendered = await getRenderedText(page);
+    expect(
+      newDialogs.some((message) => /xforms-binding-exception/i.test(message)) ||
+      /xforms-binding-exception|fatal/i.test(rendered)
+    ).toBe(true);
+  });
+
+  /*
+     URL-encoded body must use default '&' separator and configured ';' separator respectively.
+  */
+  test("11.1.u — separator attribute changes urlencoded pair separator", async ({ page }) => {
+    // TEST-TRACE: promote 11.1.u to compare urlencoded separator behavior between default and explicit separator.
+    await loadAndWait(page, "Chapt11/11.1/11.1.u.xhtml");
+    const ampReq = await submitAndCapture(page, page.getByRole("button", { name: "Separate With '&'" }));
+    const ampBody = ampReq ? (await ampReq.postData()) || "" : "";
+    expect(ampBody).toContain("carOwner=Greg");
+    expect(ampBody).toContain("make=Toyota");
+    expect(ampBody).toContain("color=Silver");
+    expect(ampBody).toContain("&");
+
+    await loadAndWait(page, "Chapt11/11.1/11.1.u.xhtml");
+    const semiReq = await submitAndCapture(page, page.getByRole("button", { name: "Separate With ';'" }));
+    const semiBody = semiReq ? (await semiReq.postData()) || "" : "";
+    expect(semiBody).toContain("carOwner=Greg");
+    expect(semiBody).toContain("make=Toyota");
+    expect(semiBody).toContain("color=Silver");
+    expect(semiBody).toContain(";");
+  });
+
+  /*
+     Invalid targetref on replace=instance must dispatch xforms-submit-error and expose target-error.
+  */
+  test("11.10.a — invalid targetref dispatches submit-error and target-error type", async ({ page }) => {
+    // TEST-TRACE: promote 11.10.a by asserting xforms-submit-error dialog and target-error output propagation.
+    const dialogs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt11/11.10/11.10.a.xhtml");
+    const beforeCount = dialogs.length;
+    await clickTrigger(page, "Replace Instance");
+    await page.waitForTimeout(500);
+    const newDialogs = dialogs.slice(beforeCount);
+    expect(newDialogs.some((message) => /xforms-submit-error/i.test(message))).toBe(true);
+    const text = await getFormControlText(page);
+    expect(text).toContain("target-error");
+  });
+
+  /*
+     Replace Instance must keep first instance values and update second instance values.
+  */
+  test("11.10.c [phase1] — request path resolution is independent of targetref instance update", async ({ page }) => {
+    // TEST-TRACE: phase-1 micro-test to disambiguate request URI resolution from replace-instance targetref update semantics.
+    await loadAndWait(page, "Chapt11/11.10/11.10.c.xhtml");
+    const observedRequests: string[] = [];
+    const browserLogs: string[] = [];
+    page.on("request", (req) => {
+      observedRequests.push(`${req.method()} ${req.url()}`);
+    });
+    page.on("console", (msg) => {
+      browserLogs.push(msg.text());
+    });
+    const requestPromise = page.waitForRequest(
+      (req) => req.method() === "GET" && /\/w3c-suite\/Chapt11\/11\.10\/11\.10\.data\.xml(?:\?|$)/.test(req.url()),
+      { timeout: 3000 }
+    ).catch(() => null);
+    await clickTrigger(page, "Replace Instance");
+    const req = await requestPromise;
+    expect(req, `Observed requests:\n${observedRequests.join("\n")}`).not.toBeNull();
+    expect(req?.url()).toContain("/w3c-suite/Chapt11/11.10/11.10.data.xml");
+    const after = await getFormControlText(page);
+    expect(after).toContain("Henry");
+    expect(after, `Observed requests:\n${observedRequests.join("\n")}\nBrowser logs:\n${browserLogs.join("\n")}`).toContain("Janel");
+    expect(after).not.toContain("Thomas");
+  });
+
+  /*
+     Replace Instance must keep first instance values and update second instance values.
+  */
+  test("11.10.c — targetref replacement updates only second instance values", async ({ page }) => {
+    // TEST-TRACE: promote 11.10.c to validate selective second-instance replacement semantics after submission.
+    await loadAndWait(page, "Chapt11/11.10/11.10.c.xhtml");
+    const before = await getFormControlText(page);
+    expect(before).toContain("Henry");
+    expect(before).toContain("Acura");
+    expect(before).toContain("white");
+    expect(before).toContain("Thomas");
+    expect(before).toContain("Toyota");
+    expect(before).toContain("silver");
+
+    await clickTrigger(page, "Replace Instance");
+    await page.waitForTimeout(500);
+    const after = await getFormControlText(page);
+    expect(after).toContain("Henry");
+    expect(after).toContain("Acura");
+    expect(after).toContain("white");
+    expect(after).toContain("Janel");
+    expect(after).toContain("Saturn");
+    expect(after).toContain("red");
+    expect(after).not.toContain("Thomas");
+    expect(after).not.toContain("Toyota");
+    expect(after).not.toContain("silver");
+  });
+
+  /*
+     SOAP submission content type must be application/soap+xml.
+  */
+  test("11.11.2.a — SOAP submission sets application/soap+xml content type", async ({ page }) => {
+    // TEST-TRACE: promote 11.11.2.a to assert SOAP mediatype on submission request headers.
+    await loadAndWait(page, "Chapt11/11.11/11.11.2/11.11.2.a.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }));
+    const headers = req ? req.headers() : {};
+    expect((headers["content-type"] || "").toLowerCase()).toContain("application/soap+xml");
+  });
+
+  /*
+     SOAP post submission content type must be application/soap+xml.
+  */
+  test("11.11.3.b — SOAP post submission uses SOAP content type", async ({ page }) => {
+    // TEST-TRACE: promote 11.11.3.b to validate SOAP POST method and content-type handling.
+    await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.b.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }));
+    const headers = req ? req.headers() : {};
+    expect(req?.method()).toBe("POST");
+    expect((headers["content-type"] || "").toLowerCase()).toContain("application/soap+xml");
+  });
+
+  /*
+     Submit to bad URL should fail the request and may surface xforms-submit-error as a modal message.
+  */
+  test("11.5.a — failed submission emits observable error signal", async ({ page }) => {
+    // TEST-TRACE: strict criteria requires the xforms-submit-error modal for an invalid submission resource.
+    const dialogs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt11/11.5/11.5.a.xhtml");
+    const beforeCount = dialogs.length;
+    const req = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: "Submit Now" }),
+      (request) => request.method() === "POST" && /invaliduri\.com(?:\/|$)/i.test(request.url()),
+      7000
+    );
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("POST");
+    expect(req?.url()).toMatch(/invaliduri\.com(?:\/|$)/i);
+    await waitForCondition(
+      page,
+      () => dialogs.slice(beforeCount).some((message) => /^xforms-submit-error$/i.test(message)),
+      { timeoutMs: 7000, description: "xforms-submit-error dialog for invalid resource" }
+    );
+  });
+
+  /*
+     Submit To Bad URL must populate error context outputs with resource-error and failing URI.
+  */
+  test("11.5.b — submit-error context properties populate output controls", async ({ page }) => {
+    // TEST-TRACE: strict criteria requires error context outputs to include resource-error and failing URI.
+    await loadAndWait(page, "Chapt11/11.5/11.5.b.xhtml");
+    const req = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: "Submit To Bad URL" }),
+      (request) => request.method() === "POST" && /invaliduri\.com8565\/inval1d(?:\?|$|\/)/i.test(request.url()),
+      7000
+    );
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("POST");
+    expect(req?.url()).toMatch(/invaliduri\.com8565\/inval1d(?:\?|$|\/)/i);
+    await waitForCondition(
+      page,
+      async () => {
+        const text = await getFormControlText(page);
+        return text.includes("resource-error") && text.includes("http://invaliduri.com8565/inval1d");
+      },
+      { timeoutMs: 7000, description: "submit-error context outputs for 11.5.b" }
+    );
+    const text = await getFormControlText(page);
+    expect(text).toContain("resource-error");
+    expect(text).toContain("http://invaliduri.com8565/inval1d");
+  });
+
+  /*
+     @resource and resource child element must both target xformstest.org endpoint.
+  */
+  test("11.6.1.a — resource child element and @resource both target submission URI", async ({ page }) => {
+    // TEST-TRACE: promote 11.6.1.a to validate resource element precedence variants submit to the echo endpoint.
+    await loadAndWait(page, "Chapt11/11.6/11.6.1/11.6.1.a.xhtml");
+    const attrReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit (@resource)" }));
+    expect(attrReq?.url()).toContain("echo.sh");
+    expect(attrReq?.method()).toBe("PUT");
+
+    await loadAndWait(page, "Chapt11/11.6/11.6.1/11.6.1.a.xhtml");
+    const childReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit (resource element)" }));
+    expect(childReq?.url()).toContain("echo.sh");
+    expect(childReq?.method()).toBe("PUT");
+  });
+
+  /*
+     resource element value attribute must override fallback element text and bad @resource URI.
+  */
+  test("11.6.1.b — resource element value attribute drives submission endpoint", async ({ page }) => {
+    // TEST-TRACE: promote 11.6.1.b to verify dynamic resource value selects the executable submission URI.
+    await loadAndWait(page, "Chapt11/11.6/11.6.1/11.6.1.b.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit" }));
+    expect(req?.url()).toContain("echo.sh");
+    expect(req?.method()).toBe("PUT");
+  });
+
+  /*
+     Method child element value must set request method to post.
+  */
+  test("11.7.1.a — method element value sets request method", async ({ page }) => {
+    // TEST-TRACE: promote 11.7.1.a by asserting method element value expression selects POST request method.
+    await loadAndWait(page, "Chapt11/11.7/11.7.1/11.7.1.a.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit With Method" }));
+    expect(req?.method()).toBe("POST");
+  });
+
+  /*
+     Empty header name expression must prevent that header/value pair from being emitted.
+  */
+  test("11.8.1.b — empty header name suppresses header emission", async ({ page }) => {
+    // TEST-TRACE: promote 11.8.1.b to verify that empty header name does not emit the configured header value.
+    await loadAndWait(page, "Chapt11/11.8/11.8.1/11.8.1.b.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Now" }));
+    const headers = req ? req.headers() : {};
+    const headerValues = Object.values(headers).map((value) => String(value));
+    expect(headerValues.some((value) => value.includes("myValue"))).toBe(false);
+    expect(Object.keys(headers).some((name) => name.toLowerCase() === "myheader")).toBe(false);
+  });
+});
+
+test.describe("W3C Ch11 [remaining promoted cases]", () => {
+  const getHeaderValue = (headers: Record<string, string>, headerName: string): string => {
+    const match = Object.entries(headers).find(([name]) => name.toLowerCase() === headerName.toLowerCase());
+    return match ? String(match[1]) : "";
+  };
+
+  const normalize = (value: string): string => value.replace(/\s+/g, " ").trim();
+
+  async function runHttpMethodCase(
+    page: any,
+    file: string,
+    buttonLabel: string,
+    expectedMethod: "GET" | "POST" | "PUT",
+    expectedProtocol: "http:" | "https:"
+  ) {
+    await loadAndWait(page, file);
+    const req = await submitAndCapture(page, page.getByRole("button", { name: buttonLabel }), 5000);
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe(expectedMethod);
+    if (req) {
+      expect(new URL(req.url()).protocol).toBe(expectedProtocol);
+      const body = (await req.postData()) || "";
+      if (expectedMethod === "GET") {
+        expect(body).toBe("");
+      } else {
+        expect(body).toContain("Henry");
+      }
+    }
+  }
+
+  async function runSerializationCase(
+    page: any,
+    file: string,
+    expectedMethod: "POST" | "PUT",
+    expectedMediaType: string
+  ) {
+    await loadAndWait(page, file);
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Data" }), 5000);
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe(expectedMethod);
+    if (req) {
+      const headers = req.headers();
+      const contentType = getHeaderValue(headers, "content-type").toLowerCase();
+      const body = (await req.postData()) || "";
+      expect(contentType).toContain(expectedMediaType);
+      expect(body).toContain("Henry");
+      expect(body).toContain("Acura");
+      expect(body.toLowerCase()).toContain("white");
+    }
+  }
+
+  async function runNonHttpResourceErrorCase(
+    page: any,
+    file: string,
+    buttonLabel: string,
+    expectedResourceUriPrefix: string
+  ) {
+    await loadAndWait(page, file);
+    await clearDispatchedEvents(page);
+    const beforeUrl = page.url();
+    const req = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: buttonLabel }),
+      (request) => /\/echo\.sh(?:\?|$)/i.test(request.url()),
+      1500
+    );
+    expect(req).toBeNull();
+    expect(page.url()).toBe(beforeUrl);
+
+    const events = await getDispatchedEvents(page);
+    const submitErrorEvents = events.filter((event) => event.name.toLowerCase() === "xforms-submit-error");
+    if (submitErrorEvents.length > 0) {
+      const matchingSubmitError = submitErrorEvents.find((event) => {
+        const errorType = (event.context["error-type"] || "").toLowerCase();
+        const resourceUri = (event.context["resource-uri"] || "").toLowerCase();
+        return (
+          errorType === "resource-error" &&
+          resourceUri.startsWith(expectedResourceUriPrefix.toLowerCase())
+        );
+      });
+      expect(matchingSubmitError || submitErrorEvents[0]).toBeTruthy();
+    }
+  }
+
+  test("11.1.k — version variants submit comparable payloads", async ({ page }) => {
+    await loadAndWait(page, "Chapt11/11.1/11.1.k.xhtml");
+    const v10 = await submitAndCapture(page, page.getByRole("button", { name: "Submit as 1.0" }), 5000);
+    const v10Body = v10 ? normalize((await v10.postData()) || "") : "";
+    expect(v10).not.toBeNull();
+    expect(v10?.method()).toBe("POST");
+    expect(v10Body).toContain("Acura");
+    expect(v10Body).toContain("2005");
+
+    await loadAndWait(page, "Chapt11/11.1/11.1.k.xhtml");
+    const v11 = await submitAndCapture(page, page.getByRole("button", { name: "Submit as 1.1" }), 5000);
+    const v11Body = v11 ? normalize((await v11.postData()) || "") : "";
+    expect(v11).not.toBeNull();
+    expect(v11?.method()).toBe("POST");
+    expect(v11Body).toContain("Acura");
+    expect(v11Body).toContain("2005");
+  });
+
+  test("11.1.l — indent variants submit the same data model", async ({ page }) => {
+    await loadAndWait(page, "Chapt11/11.1/11.1.l.xhtml");
+    const noIndent = await submitAndCapture(page, page.getByRole("button", { name: "Submit Without indent" }), 5000);
+    const noIndentBody = noIndent ? normalize((await noIndent.postData()) || "") : "";
+    expect(noIndent).not.toBeNull();
+    expect(noIndent?.method()).toBe("POST");
+    expect(noIndentBody).toContain("Acura");
+    expect(noIndentBody).toContain("blue");
+
+    await loadAndWait(page, "Chapt11/11.1/11.1.l.xhtml");
+    const withIndent = await submitAndCapture(page, page.getByRole("button", { name: "Submit With indent" }), 5000);
+    const withIndentBody = withIndent ? normalize((await withIndent.postData()) || "") : "";
+    expect(withIndent).not.toBeNull();
+    expect(withIndent?.method()).toBe("POST");
+    expect(withIndentBody).toContain("Acura");
+    expect(withIndentBody).toContain("blue");
+  });
+
+  test("11.3.a — submit-serialize event fires and payload contains Toyota/Prius", async ({ page }) => {
+    const dialogs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt11/11.3/11.3.a.xhtml");
+    const beforeCount = dialogs.length;
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Now" }), 5000);
+    const body = req ? (await req.postData()) || "" : "";
+    expect(req).not.toBeNull();
+    await waitForCondition(
+      page,
+      () => dialogs.slice(beforeCount).some((message) => /^xforms-submit-serialize$/i.test(message)),
+      { timeoutMs: 5000, description: "11.3.a submit serialize dialog" }
+    );
+    expect(body).toContain("Toyota");
+    expect(body).toContain("Prius");
+  });
+
+  test("11.9.5.a — default XML serialization uses application/xml", async ({ page }) => {
+    await runSerializationCase(page, "Chapt11/11.9/11.9.5/11.9.5.a.xhtml", "PUT", "application/xml");
+  });
+
+  test("11.9.6.a — multipart-post serialization submits deterministic XML payload", async ({ page }) => {
+    await runSerializationCase(page, "Chapt11/11.9/11.9.6/11.9.6.a.xhtml", "POST", "application/xml");
+  });
+  test("11.9.7.a — form-data-post serialization submits deterministic XML payload", async ({ page }) => {
+    await runSerializationCase(page, "Chapt11/11.9/11.9.7/11.9.7.a.xhtml", "POST", "application/xml");
+  });
+
+  test("11.9.a — HTTP post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.a.xhtml", "Post Data", "POST", "http:");
+  });
+
+  test("11.9.b — HTTP get submission uses GET", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.b.xhtml", "Get Data", "GET", "http:");
+  });
+
+  test("11.9.c — HTTP put submission uses PUT", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.c.xhtml", "Put Data", "PUT", "http:");
+  });
+
+  test("11.9.d — HTTP multipart-post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.d.xhtml", "Post Data", "POST", "http:");
+  });
+
+  test("11.9.e — HTTP form-data-post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.e.xhtml", "Post Data", "POST", "http:");
+  });
+
+  test("11.9.f — HTTP urlencoded-post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.f.xhtml", "Post Data", "POST", "http:");
+  });
+
+  test("11.9.g — HTTPS post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.g.xhtml", "Post Data", "POST", "https:");
+  });
+
+  test("11.9.h — HTTPS get submission uses GET", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.h.xhtml", "Get Data", "GET", "https:");
+  });
+
+  test("11.9.i — HTTPS put submission uses PUT", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.i.xhtml", "Put Data", "PUT", "https:");
+  });
+
+  test("11.9.j — HTTPS multipart-post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.j.xhtml", "Post Data", "POST", "https:");
+  });
+
+  test("11.9.k — HTTPS form-data-post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.k.xhtml", "Post Data", "POST", "https:");
+  });
+
+  test("11.9.l — HTTPS urlencoded-post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.l.xhtml", "Post Data", "POST", "https:");
+  });
+
+  test("11.9.m — mailto post dispatches resource-error without HTTP request", async ({ page }) => {
+    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.m.xhtml", "Post Data", "mailto:no-one@w3.org");
+  });
+
+  test("11.9.n — file get dispatches resource-error without HTTP request", async ({ page }) => {
+    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.n.xhtml", "Get Data", "file:11.9.n.data.xml");
+  });
+
+  test("11.9.o — file put dispatches resource-error without HTTP request", async ({ page }) => {
+    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.o.xhtml", "Put Data", "file:11.9.o.data.xml");
+  });
+
+  test("11.9.p — mailto urlencoded-post dispatches resource-error without HTTP request", async ({ page }) => {
+    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.p.xhtml", "Post Data", "mailto:no-one@w3.org");
+  });
+
+  test("11.9.q — mailto form-data-post dispatches resource-error without HTTP request", async ({ page }) => {
+    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.q.xhtml", "Post Data", "mailto:no-one@w3.org");
+  });
+
+  test("11.11.1.a — SOAP envelope submission serializes soap:Envelope payload", async ({ page }) => {
+    await loadAndWait(page, "Chapt11/11.11/11.11.1/11.11.1.a.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
+    const headers = req ? req.headers() : {};
+    const body = req ? (await req.postData()) || "" : "";
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("POST");
+    expect(getHeaderValue(headers, "content-type").toLowerCase()).toContain("application/soap+xml");
+    expect(body).toMatch(/Envelope/i);
+    expect(body).toContain("This is the message");
+  });
+
+  test("11.11.3.a — SOAP GET request remains deterministic with default accept header", async ({ page }) => {
+    await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.a.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
+    const headers = req ? req.headers() : {};
+    const accept = getHeaderValue(headers, "accept");
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("GET");
+    expect(accept).toBe("*/*");
+  });
+
+  test("11.11.3.c — SOAP POST keeps mediatype and action metadata on Content-Type", async ({ page }) => {
+    await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.c.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
+    const headers = req ? req.headers() : {};
+    const contentType = getHeaderValue(headers, "content-type");
+    const soapAction = getHeaderValue(headers, "soapaction");
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("POST");
+    expect(contentType.toLowerCase()).toContain("application/soap+xml");
+    expect(contentType.toUpperCase()).toContain("ASCII");
+    expect(
+      soapAction.includes("http://www.google.com") ||
+      contentType.toLowerCase().includes("action=http://www.google.com")
+    ).toBe(true);
+  });
+
+  test("11.11.3.d — SOAP GET with encoding remains deterministic with default accept header", async ({ page }) => {
+    await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.d.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
+    const headers = req ? req.headers() : {};
+    const accept = getHeaderValue(headers, "accept");
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("GET");
+    expect(accept).toBe("*/*");
+  });
+
+  test("11.11.3.e — SOAP POST with encoding sets application/soap+xml and UTF-8", async ({ page }) => {
+    await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.e.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
+    const headers = req ? req.headers() : {};
+    const contentType = getHeaderValue(headers, "content-type");
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("POST");
+    expect(contentType.toLowerCase()).toContain("application/soap+xml");
+    expect(contentType.toUpperCase()).toContain("UTF-8");
+  });
+
+  test("11.11.4.a — forced SOAP failure dispatches xforms-submit-error", async ({ page }) => {
+    const dialogs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt11/11.11/11.11.4/11.11.4.a.xhtml");
+    await forceOneShotEndpointFailure(page, /\/echo\.sh(?:\?|$)/i, {
+      status: 500,
+      contentType: "application/xml",
+      body: "<?xml version=\"1.0\"?><error>forced failure</error>",
+    });
+    const beforeCount = dialogs.length;
+    const req = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: "Submit SOAP" }),
+      (request) => /\/echo\.sh(?:\?|$)/i.test(request.url()),
+      5000
+    );
+    expect(req).not.toBeNull();
+    await waitForCondition(
+      page,
+      () => dialogs.slice(beforeCount).some((message) => /^xforms-submit-error$/i.test(message)),
+      { timeoutMs: 5000, description: "11.11.4.a submit-error dialog" }
+    );
+  });
+
+  test("11.11.4.b — successful SOAP response dispatches xforms-submit-done", async ({ page }) => {
+    const dialogs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt11/11.11/11.11.4/11.11.4.b.xhtml");
+    const beforeCount = dialogs.length;
+    const req = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: "Submit SOAP" }),
+      (request) => /\/echo\.sh(?:\?|$)/i.test(request.url()),
+      5000
+    );
+    expect(req).not.toBeNull();
+    await waitForCondition(
+      page,
+      () => dialogs.slice(beforeCount).some((message) => /^xforms-submit-done$/i.test(message)),
+      { timeoutMs: 5000, description: "11.11.4.b submit-done dialog" }
+    );
   });
 });
