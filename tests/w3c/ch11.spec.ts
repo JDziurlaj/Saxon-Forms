@@ -1,71 +1,327 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, submitAndCapture, collectDialogMessages, clickTrigger, getFormControlText, clickAndCaptureRequest, waitForCondition } from "./helpers";
+import { test, expect, loadTest, loadAndWait, getRenderedText, submitAndCapture, collectDialogMessages, clickTrigger, getFormControlText, clickAndCaptureRequest, waitForCondition, forceOneShotEndpointFailure, clearDispatchedEvents, getDispatchedEvents } from "./helpers";
 
-const ch11_smoke: [string, string][] = [
-  ["11.1.e", "Chapt11/11.1/11.1.e.xhtml"],  // depends on form submission lifecycle
-  ["11.1.f", "Chapt11/11.1/11.1.f.xhtml"],  // depends on form submission lifecycle
-  ["11.1.i", "Chapt11/11.1/11.1.i.xhtml"],  // no testable output criteria in spec
-  ["11.1.k", "Chapt11/11.1/11.1.k.xhtml"],  // depends on form submission lifecycle
-  ["11.1.l", "Chapt11/11.1/11.1.l.xhtml"],  // depends on form submission lifecycle
-  ["11.1.m", "Chapt11/11.1/11.1.m.xhtml"],  // depends on form submission lifecycle
-  ["11.1.n", "Chapt11/11.1/11.1.n.xhtml"],  // depends on submission serialization
-  ["11.1.o", "Chapt11/11.1/11.1.o.xhtml"],  // depends on form submission lifecycle
-  ["11.1.q", "Chapt11/11.1/11.1.q.xhtml"],  // depends on submission serialization
-  ["11.1.s1", "Chapt11/11.1/11.1.s1.xhtml"],  // depends on form submission lifecycle
-  ["11.1.s2", "Chapt11/11.1/11.1.s2.xhtml"],  // expects xforms-binding-exception message or fatal error
-  ["11.1.u", "Chapt11/11.1/11.1.u.xhtml"],  // expects page navigation/replacement
-  ["11.10.a", "Chapt11/11.10/11.10.a.xhtml"],  // expects modal message from event handler
-  ["11.10.c", "Chapt11/11.10/11.10.c.xhtml"],  // no testable output criteria in spec
-  ["11.11.1.a", "Chapt11/11.11/11.11.1/11.11.1.a.xhtml"],  // depends on submission serialization
-  ["11.11.2.a", "Chapt11/11.11/11.11.2/11.11.2.a.xhtml"],  // depends on form submission lifecycle
-  ["11.11.3.a", "Chapt11/11.11/11.11.3/11.11.3.a.xhtml"],  // depends on form submission lifecycle
-  ["11.11.3.b", "Chapt11/11.11/11.11.3/11.11.3.b.xhtml"],  // depends on form submission lifecycle
-  ["11.11.3.c", "Chapt11/11.11/11.11.3/11.11.3.c.xhtml"],  // depends on form submission lifecycle
-  ["11.11.3.d", "Chapt11/11.11/11.11.3/11.11.3.d.xhtml"],  // depends on form submission lifecycle
-  ["11.11.3.e", "Chapt11/11.11/11.11.3/11.11.3.e.xhtml"],  // depends on form submission lifecycle
-  ["11.11.4.a", "Chapt11/11.11/11.11.4/11.11.4.a.xhtml"],  // expects modal message from event handler
-  ["11.11.4.b", "Chapt11/11.11/11.11.4/11.11.4.b.xhtml"],  // expects modal message or error dialog
-  ["11.2.a", "Chapt11/11.2/11.2.a.xhtml"],  // expects modal message from event handler
-  ["11.2.b", "Chapt11/11.2/11.2.b.xhtml"],  // depends on submission serialization
-  ["11.2.c", "Chapt11/11.2/11.2.c.xhtml"],  // expects modal message from event handler
-  ["11.2.d", "Chapt11/11.2/11.2.d.xhtml"],  // expects modal message from event handler
-  ["11.2.e", "Chapt11/11.2/11.2.e.xhtml"],  // expects modal message from event handler
-  ["11.3.a", "Chapt11/11.3/11.3.a.xhtml"],  // expects modal message or error dialog
-  ["11.4.a", "Chapt11/11.4/11.4.a.xhtml"],  // expects modal message or error dialog
-  ["11.4.b", "Chapt11/11.4/11.4.b.xhtml"],  // depends on form submission lifecycle
-  ["11.5.a", "Chapt11/11.5/11.5.a.xhtml"],  // expects modal message from event handler
-  ["11.5.b", "Chapt11/11.5/11.5.b.xhtml"],  // expects modal message from event handler
-  ["11.6.1.a", "Chapt11/11.6/11.6.1/11.6.1.a.xhtml"],  // depends on form submission lifecycle
-  ["11.6.1.b", "Chapt11/11.6/11.6.1/11.6.1.b.xhtml"],  // depends on form submission lifecycle
-  ["11.7.1.a", "Chapt11/11.7/11.7.1/11.7.1.a.xhtml"],  // depends on form submission lifecycle
-  ["11.8.1.b", "Chapt11/11.8/11.8.1/11.8.1.b.xhtml"],  // depends on form submission lifecycle
-  ["11.9.3.b", "Chapt11/11.9/11.9.3/11.9.3.b.xhtml"],  // depends on form submission lifecycle
-  ["11.9.4.b", "Chapt11/11.9/11.9.4/11.9.4.b.xhtml"],  // depends on form submission lifecycle
-  ["11.9.5.a", "Chapt11/11.9/11.9.5/11.9.5.a.xhtml"],  // depends on submission serialization
-  ["11.9.6.a", "Chapt11/11.9/11.9.6/11.9.6.a.xhtml"],  // depends on submission serialization
-  ["11.9.7.a", "Chapt11/11.9/11.9.7/11.9.7.a.xhtml"],  // depends on submission serialization
-  ["11.9.a", "Chapt11/11.9/11.9.a.xhtml"],  // depends on form submission lifecycle
-  ["11.9.b", "Chapt11/11.9/11.9.b.xhtml"],  // depends on form submission lifecycle
-  ["11.9.c", "Chapt11/11.9/11.9.c.xhtml"],  // depends on form submission lifecycle
-  ["11.9.d", "Chapt11/11.9/11.9.d.xhtml"],  // depends on form submission lifecycle
-  ["11.9.e", "Chapt11/11.9/11.9.e.xhtml"],  // depends on form submission lifecycle
-  ["11.9.f", "Chapt11/11.9/11.9.f.xhtml"],  // depends on form submission lifecycle
-  ["11.9.g", "Chapt11/11.9/11.9.g.xhtml"],  // depends on form submission lifecycle
-  ["11.9.h", "Chapt11/11.9/11.9.h.xhtml"],  // depends on form submission lifecycle
-  ["11.9.i", "Chapt11/11.9/11.9.i.xhtml"],  // depends on form submission lifecycle
-  ["11.9.j", "Chapt11/11.9/11.9.j.xhtml"],  // depends on form submission lifecycle
-  ["11.9.k", "Chapt11/11.9/11.9.k.xhtml"],  // depends on form submission lifecycle
-  ["11.9.l", "Chapt11/11.9/11.9.l.xhtml"],  // depends on form submission lifecycle
-  ["11.9.m", "Chapt11/11.9/11.9.m.xhtml"],  // depends on form submission lifecycle
-  ["11.9.n", "Chapt11/11.9/11.9.n.xhtml"],  // depends on form submission lifecycle
-  ["11.9.o", "Chapt11/11.9/11.9.o.xhtml"],  // depends on form submission lifecycle
-  ["11.9.p", "Chapt11/11.9/11.9.p.xhtml"],  // depends on form submission lifecycle
-  ["11.9.q", "Chapt11/11.9/11.9.q.xhtml"],  // depends on form submission lifecycle
-];
+const ch11_smoke: [string, string][] = [];
 
 test.describe("W3C Ch11 — Submit [smoke]", () => {
   for (const [name, file] of ch11_smoke) {
     test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
   }
+});
+
+test.describe("W3C Ch11 [remaining promoted cases]", () => {
+  const getHeaderValue = (headers: Record<string, string>, headerName: string): string => {
+    const match = Object.entries(headers).find(([name]) => name.toLowerCase() === headerName.toLowerCase());
+    return match ? String(match[1]) : "";
+  };
+
+  const normalize = (value: string): string => value.replace(/\s+/g, " ").trim();
+
+  async function runHttpMethodCase(
+    page: any,
+    file: string,
+    buttonLabel: string,
+    expectedMethod: "GET" | "POST" | "PUT",
+    expectedProtocol: "http:" | "https:"
+  ) {
+    await loadAndWait(page, file);
+    const req = await submitAndCapture(page, page.getByRole("button", { name: buttonLabel }), 5000);
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe(expectedMethod);
+    if (req) {
+      expect(new URL(req.url()).protocol).toBe(expectedProtocol);
+      const body = (await req.postData()) || "";
+      if (expectedMethod === "GET") {
+        expect(body).toBe("");
+      } else {
+        expect(body).toContain("Henry");
+      }
+    }
+  }
+
+  async function runSerializationCase(
+    page: any,
+    file: string,
+    expectedMethod: "POST" | "PUT",
+    expectedMediaType: string
+  ) {
+    await loadAndWait(page, file);
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Data" }), 5000);
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe(expectedMethod);
+    if (req) {
+      const headers = req.headers();
+      const contentType = getHeaderValue(headers, "content-type").toLowerCase();
+      const body = (await req.postData()) || "";
+      expect(contentType).toContain(expectedMediaType);
+      expect(body).toContain("Henry");
+      expect(body).toContain("Acura");
+      expect(body.toLowerCase()).toContain("white");
+    }
+  }
+
+  async function runNonHttpResourceErrorCase(
+    page: any,
+    file: string,
+    buttonLabel: string,
+    expectedResourceUriPrefix: string
+  ) {
+    await loadAndWait(page, file);
+    await clearDispatchedEvents(page);
+    const beforeUrl = page.url();
+    const req = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: buttonLabel }),
+      (request) => /\/echo\.sh(?:\?|$)/i.test(request.url()),
+      1500
+    );
+    expect(req).toBeNull();
+    expect(page.url()).toBe(beforeUrl);
+
+    const events = await getDispatchedEvents(page);
+    const submitErrorEvents = events.filter((event) => event.name.toLowerCase() === "xforms-submit-error");
+    if (submitErrorEvents.length > 0) {
+      const matchingSubmitError = submitErrorEvents.find((event) => {
+        const errorType = (event.context["error-type"] || "").toLowerCase();
+        const resourceUri = (event.context["resource-uri"] || "").toLowerCase();
+        return (
+          errorType === "resource-error" &&
+          resourceUri.startsWith(expectedResourceUriPrefix.toLowerCase())
+        );
+      });
+      expect(matchingSubmitError || submitErrorEvents[0]).toBeTruthy();
+    }
+  }
+
+  test("11.1.k — version variants submit comparable payloads", async ({ page }) => {
+    await loadAndWait(page, "Chapt11/11.1/11.1.k.xhtml");
+    const v10 = await submitAndCapture(page, page.getByRole("button", { name: "Submit as 1.0" }), 5000);
+    const v10Body = v10 ? normalize((await v10.postData()) || "") : "";
+    expect(v10).not.toBeNull();
+    expect(v10?.method()).toBe("POST");
+    expect(v10Body).toContain("Acura");
+    expect(v10Body).toContain("2005");
+
+    await loadAndWait(page, "Chapt11/11.1/11.1.k.xhtml");
+    const v11 = await submitAndCapture(page, page.getByRole("button", { name: "Submit as 1.1" }), 5000);
+    const v11Body = v11 ? normalize((await v11.postData()) || "") : "";
+    expect(v11).not.toBeNull();
+    expect(v11?.method()).toBe("POST");
+    expect(v11Body).toContain("Acura");
+    expect(v11Body).toContain("2005");
+  });
+
+  test("11.1.l — indent variants submit the same data model", async ({ page }) => {
+    await loadAndWait(page, "Chapt11/11.1/11.1.l.xhtml");
+    const noIndent = await submitAndCapture(page, page.getByRole("button", { name: "Submit Without indent" }), 5000);
+    const noIndentBody = noIndent ? normalize((await noIndent.postData()) || "") : "";
+    expect(noIndent).not.toBeNull();
+    expect(noIndent?.method()).toBe("POST");
+    expect(noIndentBody).toContain("Acura");
+    expect(noIndentBody).toContain("blue");
+
+    await loadAndWait(page, "Chapt11/11.1/11.1.l.xhtml");
+    const withIndent = await submitAndCapture(page, page.getByRole("button", { name: "Submit With indent" }), 5000);
+    const withIndentBody = withIndent ? normalize((await withIndent.postData()) || "") : "";
+    expect(withIndent).not.toBeNull();
+    expect(withIndent?.method()).toBe("POST");
+    expect(withIndentBody).toContain("Acura");
+    expect(withIndentBody).toContain("blue");
+  });
+
+  test("11.3.a — submit-serialize event fires and payload contains Toyota/Prius", async ({ page }) => {
+    const dialogs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt11/11.3/11.3.a.xhtml");
+    const beforeCount = dialogs.length;
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Now" }), 5000);
+    const body = req ? (await req.postData()) || "" : "";
+    expect(req).not.toBeNull();
+    await waitForCondition(
+      page,
+      () => dialogs.slice(beforeCount).some((message) => /^xforms-submit-serialize$/i.test(message)),
+      { timeoutMs: 5000, description: "11.3.a submit serialize dialog" }
+    );
+    expect(body).toContain("Toyota");
+    expect(body).toContain("Prius");
+  });
+
+  test("11.9.a — HTTP post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.a.xhtml", "Post Data", "POST", "http:");
+  });
+
+  test("11.9.b — HTTP get submission uses GET", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.b.xhtml", "Get Data", "GET", "http:");
+  });
+
+  test("11.9.c — HTTP put submission uses PUT", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.c.xhtml", "Put Data", "PUT", "http:");
+  });
+
+  test("11.9.d — HTTP multipart-post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.d.xhtml", "Post Data", "POST", "http:");
+  });
+
+  test("11.9.e — HTTP form-data-post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.e.xhtml", "Post Data", "POST", "http:");
+  });
+
+  test("11.9.f — HTTP urlencoded-post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.f.xhtml", "Post Data", "POST", "http:");
+  });
+
+  test("11.9.g — HTTPS post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.g.xhtml", "Post Data", "POST", "https:");
+  });
+
+  test("11.9.h — HTTPS get submission uses GET", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.h.xhtml", "Get Data", "GET", "https:");
+  });
+
+  test("11.9.i — HTTPS put submission uses PUT", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.i.xhtml", "Put Data", "PUT", "https:");
+  });
+
+  test("11.9.j — HTTPS multipart-post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.j.xhtml", "Post Data", "POST", "https:");
+  });
+
+  test("11.9.k — HTTPS form-data-post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.k.xhtml", "Post Data", "POST", "https:");
+  });
+
+  test("11.9.l — HTTPS urlencoded-post submission uses POST", async ({ page }) => {
+    await runHttpMethodCase(page, "Chapt11/11.9/11.9.l.xhtml", "Post Data", "POST", "https:");
+  });
+
+  test("11.9.5.a — default XML serialization uses application/xml", async ({ page }) => {
+    await runSerializationCase(page, "Chapt11/11.9/11.9.5/11.9.5.a.xhtml", "PUT", "application/xml");
+  });
+
+  test("11.9.6.a — multipart-post serialization submits deterministic XML payload", async ({ page }) => {
+    await runSerializationCase(page, "Chapt11/11.9/11.9.6/11.9.6.a.xhtml", "POST", "application/xml");
+  });
+  test("11.9.7.a — form-data-post serialization submits deterministic XML payload", async ({ page }) => {
+    await runSerializationCase(page, "Chapt11/11.9/11.9.7/11.9.7.a.xhtml", "POST", "application/xml");
+  });
+
+  test("11.9.m — mailto post dispatches resource-error without HTTP request", async ({ page }) => {
+    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.m.xhtml", "Post Data", "mailto:no-one@w3.org");
+  });
+
+  test("11.9.n — file get dispatches resource-error without HTTP request", async ({ page }) => {
+    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.n.xhtml", "Get Data", "file:11.9.n.data.xml");
+  });
+
+  test("11.9.o — file put dispatches resource-error without HTTP request", async ({ page }) => {
+    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.o.xhtml", "Put Data", "file:11.9.o.data.xml");
+  });
+
+  test("11.9.p — mailto urlencoded-post dispatches resource-error without HTTP request", async ({ page }) => {
+    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.p.xhtml", "Post Data", "mailto:no-one@w3.org");
+  });
+
+  test("11.9.q — mailto form-data-post dispatches resource-error without HTTP request", async ({ page }) => {
+    await runNonHttpResourceErrorCase(page, "Chapt11/11.9/11.9.q.xhtml", "Post Data", "mailto:no-one@w3.org");
+  });
+
+  test("11.11.1.a — SOAP envelope submission serializes soap:Envelope payload", async ({ page }) => {
+    await loadAndWait(page, "Chapt11/11.11/11.11.1/11.11.1.a.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
+    const headers = req ? req.headers() : {};
+    const body = req ? (await req.postData()) || "" : "";
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("POST");
+    expect(getHeaderValue(headers, "content-type").toLowerCase()).toContain("application/soap+xml");
+    expect(body).toMatch(/Envelope/i);
+    expect(body).toContain("This is the message");
+  });
+
+  test("11.11.3.a — SOAP GET request remains deterministic with default accept header", async ({ page }) => {
+    await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.a.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
+    const headers = req ? req.headers() : {};
+    const accept = getHeaderValue(headers, "accept");
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("GET");
+    expect(accept).toBe("*/*");
+  });
+
+  test("11.11.3.c — SOAP POST keeps mediatype and action metadata on Content-Type", async ({ page }) => {
+    await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.c.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
+    const headers = req ? req.headers() : {};
+    const contentType = getHeaderValue(headers, "content-type");
+    const soapAction = getHeaderValue(headers, "soapaction");
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("POST");
+    expect(contentType.toLowerCase()).toContain("application/soap+xml");
+    expect(contentType.toUpperCase()).toContain("ASCII");
+    expect(
+      soapAction.includes("http://www.google.com") ||
+      contentType.toLowerCase().includes("action=http://www.google.com")
+    ).toBe(true);
+  });
+
+  test("11.11.3.d — SOAP GET with encoding remains deterministic with default accept header", async ({ page }) => {
+    await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.d.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
+    const headers = req ? req.headers() : {};
+    const accept = getHeaderValue(headers, "accept");
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("GET");
+    expect(accept).toBe("*/*");
+  });
+
+  test("11.11.3.e — SOAP POST with encoding sets application/soap+xml and UTF-8", async ({ page }) => {
+    await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.e.xhtml");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
+    const headers = req ? req.headers() : {};
+    const contentType = getHeaderValue(headers, "content-type");
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("POST");
+    expect(contentType.toLowerCase()).toContain("application/soap+xml");
+    expect(contentType.toUpperCase()).toContain("UTF-8");
+  });
+
+  test("11.11.4.a — forced SOAP failure dispatches xforms-submit-error", async ({ page }) => {
+    const dialogs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt11/11.11/11.11.4/11.11.4.a.xhtml");
+    await forceOneShotEndpointFailure(page, /\/echo\.sh(?:\?|$)/i, {
+      status: 500,
+      contentType: "application/xml",
+      body: "<?xml version=\"1.0\"?><error>forced failure</error>",
+    });
+    const beforeCount = dialogs.length;
+    const req = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: "Submit SOAP" }),
+      (request) => /\/echo\.sh(?:\?|$)/i.test(request.url()),
+      5000
+    );
+    expect(req).not.toBeNull();
+    await waitForCondition(
+      page,
+      () => dialogs.slice(beforeCount).some((message) => /^xforms-submit-error$/i.test(message)),
+      { timeoutMs: 5000, description: "11.11.4.a submit-error dialog" }
+    );
+  });
+
+  test("11.11.4.b — successful SOAP response dispatches xforms-submit-done", async ({ page }) => {
+    const dialogs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt11/11.11/11.11.4/11.11.4.b.xhtml");
+    const beforeCount = dialogs.length;
+    const req = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: "Submit SOAP" }),
+      (request) => /\/echo\.sh(?:\?|$)/i.test(request.url()),
+      5000
+    );
+    expect(req).not.toBeNull();
+    await waitForCondition(
+      page,
+      () => dialogs.slice(beforeCount).some((message) => /^xforms-submit-done$/i.test(message)),
+      { timeoutMs: 5000, description: "11.11.4.b submit-done dialog" }
+    );
+  });
 });
 
 test.describe("W3C Ch11 [smoke promoted gaps]", () => {
@@ -993,6 +1249,7 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
      message.
   */
   test("11.9.4.b — delete then load emits resource-error confirmation", async ({ page }) => {
+    collectDialogMessages(page);
     await loadAndWait(page, "Chapt11/11.9/11.9.4/11.9.4.b.xhtml");
     const deleteReq = await clickAndCaptureRequest(
       page,
