@@ -1,4 +1,4 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, submitAndCapture, collectDialogMessages, clickTrigger, getFormControlText, clickAndCaptureRequest, waitForCondition, forceOneShotEndpointFailure, clearDispatchedEvents, getDispatchedEvents } from "./helpers";
+import { test, expect, loadTest, loadAndWait, getRenderedText, submitAndCapture, collectDialogMessages, clickTrigger, getFormControlText, clickAndCaptureRequest, waitForCondition, forceOneShotEndpointFailure, clearDispatchedEvents, getDispatchedEvents, evaluateSubmissionXPath } from "./helpers";
 
 const ch11_smoke: [string, string][] = [];
 
@@ -15,8 +15,28 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.1.a — 11.1.a ref attribute of submission element", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.a.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("white");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Make And Model" }));
+    const body = req ? (await req.postData()) || "" : "";
+    // TEST-TRACE: validate 11.1.a submit scope via SaxonJS XPath payload checks; helps tests/w3c/ch11.spec.ts "11.1.a".
+    const bodyAnalysis = await evaluateSubmissionXPath(page, body, {
+      hasMake: "exists((/*[local-name()='make'], /*/*[local-name()='make'])[1])",
+      containsMake: "contains(normalize-space(string(/*[1])), 'Acura')",
+      containsModel: "contains(normalize-space(string(/*[1])), 'Integra')",
+      hasColor: "exists((/*[local-name()='color'], /*/*[local-name()='color'])[1])",
+      hasYear: "exists((/*[local-name()='year'], /*/*[local-name()='year'])[1])",
+      hasHp: "exists((/*[local-name()='hp'], /*/*[local-name()='hp'])[1])",
+      containsWhite: "contains(string(/*[1]), 'white')",
+    });
+    expect(req?.method()).toBe("POST");
+    expect(bodyAnalysis.parseError).toBe("");
+    expect(bodyAnalysis.xpathError).toBe("");
+    expect(bodyAnalysis.values.hasMake).toBe("true");
+    expect(bodyAnalysis.values.containsMake).toBe("true");
+    expect(bodyAnalysis.values.containsModel).toBe("true");
+    expect(bodyAnalysis.values.hasColor).toBe("false");
+    expect(bodyAnalysis.values.hasYear).toBe("false");
+    expect(bodyAnalysis.values.hasHp).toBe("false");
+    expect(bodyAnalysis.values.containsWhite).toBe("false");
   });
 
   /*
@@ -28,12 +48,22 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     const submitBtn = page.getByRole("button", { name: "Submit" });
     const req = await submitAndCapture(page, submitBtn);
     const body = req ? await req.postData() : "";
+    // TEST-TRACE: validate 11.1.b bind-scoped payload via SaxonJS XPath checks; helps tests/w3c/ch11.spec.ts "11.1.b".
+    const bodyAnalysis = await evaluateSubmissionXPath(page, body, {
+      hasColor: "exists((/*[local-name()='color'], /*/*[local-name()='color'])[1])",
+      color: "normalize-space(string((/*[local-name()='color'], /*/*[local-name()='color'])[1]))",
+      hasMake: "exists((/*[local-name()='make'], /*/*[local-name()='make'])[1])",
+      hasYear: "exists((/*[local-name()='year'], /*/*[local-name()='year'])[1])",
+      hasHp: "exists((/*[local-name()='hp'], /*/*[local-name()='hp'])[1])",
+    });
     expect(req?.method()).toBe("POST");
-    expect(body).toContain("<color");
-    expect(body).toContain("white</color>");
-    expect(body).not.toContain("<make>Acura</make>");
-    expect(body).not.toContain("<year>1994</year>");
-    expect(body).not.toContain("<hp>120</hp>");
+    expect(bodyAnalysis.parseError).toBe("");
+    expect(bodyAnalysis.xpathError).toBe("");
+    expect(bodyAnalysis.values.hasColor).toBe("true");
+    expect(bodyAnalysis.values.color).toBe("white");
+    expect(bodyAnalysis.values.hasMake).toBe("false");
+    expect(bodyAnalysis.values.hasYear).toBe("false");
+    expect(bodyAnalysis.values.hasHp).toBe("false");
   });
 
   /*
@@ -42,8 +72,28 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.1.c — 11.1.c resource attribute of submission element", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.c.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("white");
+    const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Make And Model" }));
+    const body = req ? (await req.postData()) || "" : "";
+    // TEST-TRACE: validate 11.1.c resource-driven payload via SaxonJS XPath checks; helps tests/w3c/ch11.spec.ts "11.1.c".
+    const bodyAnalysis = await evaluateSubmissionXPath(page, body, {
+      hasMake: "exists((/*[local-name()='make'], /*/*[local-name()='make'])[1])",
+      containsMake: "contains(normalize-space(string(/*[1])), 'Acura')",
+      containsModel: "contains(normalize-space(string(/*[1])), 'Integra')",
+      hasColor: "exists((/*[local-name()='color'], /*/*[local-name()='color'])[1])",
+      hasYear: "exists((/*[local-name()='year'], /*/*[local-name()='year'])[1])",
+      hasHp: "exists((/*[local-name()='hp'], /*/*[local-name()='hp'])[1])",
+      containsWhite: "contains(string(/*[1]), 'white')",
+    });
+    expect(req?.method()).toBe("POST");
+    expect(bodyAnalysis.parseError).toBe("");
+    expect(bodyAnalysis.xpathError).toBe("");
+    expect(bodyAnalysis.values.hasMake).toBe("true");
+    expect(bodyAnalysis.values.containsMake).toBe("true");
+    expect(bodyAnalysis.values.containsModel).toBe("true");
+    expect(bodyAnalysis.values.hasColor).toBe("false");
+    expect(bodyAnalysis.values.hasYear).toBe("false");
+    expect(bodyAnalysis.values.hasHp).toBe("false");
+    expect(bodyAnalysis.values.containsWhite).toBe("false");
   });
 
   /*
@@ -56,12 +106,16 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.1.p — 11.1.p standalone attribute of submission element", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.p.xhtml");
+    // TEST-TRACE: assert standalone serialization follows 11.1.p.xhtml submission values; helps tests/w3c/ch11.spec.ts "11.1.p".
+    const standaloneTrueDeclaration = 'standalone="true"';
+    const standaloneFalseDeclaration = 'standalone="false"';
     const standaloneTrueReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit With Standalone true" }));
     const standaloneTrueBody = standaloneTrueReq ? (await standaloneTrueReq.postData()) || "" : "";
     expect(standaloneTrueReq?.method()).toBe("POST");
     expect(standaloneTrueBody).toContain("<car");
     expect(standaloneTrueBody).toContain("<make>Acura</make>");
-    expect(standaloneTrueBody).not.toMatch(/standalone=/i);
+    expect(standaloneTrueBody).toContain(standaloneTrueDeclaration);
+    expect(standaloneTrueBody).not.toContain(standaloneFalseDeclaration);
 
     await loadAndWait(page, "Chapt11/11.1/11.1.p.xhtml");
     const standaloneFalseReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit With Standalone false" }));
@@ -69,7 +123,8 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     expect(standaloneFalseReq?.method()).toBe("POST");
     expect(standaloneFalseBody).toContain("<car");
     expect(standaloneFalseBody).toContain("<make>Acura</make>");
-    expect(standaloneFalseBody).not.toMatch(/standalone=/i);
+    expect(standaloneFalseBody).toContain(standaloneFalseDeclaration);
+    expect(standaloneFalseBody).not.toContain(standaloneTrueDeclaration);
 
     await loadAndWait(page, "Chapt11/11.1/11.1.p.xhtml");
     const standaloneUnsetReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit Without Standalone" }));
@@ -77,9 +132,9 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     expect(standaloneUnsetReq?.method()).toBe("POST");
     expect(standaloneUnsetBody).toContain("<car");
     expect(standaloneUnsetBody).toContain("<make>Acura</make>");
-    expect(standaloneUnsetBody).not.toMatch(/standalone=/i);
-    expect(standaloneTrueBody).toBe(standaloneFalseBody);
-    expect(standaloneFalseBody).toBe(standaloneUnsetBody);
+    expect(standaloneUnsetBody).not.toContain("standalone=");
+    expect(standaloneTrueBody).not.toBe(standaloneFalseBody);
+    expect(standaloneFalseBody).not.toBe(standaloneUnsetBody);
   });
 
   /*
@@ -91,11 +146,80 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     await loadAndWait(page, "Chapt11/11.1/11.1.v.xhtml");
     const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit" }));
     const body = req ? (await req.postData()) || "" : "";
+    // TEST-TRACE: use SaxonJS XPath evaluation to assert only my namespace (plus xml/default) is in-scope; helps tests/w3c/ch11.spec.ts "11.1.v".
+    const namespaceAnalysis = await page.evaluate((xmlBody) => {
+      const parsed = new DOMParser().parseFromString(xmlBody, "application/xml");
+      const parseError = parsed.querySelector("parsererror");
+      if (parseError) {
+        return {
+          parseError: parseError.textContent || "XML parse error",
+          xpathError: "",
+          rootName: "",
+          rootNamespaceUri: "",
+          myNamespaceUri: "",
+          defaultNamespaceUri: "",
+          inScopeNamespaces: [] as string[],
+          disallowedNamespaces: [] as string[],
+          prefixedElementCount: 0,
+        };
+      }
+      try {
+        const saxonJs = (window as any).SaxonJS;
+        const evaluateXPath = (expression: string, options?: Record<string, unknown>) =>
+          saxonJs.XPath.evaluate(expression, parsed, options || {});
+        const rootName = String(evaluateXPath("name(/*[1])"));
+        const rootNamespaceUri = String(evaluateXPath("namespace-uri(/*[1])"));
+        const myNamespaceUri = String(evaluateXPath("string(namespace-uri-for-prefix('my', /*[1]))"));
+        const defaultNamespaceUri = String(evaluateXPath("string(namespace-uri-for-prefix('', /*[1]))"));
+        const prefixedElementCount = Number(evaluateXPath("count(//*[contains(name(), ':')])"));
+        const inScopeNamespaces = (evaluateXPath(
+          "for $p in sort(in-scope-prefixes(/*[1])) return concat(if ($p = '') then '#default' else $p, '=', string(namespace-uri-for-prefix($p, /*[1])))",
+          { resultForm: "array" }
+        ) || []) as string[];
+        const disallowedNamespaces = (evaluateXPath(
+          "for $p in sort(in-scope-prefixes(/*[1])[not(. = ('', 'xml', 'my'))]) return concat($p, '=', string(namespace-uri-for-prefix($p, /*[1])))",
+          { resultForm: "array" }
+        ) || []) as string[];
+        return {
+          parseError: "",
+          xpathError: "",
+          rootName,
+          rootNamespaceUri,
+          myNamespaceUri,
+          defaultNamespaceUri,
+          inScopeNamespaces: inScopeNamespaces.map((value) => String(value)),
+          disallowedNamespaces: disallowedNamespaces.map((value) => String(value)),
+          prefixedElementCount,
+        };
+      } catch (error) {
+        return {
+          parseError: "",
+          xpathError: error instanceof Error ? error.message : String(error),
+          rootName: "",
+          rootNamespaceUri: "",
+          myNamespaceUri: "",
+          defaultNamespaceUri: "",
+          inScopeNamespaces: [] as string[],
+          disallowedNamespaces: [] as string[],
+          prefixedElementCount: 0,
+        };
+      }
+    }, body);
     expect(req?.method()).toBe("POST");
     expect(body).toContain("<my:car");
     expect(body).toContain('xmlns:my="http://www.fakenamespace.org"');
     expect(body).toContain("<make>Acura</make>");
     expect(body).toContain("<color>blue</color>");
+    expect(namespaceAnalysis.parseError).toBe("");
+    expect(namespaceAnalysis.xpathError).toBe("");
+    expect(namespaceAnalysis.rootName).toBe("my:car");
+    expect(namespaceAnalysis.rootNamespaceUri).toBe("http://www.fakenamespace.org");
+    expect(namespaceAnalysis.myNamespaceUri).toBe("http://www.fakenamespace.org");
+    expect(namespaceAnalysis.defaultNamespaceUri).toBe("");
+    expect(namespaceAnalysis.inScopeNamespaces).toContain("my=http://www.fakenamespace.org");
+    expect(namespaceAnalysis.inScopeNamespaces).toContain("xml=http://www.w3.org/XML/1998/namespace");
+    expect(namespaceAnalysis.disallowedNamespaces).toEqual([]);
+    expect(namespaceAnalysis.prefixedElementCount).toBe(1);
   });
 
   /*
@@ -120,15 +244,23 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     const submitBtn = page.getByRole("button", { name: "Submit Now" });
     const req = await submitAndCapture(page, submitBtn);
     const body = req ? (await req.postData()) || "" : "";
+    // TEST-TRACE: validate 11.3.b serialized payload content via SaxonJS XPath checks; helps tests/w3c/ch11.spec.ts "11.3.b".
+    const bodyAnalysis = await evaluateSubmissionXPath(page, body, {
+      dataValue: "normalize-space(string(/*[local-name()='data'][1]))",
+      hasToyota: "exists(//*[contains(string(.), 'Toyota')])",
+      hasPrius: "exists(//*[contains(string(.), 'Prius')])",
+    });
     expect(req?.method()).toBe("POST");
     await waitForCondition(
       page,
       () => dialogs.slice(beforeCount).some((message) => /^xforms-submit-serialize$/i.test(message)),
       { timeoutMs: 5000, description: "xforms-submit-serialize modal message" }
     );
-    expect(body).toContain("<data>MyNewData</data>");
-    expect(body).not.toContain("Toyota");
-    expect(body).not.toContain("Prius");
+    expect(bodyAnalysis.parseError).toBe("");
+    expect(bodyAnalysis.xpathError).toBe("");
+    expect(bodyAnalysis.values.dataValue).toBe("MyNewData");
+    expect(bodyAnalysis.values.hasToyota).toBe("false");
+    expect(bodyAnalysis.values.hasPrius).toBe("false");
   });
 
   /*
@@ -681,41 +813,42 @@ test.describe("W3C Ch11 [smoke promoted gaps]", () => {
   /*
      Activating one replace-instance control must update only that instance output.
   */
-  test("11.1.s1 [phase1] — relative action URI resolves against source document", async ({ page }) => {
-    // TEST-TRACE: phase-1 micro-test to isolate relative @action request-path resolution from replace-instance update behavior.
-    await loadAndWait(page, "Chapt11/11.1/11.1.s1.xhtml");
-    const observedRequests: string[] = [];
-    page.on("request", (req) => {
-      observedRequests.push(`${req.method()} ${req.url()}`);
-    });
-    const requestPromise = page.waitForRequest(
-      (req) => req.method() === "GET" && /\/w3c-suite\/Chapt11\/11\.1\/11\.1\.s_data\.xml(?:\?|$)/.test(req.url()),
-      { timeout: 3000 }
-    ).catch(() => null);
-    await clickTrigger(page, "Replace Instance 2");
-    const req = await requestPromise;
-    expect(req, `Observed requests:\n${observedRequests.join("\n")}`).not.toBeNull();
-    expect(req?.url()).toContain("/w3c-suite/Chapt11/11.1/11.1.s_data.xml");
-  });
-
-  /*
-     Activating one replace-instance control must update only that instance output.
-  */
-  test("11.1.s1 — instance attribute targets only selected replacement instance", async ({ page }) => {
-    // TEST-TRACE: promote 11.1.s1 by asserting selective instance replacement for only the activated submission.
-    await loadAndWait(page, "Chapt11/11.1/11.1.s1.xhtml");
-    const before = await getFormControlText(page);
-    expect(before).toContain("This is data from instance 1.");
-    expect(before).toContain("This is data from instance 2.");
-    expect(before).toContain("This is data from instance 3.");
-
-    await clickTrigger(page, "Replace Instance 2");
-    await page.waitForTimeout(500);
-    const after = await getFormControlText(page);
-    expect(after).toContain("This is data from instance 1.");
-    expect(after).toContain("This is data from instance 3.");
-    expect(after).toContain("This is the response data.");
-    expect(after).not.toContain("This is data from instance 2.");
+  test("11.1.s1 — each instance submit replaces only its targeted instance", async ({ page }) => {
+    // TEST-TRACE: collapse duplicate 11.1.s1 variants into one complete case that checks all three submits, target isolation, and relative action request path.
+    const originalValues = [
+      "This is data from instance 1.",
+      "This is data from instance 2.",
+      "This is data from instance 3.",
+    ];
+    const cases: Array<{ label: string; replacedText: string }> = [
+      { label: "Replace Instance 1", replacedText: "This is data from instance 1." },
+      { label: "Replace Instance 2", replacedText: "This is data from instance 2." },
+      { label: "Replace Instance 3", replacedText: "This is data from instance 3." },
+    ];
+    for (const { label, replacedText } of cases) {
+      await loadAndWait(page, "Chapt11/11.1/11.1.s1.xhtml");
+      const before = await getFormControlText(page);
+      for (const value of originalValues) {
+        expect(before).toContain(value);
+      }
+      const req = await clickAndCaptureRequest(
+        page,
+        page.getByRole("button", { name: label }),
+        (request) => request.method() === "GET" && /\/w3c-suite\/Chapt11\/11\.1\/11\.1\.s_data\.xml(?:\?|$)/.test(request.url()),
+        3000
+      );
+      expect(req).not.toBeNull();
+      expect(req?.method()).toBe("GET");
+      expect(req?.url()).toContain("/w3c-suite/Chapt11/11.1/11.1.s_data.xml");
+      await page.waitForTimeout(500);
+      const after = await getFormControlText(page);
+      expect(after).not.toContain(replacedText);
+      for (const value of originalValues.filter((value) => value !== replacedText)) {
+        expect(after).toContain(value);
+      }
+      const responseCount = (after.match(/This is the response data\./g) || []).length;
+      expect(responseCount).toBe(1);
+    }
   });
 
   /*
@@ -777,36 +910,8 @@ test.describe("W3C Ch11 [smoke promoted gaps]", () => {
   /*
      Replace Instance must keep first instance values and update second instance values.
   */
-  test("11.10.c [phase1] — request path resolution is independent of targetref instance update", async ({ page }) => {
-    // TEST-TRACE: phase-1 micro-test to disambiguate request URI resolution from replace-instance targetref update semantics.
-    await loadAndWait(page, "Chapt11/11.10/11.10.c.xhtml");
-    const observedRequests: string[] = [];
-    const browserLogs: string[] = [];
-    page.on("request", (req) => {
-      observedRequests.push(`${req.method()} ${req.url()}`);
-    });
-    page.on("console", (msg) => {
-      browserLogs.push(msg.text());
-    });
-    const requestPromise = page.waitForRequest(
-      (req) => req.method() === "GET" && /\/w3c-suite\/Chapt11\/11\.10\/11\.10\.data\.xml(?:\?|$)/.test(req.url()),
-      { timeout: 3000 }
-    ).catch(() => null);
-    await clickTrigger(page, "Replace Instance");
-    const req = await requestPromise;
-    expect(req, `Observed requests:\n${observedRequests.join("\n")}`).not.toBeNull();
-    expect(req?.url()).toContain("/w3c-suite/Chapt11/11.10/11.10.data.xml");
-    const after = await getFormControlText(page);
-    expect(after).toContain("Henry");
-    expect(after, `Observed requests:\n${observedRequests.join("\n")}\nBrowser logs:\n${browserLogs.join("\n")}`).toContain("Janel");
-    expect(after).not.toContain("Thomas");
-  });
-
-  /*
-     Replace Instance must keep first instance values and update second instance values.
-  */
   test("11.10.c — targetref replacement updates only second instance values", async ({ page }) => {
-    // TEST-TRACE: promote 11.10.c to validate selective second-instance replacement semantics after submission.
+    // TEST-TRACE: merge duplicate 11.10.c variants to verify both relative action request resolution and selective second-instance targetref replacement.
     await loadAndWait(page, "Chapt11/11.10/11.10.c.xhtml");
     const before = await getFormControlText(page);
     expect(before).toContain("Henry");
@@ -815,8 +920,15 @@ test.describe("W3C Ch11 [smoke promoted gaps]", () => {
     expect(before).toContain("Thomas");
     expect(before).toContain("Toyota");
     expect(before).toContain("silver");
-
-    await clickTrigger(page, "Replace Instance");
+    const req = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: "Replace Instance" }),
+      (request) => request.method() === "GET" && /\/w3c-suite\/Chapt11\/11\.10\/11\.10\.data\.xml(?:\?|$)/.test(request.url()),
+      3000
+    );
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("GET");
+    expect(req?.url()).toContain("/w3c-suite/Chapt11/11.10/11.10.data.xml");
     await page.waitForTimeout(500);
     const after = await getFormControlText(page);
     expect(after).toContain("Henry");
@@ -909,27 +1021,42 @@ test.describe("W3C Ch11 [smoke promoted gaps]", () => {
      @resource and resource child element must both target xformstest.org endpoint.
   */
   test("11.6.1.a — resource child element and @resource both target submission URI", async ({ page }) => {
-    // TEST-TRACE: promote 11.6.1.a to validate resource element precedence variants submit to the echo endpoint.
+    // TEST-TRACE: strengthen 11.6.1.a to verify both endpoint selection and returned echo payload content for @resource and resource-element submissions.
     await loadAndWait(page, "Chapt11/11.6/11.6.1/11.6.1.a.xhtml");
     const attrReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit (@resource)" }));
+    const attrResponse = attrReq ? await attrReq.response() : null;
+    const attrResponseBody = attrResponse ? await attrResponse.text() : "";
     expect(attrReq?.url()).toContain("echo.sh");
     expect(attrReq?.method()).toBe("PUT");
+    expect(attrResponse).not.toBeNull();
+    expect(attrResponse?.status()).toBe(200);
+    expect(attrResponseBody).toContain("Form posted data");
 
     await loadAndWait(page, "Chapt11/11.6/11.6.1/11.6.1.a.xhtml");
     const childReq = await submitAndCapture(page, page.getByRole("button", { name: "Submit (resource element)" }));
+    const childResponse = childReq ? await childReq.response() : null;
+    const childResponseBody = childResponse ? await childResponse.text() : "";
     expect(childReq?.url()).toContain("echo.sh");
     expect(childReq?.method()).toBe("PUT");
+    expect(childResponse).not.toBeNull();
+    expect(childResponse?.status()).toBe(200);
+    expect(childResponseBody).toContain("Form posted data");
   });
 
   /*
      resource element value attribute must override fallback element text and bad @resource URI.
   */
   test("11.6.1.b — resource element value attribute drives submission endpoint", async ({ page }) => {
-    // TEST-TRACE: promote 11.6.1.b to verify dynamic resource value selects the executable submission URI.
+    // TEST-TRACE: strengthen 11.6.1.b to verify dynamic resource value selects the endpoint and returns echo payload content.
     await loadAndWait(page, "Chapt11/11.6/11.6.1/11.6.1.b.xhtml");
     const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit" }));
+    const response = req ? await req.response() : null;
+    const responseBody = response ? await response.text() : "";
     expect(req?.url()).toContain("echo.sh");
     expect(req?.method()).toBe("PUT");
+    expect(response).not.toBeNull();
+    expect(response?.status()).toBe(200);
+    expect(responseBody).toContain("Form posted data");
   });
 
   /*
@@ -1097,10 +1224,12 @@ test.describe("W3C Ch11 [remaining promoted cases]", () => {
   });
 
   test("11.9.6.a — multipart-post serialization submits deterministic XML payload", async ({ page }) => {
-    await runSerializationCase(page, "Chapt11/11.9/11.9.6/11.9.6.a.xhtml", "POST", "application/xml");
+    // TEST-TRACE: assert multipart/related content-type for multipart-post serialization; helps tests/w3c/ch11.spec.ts "11.9.6.a".
+    await runSerializationCase(page, "Chapt11/11.9/11.9.6/11.9.6.a.xhtml", "POST", "multipart/related");
   });
   test("11.9.7.a — form-data-post serialization submits deterministic XML payload", async ({ page }) => {
-    await runSerializationCase(page, "Chapt11/11.9/11.9.7/11.9.7.a.xhtml", "POST", "application/xml");
+    // TEST-TRACE: assert multipart/form-data content-type for form-data-post serialization; helps tests/w3c/ch11.spec.ts "11.9.7.a".
+    await runSerializationCase(page, "Chapt11/11.9/11.9.7/11.9.7.a.xhtml", "POST", "multipart/form-data");
   });
 
   test("11.9.a — HTTP post submission uses POST", async ({ page }) => {
@@ -1176,21 +1305,31 @@ test.describe("W3C Ch11 [remaining promoted cases]", () => {
     const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
     const headers = req ? req.headers() : {};
     const body = req ? (await req.postData()) || "" : "";
+    // TEST-TRACE: validate SOAP envelope payload shape/content via SaxonJS XPath checks; helps tests/w3c/ch11.spec.ts "11.11.1.a".
+    const bodyAnalysis = await evaluateSubmissionXPath(page, body, {
+      rootLocalName: "local-name(/*[1])",
+      rootNamespaceUri: "namespace-uri(/*[1])",
+      containsMessage: "contains(normalize-space(string(/*[1])), 'This is the message')",
+    });
     expect(req).not.toBeNull();
     expect(req?.method()).toBe("POST");
     expect(getHeaderValue(headers, "content-type").toLowerCase()).toContain("application/soap+xml");
-    expect(body).toMatch(/Envelope/i);
-    expect(body).toContain("This is the message");
+    expect(bodyAnalysis.parseError).toBe("");
+    expect(bodyAnalysis.xpathError).toBe("");
+    expect(bodyAnalysis.values.rootLocalName).toBe("Envelope");
+    expect(bodyAnalysis.values.rootNamespaceUri).toBe("http://www.w3.org/2001/12/soap-envelope");
+    expect(bodyAnalysis.values.containsMessage).toBe("true");
   });
 
-  test("11.11.3.a — SOAP GET request remains deterministic with default accept header", async ({ page }) => {
+  test("11.11.3.a — SOAP GET sets application/soap+xml accept header with charset", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.a.xhtml");
     const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
     const headers = req ? req.headers() : {};
     const accept = getHeaderValue(headers, "accept");
     expect(req).not.toBeNull();
     expect(req?.method()).toBe("GET");
-    expect(accept).toBe("*/*");
+    expect(accept.toLowerCase()).toContain("application/soap+xml");
+    expect(accept.toUpperCase()).toMatch(/ASCII|UTF-8/);
   });
 
   test("11.11.3.c — SOAP POST keeps mediatype and action metadata on Content-Type", async ({ page }) => {
@@ -1209,14 +1348,16 @@ test.describe("W3C Ch11 [remaining promoted cases]", () => {
     ).toBe(true);
   });
 
-  test("11.11.3.d — SOAP GET with encoding remains deterministic with default accept header", async ({ page }) => {
+  test("11.11.3.d — SOAP GET with encoding sets application/soap+xml and UTF-8 accept", async ({ page }) => {
+    // TEST-TRACE: strengthen 11.11.3.d to validate SOAP GET accept header includes application/soap+xml and UTF-8 encoding.
     await loadAndWait(page, "Chapt11/11.11/11.11.3/11.11.3.d.xhtml");
     const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit SOAP" }), 5000);
     const headers = req ? req.headers() : {};
     const accept = getHeaderValue(headers, "accept");
     expect(req).not.toBeNull();
     expect(req?.method()).toBe("GET");
-    expect(accept).toBe("*/*");
+    expect(accept.toLowerCase()).toContain("application/soap+xml");
+    expect(accept.toUpperCase()).toContain("UTF-8");
   });
 
   test("11.11.3.e — SOAP POST with encoding sets application/soap+xml and UTF-8", async ({ page }) => {
