@@ -227,9 +227,43 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
      Instance submit control the value must change to "Janel".
   */
   test("11.10.b — 11.10.b submission response with the target data node receiving text", async ({ page }) => {
+    const dialogs = collectDialogMessages(page);
     await loadAndWait(page, "Chapt11/11.10/11.10.b.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("Thomas");
+    // TEST-TRACE: strengthen 11.10.b using fixture semantics (replace=text + targetref=carOwner) and assert exact before/after owner values.
+    const beforeText = await getFormControlText(page);
+    expect(beforeText).toContain("Car Owner");
+    expect(beforeText).toContain("Thomas");
+    expect(beforeText).not.toContain("Janel");
+
+    const beforeCount = dialogs.length;
+    const req = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: "Replace Instance" }),
+      (request) =>
+        request.method() === "GET" &&
+        /\/w3c-suite\/Chapt11\/11\.10\/11\.10\.data2\.txt(?:\?|$)/i.test(request.url()),
+      5000
+    );
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("GET");
+    expect(req?.url()).toContain("/w3c-suite/Chapt11/11.10/11.10.data2.txt");
+    const body = req ? (await req.postData()) || "" : "";
+    expect(body).toBe("");
+
+    await waitForCondition(
+      page,
+      async () => {
+        const currentText = await getFormControlText(page);
+        return currentText.includes("Car Owner") && currentText.includes("Janel") && !currentText.includes("Thomas");
+      },
+      { timeoutMs: 5000, description: "11.10.b owner output replacement to Janel" }
+    );
+    const afterText = await getFormControlText(page);
+    expect(afterText).toContain("Car Owner");
+    expect(afterText).toContain("Janel");
+    expect(afterText).not.toContain("Thomas");
+    const newDialogs = dialogs.slice(beforeCount);
+    expect(newDialogs.some((message) => /^xforms-submit-error$/i.test(message))).toBe(false);
   });
 
   /*
@@ -473,10 +507,57 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.1.r — replace=instance puts response into correct instances", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.r.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("Henry");
-    expect(text).toContain("Acura");
-    expect(text).toContain("white");
+    // TEST-TRACE: align 11.1.r with fixture criteria by asserting initial values for both instances, GET action target, and post-submit selective instance replacement.
+    const before = await getFormControlText(page);
+    expect(before).toContain("Henry");
+    expect(before).toContain("Acura");
+    expect(before).toContain("white");
+    expect(before).toContain("Thomas");
+    expect(before).toContain("Toyota");
+    expect(before).toContain("silver");
+
+    const req = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: "Replace Instance" }),
+      (request) =>
+        request.method() === "GET" &&
+        /\/w3c-suite\/Chapt11\/11\.1\/11\.1\.r\.data\.xml(?:\?|$)/i.test(request.url()),
+      5000
+    );
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("GET");
+    expect(req?.url()).toContain("/w3c-suite/Chapt11/11.1/11.1.r.data.xml");
+    const body = req ? (await req.postData()) || "" : "";
+    expect(body).toBe("");
+
+    await waitForCondition(
+      page,
+      async () => {
+        const afterText = await getFormControlText(page);
+        return (
+          afterText.includes("Henry") &&
+          afterText.includes("Acura") &&
+          afterText.includes("white") &&
+          afterText.includes("Janel") &&
+          afterText.includes("Saturn") &&
+          afterText.includes("red") &&
+          !afterText.includes("Thomas") &&
+          !afterText.includes("Toyota") &&
+          !afterText.includes("silver")
+        );
+      },
+      { timeoutMs: 5000, description: "11.1.r instance replacement results" }
+    );
+    const after = await getFormControlText(page);
+    expect(after).toContain("Henry");
+    expect(after).toContain("Acura");
+    expect(after).toContain("white");
+    expect(after).toContain("Janel");
+    expect(after).toContain("Saturn");
+    expect(after).toContain("red");
+    expect(after).not.toContain("Thomas");
+    expect(after).not.toContain("Toyota");
+    expect(after).not.toContain("silver");
   });
 
   /*
@@ -486,10 +567,51 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
   */
   test("11.1.t — replace=instance with targetref puts response in target", async ({ page }) => {
     await loadAndWait(page, "Chapt11/11.1/11.1.t.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("Thomas");
-    expect(text).toContain("Toyota");
-    expect(text).toContain("silver");
+    // TEST-TRACE: align 11.1.t with fixture criteria by asserting initial second-instance values, GET action target, and replacement to Janel/Saturn/red.
+    const before = await getFormControlText(page);
+    expect(before).toContain("Thomas");
+    expect(before).toContain("Toyota");
+    expect(before).toContain("silver");
+    expect(before).not.toContain("Janel");
+    expect(before).not.toContain("Saturn");
+    expect(before).not.toContain("red");
+
+    const req = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: "Replace Instance" }),
+      (request) =>
+        request.method() === "GET" &&
+        /\/w3c-suite\/Chapt11\/11\.1\/11\.1\.t\.data\.xml(?:\?|$)/i.test(request.url()),
+      5000
+    );
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("GET");
+    expect(req?.url()).toContain("/w3c-suite/Chapt11/11.1/11.1.t.data.xml");
+    const body = req ? (await req.postData()) || "" : "";
+    expect(body).toBe("");
+
+    await waitForCondition(
+      page,
+      async () => {
+        const afterText = await getFormControlText(page);
+        return (
+          afterText.includes("Janel") &&
+          afterText.includes("Saturn") &&
+          afterText.includes("red") &&
+          !afterText.includes("Thomas") &&
+          !afterText.includes("Toyota") &&
+          !afterText.includes("silver")
+        );
+      },
+      { timeoutMs: 5000, description: "11.1.t targetref replacement results" }
+    );
+    const after = await getFormControlText(page);
+    expect(after).toContain("Janel");
+    expect(after).toContain("Saturn");
+    expect(after).toContain("red");
+    expect(after).not.toContain("Thomas");
+    expect(after).not.toContain("Toyota");
+    expect(after).not.toContain("silver");
   });
 
   // --- Submit + check POST body ---
@@ -502,8 +624,23 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     await loadAndWait(page, "Chapt11/11.1/11.1.d.xhtml");
     const btn = page.getByRole("button", { name: "Submit" });
     const req = await submitAndCapture(page, btn);
-    const body = req ? await req.postData() : "";
-    expect(body).toContain("Subaru");
+    const body = req ? (await req.postData()) || "" : "";
+    // TEST-TRACE: align 11.1.d with fixture criteria by asserting action target, POST method, and all required submitted values.
+    const bodyAnalysis = await evaluateSubmissionXPath(page, body, {
+      rootLocalName: "local-name(/*[1])",
+      hasSubaru: "contains(normalize-space(string((/*[local-name()='car']/*[local-name()='make'])[1])), 'Subaru')",
+      modelValue: "normalize-space(string((/*[local-name()='car']/*[local-name()='make']/*[local-name()='model'])[1]))",
+      yearValue: "normalize-space(string((/*[local-name()='car']/*[local-name()='year'])[1]))",
+    });
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("POST");
+    expect(req?.url()).toContain("/cgi-bin/echo.sh");
+    expect(bodyAnalysis.parseError).toBe("");
+    expect(bodyAnalysis.xpathError).toBe("");
+    expect(bodyAnalysis.values.rootLocalName).toBe("car");
+    expect(bodyAnalysis.values.hasSubaru).toBe("true");
+    expect(bodyAnalysis.values.modelValue).toBe("Impreza WRX STi");
+    expect(bodyAnalysis.values.yearValue).toBe("2005");
   });
 
   /*
@@ -514,11 +651,13 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     await loadAndWait(page, "Chapt11/11.1/11.1.j.xhtml");
     const btn = page.getByRole("button", { name: /Submit With Serialization/ });
     const req = await submitAndCapture(page, btn);
-    if (req) {
-      const body = await req.postData() || "";
-      // serialization="none" should not include instance data
-      expect(body).not.toContain("blue");
-    }
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("GET");
+    expect(req?.url()).not.toMatch(/blue/i);
+    const body = req ? (await req.postData()) || "" : "";
+    // TEST-TRACE: align 11.1.j with fixture criteria by asserting blue is absent from URI and serialized form data.
+    expect(body).toBe("");
+    expect(body).not.toContain("blue");
   });
 
   /*
@@ -530,8 +669,31 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     await loadAndWait(page, "Chapt11/11.2/11.2.b.xhtml");
     const btn = page.getByRole("button", { name: "Show" });
     const req = await submitAndCapture(page, btn);
-    const body = req ? await req.postData() : "";
-    expect(body).toContain("test1");
+    const body = req ? (await req.postData()) || "" : "";
+    // TEST-TRACE: align 11.2.b with fixture criteria by asserting only relevant nodes (test1/test2) serialize and non-relevant nodes (test3/test4) do not.
+    const bodyAnalysis = await evaluateSubmissionXPath(page, body, {
+      rootLocalName: "local-name(/*[1])",
+      childCount: "count(/*[local-name()='data']/*)",
+      hasTest1: "exists(/*[local-name()='data']/*[local-name()='test1'])",
+      test1Attr: "string((/*[local-name()='data']/*[local-name()='test1'])[1]/@x)",
+      hasTest2: "exists(/*[local-name()='data']/*[local-name()='test2'])",
+      test2Attr: "string((/*[local-name()='data']/*[local-name()='test2'])[1]/@x)",
+      hasTest3: "exists(/*[local-name()='data']/*[local-name()='test3'])",
+      hasTest4: "exists(/*[local-name()='data']/*[local-name()='test4'])",
+    });
+    expect(req).not.toBeNull();
+    expect(req?.method()).toBe("POST");
+    expect(req?.url()).toContain("/cgi-bin/echo.sh");
+    expect(bodyAnalysis.parseError).toBe("");
+    expect(bodyAnalysis.xpathError).toBe("");
+    expect(bodyAnalysis.values.rootLocalName).toBe("data");
+    expect(bodyAnalysis.values.childCount).toBe("2");
+    expect(bodyAnalysis.values.hasTest1).toBe("true");
+    expect(bodyAnalysis.values.test1Attr).toBe("");
+    expect(bodyAnalysis.values.hasTest2).toBe("true");
+    expect(bodyAnalysis.values.test2Attr).toBe("a");
+    expect(bodyAnalysis.values.hasTest3).toBe("false");
+    expect(bodyAnalysis.values.hasTest4).toBe("false");
   });
 
   /*
@@ -575,9 +737,50 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
      message. When you activate the Submit (validate=false) submit control you must not see a
      message.
   */
-  test("11.1.h — submit form renders", async ({ page }) => {
-    await loadTest(page, "Chapt11/11.1/11.1.h.xhtml");
-    // Note: xforms-submit-done message not dispatched as modal dialog
+  test("11.1.h — validate true errors; validate false submits", async ({ page }) => {
+    // TEST-TRACE: align 11.1.h with fixture criteria by asserting validate=true raises submit-error and validate=false submits without error.
+    const dialogs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt11/11.1/11.1.h.xhtml");
+    const validateFalseEndpoint = /xformstest\.org\/cgi-bin\/echo\.sh(?:\?|$)/i;
+    const validateFalseRoute = async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/xml",
+        body: "<?xml version=\"1.0\"?><ok/>",
+      });
+      await page.unroute(validateFalseEndpoint, validateFalseRoute);
+    };
+    await page.route(validateFalseEndpoint, validateFalseRoute);
+    const beforeValidateFalseCount = dialogs.length;
+    const validateFalseReq = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: "Submit (validate=false)" }),
+      (request) => request.method() === "POST" && validateFalseEndpoint.test(request.url()),
+      5000
+    );
+    await page.waitForTimeout(500);
+    const validateFalseDialogs = dialogs.slice(beforeValidateFalseCount);
+    expect(validateFalseDialogs).toEqual([]);
+    expect(validateFalseReq).not.toBeNull();
+    const validateFalseBody = validateFalseReq ? (await validateFalseReq.postData()) || "" : "";
+    expect(validateFalseReq?.method()).toBe("POST");
+    expect(validateFalseReq?.url()).toContain("xformstest.org/cgi-bin/echo.sh");
+    expect(validateFalseBody).toContain("ten");
+    expect(validateFalseBody).not.toContain("Toyota");
+    await loadAndWait(page, "Chapt11/11.1/11.1.h.xhtml");
+    const beforeValidateTrueCount = dialogs.length;
+    const validateTrueReq = await clickAndCaptureRequest(
+      page,
+      page.getByRole("button", { name: "Submit (validate=true)" }),
+      (request) => request.method() === "POST" && /\/cgi-bin\/echo\.sh(?:\?|$)/i.test(request.url()),
+      1500
+    );
+    await waitForCondition(
+      page,
+      () => dialogs.slice(beforeValidateTrueCount).some((message) => /^xforms-submit-error$/i.test(message)),
+      { timeoutMs: 5000, description: "11.1.h validate=true submit-error dialog" }
+    );
+    expect(validateTrueReq).toBeNull();
   });
 
   /*
@@ -633,14 +836,27 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
      any header names or values returned they will be displayed in the Response Headers output.
   */
   test("11.4.b — validate=true blocks invalid submit", async ({ page }) => {
-    // TEST-TRACE: promote 11.4.b to verify xforms-submit-done context exposes response status code output.
+    // TEST-TRACE: strengthen 11.4.b to verify xforms-submit-done context renders real response header name/value data, not just static labels.
     await loadAndWait(page, "Chapt11/11.4/11.4.b.xhtml");
     const req = await submitAndCapture(page, page.getByRole("button", { name: "Submit Now" }));
     expect(req).not.toBeNull();
     const response = req ? await req.response() : null;
+    expect(response).not.toBeNull();
     expect(response?.status()).toBe(200);
+    const responseHeaders = response ? await response.allHeaders() : {};
+    const headerEntries = Object.entries(responseHeaders).filter(
+      ([name, value]) => !!name && !!value && !name.startsWith(":")
+    );
+    expect(headerEntries.length).toBeGreaterThan(0);
     const text = await getFormControlText(page);
-    expect(text).toContain("Response Status Code");
+    expect(text).toContain("Response Headers");
+    const normalizedText = text.toLowerCase();
+    const renderedHeaderEntry = headerEntries.find(([name, value]) => {
+      const headerName = String(name).toLowerCase();
+      const headerValue = String(value).trim().toLowerCase();
+      return headerValue !== "" && normalizedText.includes(headerName) && normalizedText.includes(headerValue);
+    });
+    expect(renderedHeaderEntry).toBeDefined();
   });
 
   /*
