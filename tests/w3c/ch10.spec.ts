@@ -969,11 +969,6 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     expect(newMessages.some((message) => /^xforms:action$/i.test(message))).toBe(true);
     expect(newMessages.some((message) => /^xforms-refresh$/i.test(message))).toBe(true);
   });
-});
-
-
-
-test.describe("W3C Chapt10 [smoke gaps]", () => {
   const xformsSpecUrl = /w3\.org\/TR\/xforms11\/?/i;
 
   async function assertDialogPatternsAfterTrigger(
@@ -1176,7 +1171,7 @@ test.describe("W3C Chapt10 [smoke gaps]", () => {
     // TEST-TRACE: assert show=new opens the target spec in a new window and preserves this form.
     expect(popup.url()).toMatch(xformsSpecUrl);
     await expect(page.getByRole("button", { name: "Show=New", exact: true })).toBeVisible();
-    await popup.close().catch(() => {});
+    await popup.close().catch(() => { });
   });
 
   /* When either trigger is activated you must see an xforms-submit-done message. */

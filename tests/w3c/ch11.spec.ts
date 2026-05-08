@@ -1,13 +1,5 @@
 import { test, expect, loadTest, loadAndWait, getRenderedText, submitAndCapture, collectDialogMessages, clickTrigger, getFormControlText, clickAndCaptureRequest, waitForCondition, forceOneShotEndpointFailure, clearDispatchedEvents, getDispatchedEvents, evaluateSubmissionXPath } from "./helpers";
 
-const ch11_smoke: [string, string][] = [];
-
-test.describe("W3C Ch11 — Submit [smoke]", () => {
-  for (const [name, file] of ch11_smoke) {
-    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
-  }
-});
-
 test.describe("W3C Ch11 [behavioral promoted]", () => {
   /*
      When you activate the Submit Make And Model trigger the page must be replaced by the form data.
@@ -904,9 +896,6 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     const loadResponse = loadReq ? await loadReq.response() : null;
     expect(loadResponse?.status()).toBe(404);
   });
-});
-
-test.describe("W3C Ch11 [smoke promoted gaps]", () => {
   /*
      Each submit control below submits the form with a different mode. Both must replace the page
      with form data containing the value "white".
@@ -1297,9 +1286,7 @@ test.describe("W3C Ch11 [smoke promoted gaps]", () => {
     expect(headerValues.some((value) => value.includes("myValue"))).toBe(false);
     expect(Object.keys(headers).some((name) => name.toLowerCase() === "myheader")).toBe(false);
   });
-});
 
-test.describe("W3C Ch11 [remaining promoted cases]", () => {
   const getHeaderValue = (headers: Record<string, string>, headerName: string): string => {
     const match = Object.entries(headers).find(([name]) => name.toLowerCase() === headerName.toLowerCase());
     return match ? String(match[1]) : "";
