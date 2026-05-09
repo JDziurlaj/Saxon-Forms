@@ -16,11 +16,14 @@
         var actions = {};
         var eventActions = {};
         var currentEventContextStack = [];
+        var submitSerializeBodyOverride = null;
+        var dispatchedEvents = [];
         var switches = {}; // map switch ID to array of case IDs
         var switchSelections = {};
         var caseSwitches = {}; // map case ID to ID of parent switch
         var cases = {}; 
         var submissions = {};
+        var submissionsInProgress = {};
         var outputs = {};
         var repeats = {};
         var repeatModelContexts = {};
@@ -63,11 +66,14 @@
             actions = {};
             eventActions = {};
             currentEventContextStack = [];
+            submitSerializeBodyOverride = null;
+            dispatchedEvents = [];
             switches = {}; // map switch ID to array of case IDs
             switchSelections = {};
             caseSwitches = {}; // map case ID to ID of parent switch
             cases = {}; 
             submissions = {};
+            submissionsInProgress = {};
             outputs = {};
             repeats = {};
             repeatModelContexts = {};
@@ -266,6 +272,38 @@
         var getEventAction = function(name){
             return eventActions[name];
         }
+        var recordDispatchedEvent = function(name, context){
+            var eventRecord = {
+                name: String(name || ''),
+                context: {}
+            };
+            if (context) {
+                var extract = function(key) {
+                    var value = null;
+                    if (context &amp;&amp; typeof context.get === 'function') {
+                        value = context.get(key);
+                    } else if (context &amp;&amp; typeof context === 'object') {
+                        value = context[key];
+                    }
+                    if (value !== null &amp;&amp; value !== undefined) {
+                        eventRecord.context[key] = String(value);
+                    }
+                };
+                ['targetid', 'error-type', 'resource-uri', 'response-status-code', 'response-reason-phrase'].forEach(extract);
+            }
+            dispatchedEvents.push(eventRecord);
+            if (dispatchedEvents.length &gt; 200) {
+                dispatchedEvents.shift();
+            }
+            return true;
+        }
+        var getDispatchedEvents = function(){
+            return dispatchedEvents.slice();
+        }
+        var clearDispatchedEvents = function(){
+            dispatchedEvents = [];
+            return true;
+        }
         var pushCurrentEventContext = function(context){
             currentEventContextStack.push(context || {});
             return true;
@@ -294,6 +332,30 @@
                 return ctx.get(name);
             }
             return ctx[name];
+        }
+        var setCurrentEventProperty = function(name, value){
+            var ctx = getCurrentEventContext();
+            if (!ctx) {
+                return null;
+            }
+            if (typeof ctx.set === 'function') {
+                ctx = ctx.set(name, value);
+                currentEventContextStack[currentEventContextStack.length - 1] = ctx;
+            } else {
+                ctx[name] = value;
+            }
+            return value;
+        }
+        var setSubmitSerializeBodyOverride = function(value){
+            submitSerializeBodyOverride = value;
+            return value;
+        }
+        var getSubmitSerializeBodyOverride = function(){
+            return submitSerializeBodyOverride;
+        }
+        var clearSubmitSerializeBodyOverride = function(){
+            submitSerializeBodyOverride = null;
+            return true;
         }
         
                 
@@ -349,7 +411,16 @@
                 
         var getSubmission = function(name){
             return submissions[name];
-        }     
+        }
+        var setSubmissionInProgress = function(name, value){
+            submissionsInProgress[name] = (value === true);
+        }
+        var clearSubmissionInProgress = function(name){
+            delete submissionsInProgress[name];
+        }
+        var isSubmissionInProgress = function(name){
+            return submissionsInProgress[name] === true;
+        }
                 
         var addOutput = function(name, value){
             outputs[name] = value;

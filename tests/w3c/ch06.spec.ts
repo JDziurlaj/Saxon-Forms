@@ -153,26 +153,6 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     const personAInput = page.locator('input[data-ref*="personA/value"]');
     await expect(personAInput).toBeVisible();
   });
-
-  /*
-     You must see an xforms-valid message when you activate the Valid Value trigger. You must see an
-     xforms-invalid message when you activate the Invalid Value trigger.
-  */
-  test("6.1.6.a — constraint: Valid Value sets To=25, instance updated", async ({ page }) => {
-    const dialogMessages = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt06/6.1/6.1.6/6.1.6.a.xhtml");
-    const fromInput = page.locator('input[data-ref*="from"]');
-    const toInput = page.locator('input[data-ref*="to"]');
-    await expect(fromInput).toHaveValue("10");
-    await expect(toInput).toBeVisible();
-    await expect(toInput).toHaveValue("");
-
-    await expectDialogAfterTrigger(page, dialogMessages, "Valid Value", /^xforms-valid$/i);
-    await expect(toInput).toHaveValue("25");
-
-    await expectDialogAfterTrigger(page, dialogMessages, "Invalid Value", /^xforms-invalid$/i);
-    await expect(toInput).toHaveValue("5");
-  });
   /*
      You must see the output "Discount : 750" after you have activated the Enter 1500 trigger. You
      must see the output "Discount : 1000" after you have activated the Enter 2000 trigger.
@@ -192,6 +172,26 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     await page.waitForTimeout(500);
     await expect(discountOutput).toBeVisible();
     await expect(discountRow).toContainText(/Discount\s*:\s*1000(?:\.0+)?\b/);
+  });
+
+  /*
+     You must see an xforms-valid message when you activate the Valid Value trigger. You must see an
+     xforms-invalid message when you activate the Invalid Value trigger.
+  */
+  test("6.1.6.a — constraint: Valid Value sets To=25, instance updated", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt06/6.1/6.1.6/6.1.6.a.xhtml");
+    const fromInput = page.locator('input[data-ref*="from"]');
+    const toInput = page.locator('input[data-ref*="to"]');
+    await expect(fromInput).toHaveValue("10");
+    await expect(toInput).toBeVisible();
+    await expect(toInput).toHaveValue("");
+
+    await expectDialogAfterTrigger(page, dialogMessages, "Valid Value", /^xforms-valid$/i);
+    await expect(toInput).toHaveValue("25");
+
+    await expectDialogAfterTrigger(page, dialogMessages, "Invalid Value", /^xforms-invalid$/i);
+    await expect(toInput).toHaveValue("5");
   });
 
   /*

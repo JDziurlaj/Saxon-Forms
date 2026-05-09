@@ -82,13 +82,6 @@ test.describe("W3C Ch3 — Document Structure [behavioral]", () => {
     expect(text).toContain("BMW");
   });
 
-  /* You must see a value of "Mazda": */
-  test("3.3.a — model element: output shows Mazda", async ({ page }) => {
-    await loadAndWait(page, "Chapt03/3.3/3.3.a.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("Mazda");
-  });
-
   /*
      You must see three output fields. The Name output field must have the value "Wendy", the Age
      output field must have the value "20", and the Education output field must have the value
@@ -112,6 +105,13 @@ test.describe("W3C Ch3 — Document Structure [behavioral]", () => {
     await loadAndWait(page, "Chapt03/3.3/3.3.2/3.3.2.e.xhtml");
     const text = await getFormControlText(page);
     expect(text).toContain("Wendy");
+  });
+
+  /* You must see a value of "Mazda": */
+  test("3.3.a — model element: output shows Mazda", async ({ page }) => {
+    await loadAndWait(page, "Chapt03/3.3/3.3.a.xhtml");
+    const text = await getFormControlText(page);
+    expect(text).toContain("Mazda");
   });
 
 });

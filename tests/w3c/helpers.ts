@@ -204,6 +204,7 @@ export const test = base.extend<{}>({
 });
 
 export { expect };
+export { evaluateSubmissionXPath } from "../helpers";
 
 export const RENDER_TIMEOUT = 15_000;
 
@@ -278,6 +279,60 @@ export async function submitAndCapture(page: any, submitButton: any, timeout = 2
   );
 }
 
+export async function forceOneShotEndpointFailure(
+  page: any,
+  endpointMatcher: string | RegExp,
+  options?: {
+    status?: number;
+    contentType?: string;
+    body?: string;
+    headers?: Record<string, string>;
+  }
+) {
+  const status = options?.status ?? 500;
+  const contentType = options?.contentType ?? "application/xml";
+  const body = options?.body ?? "<?xml version=\"1.0\"?><error>forced failure</error>";
+  const headers = options?.headers;
+  const handler = async (route: any) => {
+    await route.fulfill({
+      status,
+      contentType,
+      body,
+      headers,
+    });
+    await page.unroute(endpointMatcher, handler);
+  };
+  await page.route(endpointMatcher, handler);
+}
+
+export async function clearDispatchedEvents(page: any) {
+  await page.evaluate(() => {
+    const g = window as any;
+    if (typeof g.clearDispatchedEvents === "function") {
+      g.clearDispatchedEvents();
+    }
+  });
+}
+
+export async function getDispatchedEvents(
+  page: any
+): Promise<Array<{ name: string; context: Record<string, string> }>> {
+  return page.evaluate(() => {
+    const g = window as any;
+    const events = typeof g.getDispatchedEvents === "function" ? g.getDispatchedEvents() : [];
+    if (!Array.isArray(events)) return [];
+    return events.map((eventRecord: any) => ({
+      name: String(eventRecord?.name ?? ""),
+      context:
+        eventRecord && typeof eventRecord.context === "object" && eventRecord.context !== null
+          ? Object.fromEntries(
+            Object.entries(eventRecord.context).map(([key, value]) => [String(key), String(value)])
+          )
+          : {},
+    }));
+  });
+}
+
 export async function waitForCondition(
   page: any,
   predicate: () => Promise<boolean> | boolean,
@@ -317,7 +372,11 @@ export function collectDialogMessages(page: any): string[] {
   const dialogMessages: string[] = [];
   page.on("dialog", async (dialog: any) => {
     dialogMessages.push(normalizeWhitespace(dialog.message()));
-    await dialog.dismiss();
+    try {
+      await dialog.dismiss();
+    } catch {
+      // ignore teardown race where dialog arrives after test end/page close
+    }
   });
   return dialogMessages;
 }

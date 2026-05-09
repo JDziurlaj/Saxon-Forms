@@ -8,6 +8,7 @@
     "predev": "node scripts/fetch-w3c-suite.mjs && node -e \"const fs=require('fs');const t='test-app/w3c-suite';if(!fs.existsSync(t)){fs.symlinkSync(require('path').resolve('public-test/w3c-suite'),t,'junction')}\"",
     "fetch:w3c": "node scripts/fetch-w3c-suite.mjs",
     "fetch:w3c:force": "node scripts/fetch-w3c-suite.mjs --force",
+    "test:w3c:sort": "node scripts/sort-w3c-playwright-tests.mjs",
     "test:baseline": "node scripts/create-playwright-baseline.mjs --all",
     "test:gate": "node .agents/skills/regression-gate/scripts/run_regression_gate.mjs",
     "demo": "node demos/server.mjs",

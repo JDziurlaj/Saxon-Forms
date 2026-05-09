@@ -1,4 +1,4 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, getFormControlText, clickTrigger } from "./helpers";
+import { test, expect, loadTest, loadAndWait, getRenderedText, getFormControlText, clickTrigger, collectDialogMessages, waitForCondition } from "./helpers";
 async function getEventOutputs(page: any): Promise<string[]> {
   const outputs = await page.locator(".xforms-output").allTextContents();
   return outputs
@@ -64,20 +64,187 @@ const ch4_smoke: [string, string][] = [
   ["4.8.1.b — lazy authoring", "Chapt04/4.8/4.8.1/4.8.1.b.xhtml"],  // expects exception message or fatal error
 ];
 
+const ch4_promoted_smoke_names = new Set<string>([
+  "4.2.1.a — model-construct events",
+  "4.2.1.d — model-construct-done events",
+  "4.2.2.a — ready event messages",
+  "4.2.3.a — model-construct-done messages",
+  "4.3.1.a — rebuild event",
+  "4.3.2.a — recalculate event",
+  "4.3.3.a — revalidate event",
+  "4.3.4.a — refresh event",
+  "4.3.5.a — reset event sequence",
+  "4.3.6.a — previous event",
+  "4.4.4.a — valid event",
+  "4.4.5.a — invalid event",
+  "4.4.12.a — DOMActivate event",
+  "4.4.18.a — scroll-first event",
+  "4.6.4.a — DOMActivate dispatch",
+]);
+
+const ch4_smoke_only = ch4_smoke.filter(([name]) => !ch4_promoted_smoke_names.has(name));
+
+function messageContains(dialogMessage: string, expectedFragment: string): boolean {
+  return dialogMessage.toLowerCase().includes(expectedFragment.toLowerCase());
+}
+
+async function expectDialogFragments(
+  page: any,
+  dialogMessages: string[],
+  expectedFragments: string[],
+  description: string,
+  fromIndex = 0,
+) {
+  await waitForCondition(
+    page,
+    () => {
+      const scopedMessages = dialogMessages.slice(fromIndex);
+      return expectedFragments.every((expectedFragment) =>
+        scopedMessages.some((dialogMessage) => messageContains(dialogMessage, expectedFragment))
+      );
+    },
+    { description }
+  );
+}
+
 test.describe("W3C Ch4 — Processing Model [smoke]", () => {
-  for (const [name, file] of ch4_smoke) {
+  for (const [name, file] of ch4_smoke_only) {
     test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
+  }
+});
+
+test.describe("W3C Ch4 [smoke → behavioral promoted]", () => {
+  const onLoadDialogCases: Array<{ name: string; file: string; expected: string[] }> = [
+    {
+      name: "4.2.1.a — model-construct events",
+      file: "Chapt04/4.2/4.2.1/4.2.1.a.xhtml",
+      expected: ["xforms-model-construct 1", "xforms-model-construct 2"],
+    },
+    {
+      name: "4.2.1.d — model-construct-done events",
+      file: "Chapt04/4.2/4.2.1/4.2.1.d.xhtml",
+      expected: ["xforms-model-construct-done 1", "xforms-model-construct-done 2"],
+    },
+    {
+      name: "4.2.2.a — ready event messages",
+      file: "Chapt04/4.2/4.2.2/4.2.2.a.xhtml",
+      expected: ["xforms-model-construct dispatched", "xforms-model-construct-done dispatched"],
+    },
+    {
+      name: "4.2.3.a — model-construct-done messages",
+      file: "Chapt04/4.2/4.2.3/4.2.3.a.xhtml",
+      expected: ["xforms-model-construct-done was dispatched", "xforms-ready dispatched"],
+    },
+    {
+      name: "4.3.3.a — revalidate event",
+      file: "Chapt04/4.3/4.3.3/4.3.3.a.xhtml",
+      expected: ["xforms-revalidate"],
+    },
+    {
+      name: "4.3.4.a — refresh event",
+      file: "Chapt04/4.3/4.3.4/4.3.4.a.xhtml",
+      expected: ["xforms-refresh"],
+    },
+    {
+      name: "4.4.4.a — valid event",
+      file: "Chapt04/4.4/4.4.4/4.4.4.a.xhtml",
+      expected: ["xforms-valid"],
+    },
+  ];
+
+  for (const onLoadCase of onLoadDialogCases) {
+    test(`${onLoadCase.name} emits required load-time dialogs`, async ({ page }) => {
+      // TEST-TRACE: Promote smoke render checks to required W3C modal-message assertions for on-load event cases.
+      const dialogMessages = collectDialogMessages(page);
+      await loadAndWait(page, onLoadCase.file);
+      await expectDialogFragments(
+        page,
+        dialogMessages,
+        onLoadCase.expected,
+        `dialogs for ${onLoadCase.name}`
+      );
+    });
+  }
+
+  const triggerDialogCases: Array<{
+    name: string;
+    file: string;
+    steps: Array<{ trigger: string; expected: string[] }>;
+  }> = [
+    {
+      name: "4.3.1.a — rebuild event",
+      file: "Chapt04/4.3/4.3.1/4.3.1.a.xhtml",
+      steps: [{ trigger: "Rebuild", expected: ["xforms-rebuild"] }],
+    },
+    {
+      name: "4.3.2.a — recalculate event",
+      file: "Chapt04/4.3/4.3.2/4.3.2.a.xhtml",
+      steps: [{ trigger: "Recalculate", expected: ["xforms-recalculate"] }],
+    },
+    {
+      name: "4.3.5.a — reset event sequence",
+      file: "Chapt04/4.3/4.3.5/4.3.5.a.xhtml",
+      steps: [{
+        trigger: "Reset",
+        expected: ["xforms-reset", "xforms-rebuild", "xforms-recalculate", "xforms-revalidate", "xforms-refresh"],
+      }],
+    },
+    {
+      name: "4.3.6.a — previous event",
+      file: "Chapt04/4.3/4.3.6/4.3.6.a.xhtml",
+      steps: [
+        { trigger: "Previous", expected: ["xforms-previous"] },
+        { trigger: "Next", expected: ["xforms-next"] },
+      ],
+    },
+    {
+      name: "4.4.5.a — invalid event",
+      file: "Chapt04/4.4/4.4.5/4.4.5.a.xhtml",
+      steps: [{ trigger: "Enter Invalid Value", expected: ["xforms-invalid"] }],
+    },
+    {
+      name: "4.4.12.a — DOMActivate event",
+      file: "Chapt04/4.4/4.4.12/4.4.12.a.xhtml",
+      steps: [{ trigger: "DOMActivate", expected: ["DOMActivate"] }],
+    },
+    {
+      name: "4.4.18.a — scroll-first event",
+      file: "Chapt04/4.4/4.4.18/4.4.18.a.xhtml",
+      steps: [
+        { trigger: "Scroll First", expected: ["xforms-scroll-first"] },
+        { trigger: "Scroll Last", expected: ["xforms-scroll-last"] },
+      ],
+    },
+    {
+      name: "4.6.4.a — DOMActivate dispatch",
+      file: "Chapt04/4.6/4.6.4/4.6.4.a.xhtml",
+      steps: [{ trigger: "DOMActivate", expected: ["DOMActivate"] }],
+    },
+  ];
+
+  for (const triggerCase of triggerDialogCases) {
+    test(`${triggerCase.name} emits required trigger-driven dialogs`, async ({ page }) => {
+      // TEST-TRACE: Promote smoke render checks to concrete trigger/action event assertions per W3C Chapter 4 criteria.
+      const dialogMessages = collectDialogMessages(page);
+      await loadAndWait(page, triggerCase.file);
+      for (const step of triggerCase.steps) {
+        const beforeStepMessages = dialogMessages.length;
+        await clickTrigger(page, step.trigger);
+        await expectDialogFragments(
+          page,
+          dialogMessages,
+          step.expected,
+          `dialogs after ${step.trigger} for ${triggerCase.name}`,
+          beforeStepMessages
+        );
+      }
+    });
   }
 });
 
 test.describe("W3C Ch4 — Processing Model [behavioral]", () => {
   /* You must see a value of "NaN" : */
   // helps tests / w3c / ch07.spec.ts "7.7.5.b" */
-  test("4.7.c — index() on missing repeat returns NaN", async ({ page }) => {
-    await loadAndWait(page, "Chapt04/4.7/4.7.c.xhtml");
-    const output = page.locator('.xforms-output');
-    await expect(output).toHaveText("NaN");
-  });
 
   /* You must not have seen a message. */
   test("4.2.1.b1 — 4.2.1.b1 schemas loaded sucessfully", async ({ page }) => {
@@ -275,6 +442,11 @@ test.describe("W3C Ch4 — Processing Model [behavioral]", () => {
     await loadAndWait(page, "Chapt04/4.7/4.7.a.xhtml");
     const text = await getRenderedText(page);
     expect(text).not.toBe("");
+  });
+  test("4.7.c — index() on missing repeat returns NaN", async ({ page }) => {
+    await loadAndWait(page, "Chapt04/4.7/4.7.c.xhtml");
+    const output = page.locator('.xforms-output');
+    await expect(output).toHaveText("NaN");
   });
 
   /* You must see no values below: */

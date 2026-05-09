@@ -71,6 +71,21 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
   });
 
   /* You must see the correct values for each output control below. */
+  test("10.3.b — 10.3.b insert action with bind and model attributes", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.3/10.3.b.xhtml");
+    const assertSectionValues = async (sectionLabel: string, expectedValues: string[]): Promise<void> => {
+      const sectionGroup = page.locator(".xforms-group").filter({ hasText: sectionLabel }).first();
+      const sectionOutputs = sectionGroup.locator(".xforms-output");
+      const sectionValues = (await sectionOutputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+      expect(sectionValues).toEqual(expectedValues);
+    };
+    // TEST-TRACE: cover all 10.3.b "You must see..." sections across default model and model=\"mod2\" groups.
+    await assertSectionValues("You must see the numbers 4, 5, 6, and 6", ["4", "5", "6", "6"]);
+    await assertSectionValues("You must see the numbers 7, 8, 9, 10, and 10", ["7", "8", "9", "10", "10"]);
+    await assertSectionValues("You must see the numbers 11, 12, 13, 14, and 14", ["11", "12", "13", "14", "14"]);
+  });
+
+  /* You must see the correct values for each output control below. */
   test("10.3.c insert action using origin attribute", async ({ page }) => {
     await loadAndWait(page, "Chapt10/10.3/10.3.c.xhtml");
     const outputs = page.locator(".xforms-output");
@@ -193,6 +208,145 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
       }
     }
   });
+  const xformsSpecUrl = /w3\.org\/TR\/xforms11\/?/i;
+
+  async function assertDialogPatternsAfterTrigger(
+    page: any,
+    dialogMessages: string[],
+    triggerLabel: string,
+    requiredPatterns: RegExp[],
+    timeout = 10_000
+  ): Promise<string[]> {
+    const beforeCount = dialogMessages.length;
+    await clickTrigger(page, triggerLabel);
+    await expect.poll(
+      () =>
+        requiredPatterns.every((pattern) =>
+          dialogMessages.slice(beforeCount).some((message) => pattern.test(message))
+        ),
+      { timeout }
+    ).toBe(true);
+    return dialogMessages.slice(beforeCount);
+  }
+
+  async function measureRebuildDispatchLatency(
+    page: any,
+    dialogEvents: { message: string; timestamp: number }[],
+    triggerLabel: string
+  ): Promise<number> {
+    const beforeCount = dialogEvents.length;
+    const startedAt = Date.now();
+    await clickTrigger(page, triggerLabel);
+    await expect.poll(
+      () =>
+        dialogEvents.slice(beforeCount).find((event) => /^xforms-rebuild$/i.test(event.message))
+          ?.timestamp ?? null,
+      { timeout: 12_000 }
+    ).not.toBeNull();
+    const eventTimestamp = dialogEvents
+      .slice(beforeCount)
+      .find((event) => /^xforms-rebuild$/i.test(event.message))
+      ?.timestamp;
+    return Number(eventTimestamp ?? startedAt) - startedAt;
+  }
+
+  async function assertDelayedDispatchAppearsSlower(page: any, file: string) {
+    const dialogEvents: { message: string; timestamp: number }[] = [];
+    page.on("dialog", async (dialog: any) => {
+      dialogEvents.push({
+        message: dialog.message().replace(/\s+/g, " ").trim(),
+        timestamp: Date.now(),
+      });
+      await dialog.dismiss();
+    });
+    await loadAndWait(page, file);
+    const withoutDelayMs = await measureRebuildDispatchLatency(
+      page,
+      dialogEvents,
+      "Rebuild Without Delay"
+    );
+    const withDelayMs = await measureRebuildDispatchLatency(
+      page,
+      dialogEvents,
+      "Rebuild With Delay"
+    );
+    expect(withDelayMs).toBeGreaterThan(withoutDelayMs);
+  }
+
+  /* After trigger activation this page must be replaced by the XForms 1.1 specification (child resource precedence). */
+
+  /* Each insert trigger must emit xforms-insert and place a new 0.00/empty row at the expected position. */
+  test("10.3.f — insert action repeat positioning and defaults", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    const baseLines = [
+      { price: "3.00", name: "a" },
+      { price: "32.25", name: "b" },
+      { price: "132.99", name: "c" },
+    ];
+    const scenarios: Array<{ triggerLabel: string; insertedIndex: number }> = [
+      { triggerLabel: "Insert At index 1", insertedIndex: 0 },
+      { triggerLabel: "Insert At index 1.5", insertedIndex: 1 },
+      { triggerLabel: "Insert At index 100", insertedIndex: 3 },
+    ];
+    const readLines = async (): Promise<Array<{ price: string; name: string }>> => {
+      const rows = page.locator("[data-repeat-item]");
+      const count = await rows.count();
+      const lines: Array<{ price: string; name: string }> = [];
+      for (let index = 0; index < count; index++) {
+        const rowInputs = rows.nth(index).locator("input.xforms-input");
+        lines.push({
+          price: (await rowInputs.nth(0).inputValue()).trim(),
+          name: (await rowInputs.nth(1).inputValue()).trim(),
+        });
+      }
+      return lines;
+    };
+
+    // TEST-TRACE: promote 10.3.f from render smoke check to insert-event, position, and default-value assertions.
+    for (const { triggerLabel, insertedIndex } of scenarios) {
+      await loadAndWait(page, "Chapt10/10.3/10.3.f.xhtml");
+      expect(await readLines()).toEqual(baseLines);
+      await assertDialogPatternsAfterTrigger(page, dialogMessages, triggerLabel, [/^xforms-insert$/i]);
+      const expected = [...baseLines];
+      expected.splice(insertedIndex, 0, { price: "0.00", name: "" });
+      expect(await readLines()).toEqual(expected);
+    }
+  });
+
+  /* You must see the value "7" : */
+  test("10.3.g — 10.3.g insert action - nodeset indicates root element", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.3/10.3.g.xhtml");
+    const text = await getFormControlText(page);
+    expect(text).toContain("7");
+  });
+
+  /*
+     You must see the correct values for the two output controls both before and after activating
+     the Perform Insert trigger. The conditions change after the trigger is activated.
+  */
+  test("10.3.h — 10.3.h insert action and repeat element", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.3/10.3.h.xhtml");
+    let text = await getFormControlText(page);
+    expect(text).toMatch(/Before\s*-\s*You must see the value\s*"1"\s*:\s*1\b/i);
+    expect(text).toMatch(/Before\s*-\s*You must see the value\s*"3"\s*:\s*3\b/i);
+
+    await clickTrigger(page, "Perform Insert");
+    text = await getFormControlText(page);
+    expect(text).toMatch(/After\s*-\s*You must see the value\s*"3"\s*:\s*3\b/i);
+    expect(text).toMatch(/After\s*-\s*You must see the value\s*"1"\s*:\s*1\b/i);
+  });
+
+  /* On xforms-ready insert, you must see xforms-insert and Node Count output must be 6. */
+  test("10.3.i — xforms-ready insert emits event and updates node count", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.3/10.3.i.xhtml");
+    await expect.poll(
+      () => dialogMessages.some((message) => /^xforms-insert$/i.test(message)),
+      { timeout: 10_000 }
+    ).toBe(true);
+    // TEST-TRACE: promote 10.3.i from render smoke check to xforms-ready insert event and node-count assertions.
+    expect(await getFormControlText(page)).toMatch(/Node Count\s*:\s*6/i);
+  });
 
   /*
      You must not see the value "4.00", "5.00", or "6.00" in the three output controls.
@@ -217,6 +371,22 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     const outputs = page.locator(".xforms-output");
     const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
     expect(values).toEqual(["10", "4", "1", "2"]);
+  });
+
+  /* You must see only the numbers 4 and 5 : */
+  test("10.4.b — 10.4.b delete action using context and bind attributes", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.4/10.4.b.xhtml");
+    const outputs = page.locator(".xforms-output");
+    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+    expect(values).toEqual(["4", "5", "7", "8", "9", "11", "12", "13"]);
+  });
+
+  /* You must see the number 3 : */
+  test("10.4.c — 10.4.c delete action using context attribute terminates with no effect", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.4/10.4.c.xhtml");
+    const outputs = page.locator(".xforms-output");
+    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+    expect(values).toEqual(["3", "6", "3"]);
   });
 
   /* You must see the correct values for each output control below. */
@@ -257,6 +427,26 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
         expect(currentIndex).toBe(0);
       }
     }
+  });
+
+  /* You must see the correct values for each output control below. */
+  test("10.4.f — 10.4.f delete action and repeat element", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.4/10.4.f.xhtml");
+    const outputs = page.locator(".xforms-output");
+    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+    expect(values).toEqual(["0", "2", "1", "2", "1"]);
+  });
+
+  /* On xforms-ready delete, you must see xforms-delete and the numbers 1/2/3 must not appear below. */
+  test("10.4.g — xforms-ready delete emits event and clears repeated values", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.4/10.4.g.xhtml");
+    await expect.poll(
+      () => dialogMessages.some((message) => /^xforms-delete$/i.test(message)),
+      { timeout: 10_000 }
+    ).toBe(true);
+    // TEST-TRACE: promote 10.4.g from render smoke check to delete-event and post-delete visibility assertions.
+    await expect(page.locator(".xforms-output")).toHaveCount(0);
   });
 
   /*
@@ -305,6 +495,45 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     const middleIndexMessages = dialogMessages.slice(beforeMiddleIndex);
     expect(middleIndexMessages).toHaveLength(0);
     expect(await getCurrentIndex()).toBe(2);
+  });
+
+  /*
+     When you activate the In Case trigger it must be replaced by the Out Case trigger. When you
+     activate the Out Case trigger it must be replaced by the In Case trigger.
+  */
+  test("10.6.1.a — toggle between In Case and Out Case", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.6/10.6.1/10.6.1.a.xhtml");
+    const inCaseTrigger = page.getByRole("button", { name: "In Case", exact: true });
+    const outCaseTrigger = page.getByRole("button", { name: "Out Case", exact: true });
+
+    await expect(inCaseTrigger).toBeVisible();
+    await expect(outCaseTrigger).toHaveCount(0);
+
+    await inCaseTrigger.click();
+    await page.waitForTimeout(300);
+    await expect(outCaseTrigger).toBeVisible();
+    await expect(inCaseTrigger).toHaveCount(0);
+
+    await outCaseTrigger.click();
+    await page.waitForTimeout(300);
+    await expect(inCaseTrigger).toBeVisible();
+    await expect(outCaseTrigger).toHaveCount(0);
+  });
+
+  /*
+     Activating different triggers will place the the switch element into different cases. When in
+     the In case, you must see a Go To Out Case trigger. When in the Out case, you must see a Go To
+     Exit Case trigger and a Go To In Case trigger. When in the Exit case, you must see a Go To Out
+     Case trigger.
+  */
+  test("10.6.1.b — 10.6.1.b case element child of the toggle element precedence testing", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.6/10.6.1/10.6.1.b.xhtml");
+    await expect(page.getByRole("button", { name: "Go To Out Case", exact: true })).toBeVisible();
+    await clickTrigger(page, "Go To Out Case");
+    await expect(page.getByRole("button", { name: "Go To Exit Case", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Go To In Case", exact: true })).toBeVisible();
+    await clickTrigger(page, "Go To Exit Case");
+    await expect(page.getByRole("button", { name: "Go To Out Case", exact: true })).toBeVisible();
   });
 
   /*
@@ -362,6 +591,189 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     await expect(outCaseLabel).toBeHidden();
   });
 
+  /*
+     The triggers below must shift the focus to the proper form controls when activated. The "Set
+     Focus To Age" trigger must place the focus into the input control labeled Age. The "Set Focus
+     To DOB" trigger must place the focus into the input control labeled DOB.
+  */
+  test("10.7.1.a — 10.7.1.a setfocus element with control child element", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.7/10.7.1/10.7.1.a.xhtml");
+    const nameInput = page.locator("input.xforms-input[data-ref*='name']");
+    const ageInput = page.locator("input.xforms-input[data-ref*='age']");
+    const dobInput = page.locator("input.xforms-input[data-ref*='dob']");
+    await expect(nameInput).toHaveCount(1);
+    await expect(ageInput).toHaveCount(1);
+    await expect(dobInput).toHaveCount(1);
+
+    // TEST-TRACE: verify 10.7.1.a trigger actions move focus to Age then DOB controls.
+    await nameInput.focus();
+    await expect(nameInput).toBeFocused();
+    await clickTrigger(page, "Set focus to Age field");
+    await expect(ageInput).toBeFocused();
+
+    await nameInput.focus();
+    await expect(nameInput).toBeFocused();
+    await clickTrigger(page, "Set focus to DOB field");
+    await expect(dobInput).toBeFocused();
+  });
+
+  /*
+     The triggers below must shift the focus to the proper form controls when activated. The "Set
+     Focus To Age" trigger must place the focus into the input control labeled Age. The "Set Focus
+     To DOB" trigger must place the focus into the input control labeled DOB.
+  */
+  test("10.7.1.b — 10.7.1.b control element precedence tests", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.7/10.7.1/10.7.1.b.xhtml");
+    const nameInput = page.locator("input.xforms-input[data-ref*='name']");
+    const ageInput = page.locator("input.xforms-input[data-ref*='age']");
+    const dobInput = page.locator("input.xforms-input[data-ref*='dob']");
+    await expect(nameInput).toHaveCount(1);
+    await expect(ageInput).toHaveCount(1);
+    await expect(dobInput).toHaveCount(1);
+
+    // TEST-TRACE: verify 10.7.1.b control precedence yields focus to Age then DOB.
+    await nameInput.focus();
+    await expect(nameInput).toBeFocused();
+    await clickTrigger(page, "Set Focus To Age");
+    await expect(ageInput).toBeFocused();
+
+    await nameInput.focus();
+    await expect(nameInput).toBeFocused();
+    await clickTrigger(page, "Set Focus To DOB");
+    await expect(dobInput).toBeFocused();
+  });
+
+  /*
+     The triggers below must shift the focus to the proper form controls when activated. The Set
+     Focus To Shipping trigger must place the focus into the empty input control labeled Shipping.
+     The Set Focus To First Item trigger must must place the focus into the input control containing
+     the value "brake pad". The Set Focus To Third Item trigger must must place the focus into the
+     input control containing the value "fan belt".
+  */
+  test("10.7.a — 10.7.a setfocus element", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.7/10.7.a.xhtml");
+    const inputs = page.locator("input.xforms-input");
+    await expect(inputs).toHaveCount(4);
+    const shippingInput = inputs.nth(0);
+    const firstItemInput = inputs.nth(1);
+    const thirdItemInput = inputs.nth(3);
+
+    await expect(firstItemInput).toHaveValue(/brake pad/i);
+    await expect(thirdItemInput).toHaveValue(/fan belt/i);
+
+    await firstItemInput.focus();
+    await expect(firstItemInput).toBeFocused();
+    await clickTrigger(page, "Set Focus To Shipping");
+    await expect.soft(shippingInput).toBeFocused();
+
+    await thirdItemInput.focus();
+    await expect(thirdItemInput).toBeFocused();
+    await clickTrigger(page, "Set Focus To First Item");
+    await expect(firstItemInput).toBeFocused();
+
+    await shippingInput.focus();
+    await expect(shippingInput).toBeFocused();
+    await clickTrigger(page, "Set Focus To Third Item");
+    await expect(thirdItemInput).toBeFocused();
+  });
+
+  /*
+     After you activate the Rebuild trigger you must see an xforms-rebuild message. You must not see
+     a custom-event message.
+  */
+  test("10.8.1.a — dispatch rebuild renders", async ({ page }) => {
+    const msgs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.8/10.8.1/10.8.1.a.xhtml");
+    const beforeCount = msgs.length;
+    await clickTrigger(page, "Rebuild");
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.some((message) => /xforms-rebuild/i.test(message))).toBe(true);
+    expect(newMessages.some((message) => /custom-event/i.test(message))).toBe(false);
+  });
+
+  /*
+     After you activate the Rebuild trigger you must see an xforms-rebuild message. If you see a
+     custom-event message you have failed this test case.
+  */
+  test("10.8.1.b — dispatch rebuild renders", async ({ page }) => {
+    const msgs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.8/10.8.1/10.8.1.b.xhtml");
+    const beforeCount = msgs.length;
+    await clickTrigger(page, "Rebuild");
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.some((message) => /xforms-rebuild/i.test(message))).toBe(true);
+    expect(newMessages.some((message) => /custom-event/i.test(message))).toBe(false);
+  });
+
+  /*
+     After you activate the Rebuild trigger you must see an xforms-rebuild message. You must not see
+     a custom-event message.
+  */
+  test("10.8.1.c — dispatch name child @value precedence", async ({ page }) => {
+    const msgs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.8/10.8.1/10.8.1.c.xhtml");
+    const beforeCount = msgs.length;
+    await clickTrigger(page, "Rebuild");
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.some((message) => /xforms-rebuild/i.test(message))).toBe(true);
+    expect(newMessages.some((message) => /custom-event/i.test(message))).toBe(false);
+  });
+
+  /* After you activate the Fire Custom Event trigger you must see a custom-event message. */
+  test("10.8.2.a — dispatch custom-event", async ({ page }) => {
+    const msgs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.8/10.8.2/10.8.2.a.xhtml");
+    const beforeCount = msgs.length;
+    await clickTrigger(page, "Fire Custom Event");
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.length).toBeGreaterThan(0);
+    expect(newMessages.every((message) => message === "custom-event")).toBe(true);
+  });
+
+  /*
+     After you activate the Fire Custom Event trigger you must see a custom-event message. If you
+     see a wrong custom-event message you have failed this test case.
+  */
+  test("10.8.2.b — dispatch custom-event with target", async ({ page }) => {
+    const msgs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.8/10.8.2/10.8.2.b.xhtml");
+    const beforeCount = msgs.length;
+    await clickTrigger(page, "Fire Custom Event");
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages).toEqual(["custom-event"]);
+  });
+
+  /*
+     After you activate the Fire Custom Event trigger you must see a custom-event message. If you
+     see a wrong custom-event message you have failed this test case.
+  */
+  test("10.8.2.c — dispatch custom-event with bubbles and cancelable", async ({ page }) => {
+    const msgs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.8/10.8.2/10.8.2.c.xhtml");
+    const beforeCount = msgs.length;
+    await clickTrigger(page, "Fire Custom Event");
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages).toEqual(["custom-event"]);
+  });
+
+  /* Both triggers must emit xforms-rebuild, with delayed dispatch firing slower than no-delay dispatch. */
+  test("10.8.3.a — dispatch delay child element behavior", async ({ page }) => {
+    // TEST-TRACE: promote 10.8.3.a from render smoke check to delay-precedence timing assertion.
+    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.a.xhtml");
+  });
+
+  /* Both triggers must emit xforms-rebuild, with delay child overriding delay attribute. */
+  test("10.8.3.b — dispatch delay element precedence over attribute", async ({ page }) => {
+    // TEST-TRACE: promote 10.8.3.b from render smoke check to delay-element precedence timing assertion.
+    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.b.xhtml");
+  });
+
+  /* Both triggers must emit xforms-rebuild, with delay @value overriding inline delay content. */
+  test("10.8.3.c — dispatch delay value attribute precedence", async ({ page }) => {
+    // TEST-TRACE: promote 10.8.3.c from render smoke check to delay-value precedence timing assertion.
+    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.c.xhtml");
+  });
+
   /* After you activate the Rebuild trigger you must see an xforms-rebuild message. */
   test("10.8.a dispatch dispatches xforms-rebuild", async ({ page }) => {
     const dialogMessages = collectDialogMessages(page);
@@ -376,6 +788,56 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     await loadAndWait(page, "Chapt10/10.8/10.8.b.xhtml");
     await clickTrigger(page, "Fire Custom Event");
     expect(dialogMessages.some((message) => /custom-event/i.test(message))).toBe(true);
+  });
+
+  /* Both triggers must emit xforms-rebuild, with delay attribute slower than no-delay dispatch. */
+  test("10.8.c — dispatch delay attribute behavior", async ({ page }) => {
+    // TEST-TRACE: promote 10.8.c from render smoke check to delay-attribute timing assertion.
+    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.c.xhtml");
+  });
+
+  /*
+     After activating the Fire Custom Event trigger you must see two messages: Child Element and
+     Parent Element.
+  */
+  test("10.8.d — dispatch bubbling event fires child and parent", async ({ page }) => {
+    const msgs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.8/10.8.d.xhtml");
+    const beforeCount = msgs.length;
+    await clickTrigger(page, "Fire Custom Event");
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.some((message) => message === "Child Element")).toBe(true);
+    expect(newMessages.some((message) => message === "Parent Element")).toBe(true);
+  });
+
+  /* When you activate the Fire Custom Event trigger you must not see a custom-event message. */
+  test("10.8.e — dispatch non-bubbling event does NOT fire parent", async ({ page }) => {
+    const msgs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.8/10.8.e.xhtml");
+    const beforeCount = msgs.length;
+    await clickTrigger(page, "Fire Custom Event");
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages).toEqual([]);
+  });
+
+  /* When you activate the Reset trigger the value in the input control must NOT change to "Audi". */
+  test("10.8.f — 10.8.f dispatch element dispatches cancelled predefined event", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.8/10.8.f.xhtml");
+    const carInput = page.locator("input.xforms-input");
+    await expect(carInput).toHaveValue("Kia");
+    await clickTrigger(page, "Reset");
+    await expect(carInput).toHaveValue("Kia");
+    await expect(carInput).not.toHaveValue("Audi");
+  });
+
+  /* When you activate the Reset trigger you must see an xforms-reset message. */
+  test("10.13.a — reset trigger renders", async ({ page }) => {
+    const msgs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.13/10.13.a.xhtml");
+    const beforeCount = msgs.length;
+    await clickTrigger(page, "Reset");
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages.some((message) => /xforms-reset/i.test(message))).toBe(true);
   });
   /*
      When you activate the Reset Car Type Value trigger the value in the Car Type output must change
@@ -401,6 +863,123 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     text = await getFormControlText(page);
     expect(text).toMatch(/Car Color\s*:\s*white/i);
     expect(dialogMessages.slice(beforeColorResetMessages).some((message) => /xforms-reset/i.test(message))).toBe(true);
+  });
+  test("10.14.1.a — load resource child element has precedence", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.14/10.14.1/10.14.1.a.xhtml");
+    await clickTrigger(page, "Go To The XForms 1.1 Spec");
+    // TEST-TRACE: promote 10.14.1.a from render smoke check to resource-precedence navigation assertion.
+    await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
+  });
+
+  /* After trigger activation this page must be replaced by the XForms 1.1 specification (value attribute precedence). */
+  test("10.14.1.b — load value attribute has precedence", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.14/10.14.1/10.14.1.b.xhtml");
+    await clickTrigger(page, "Go To The XForms 1.1 Spec");
+    // TEST-TRACE: promote 10.14.1.b from render smoke check to value-precedence navigation assertion.
+    await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
+  });
+
+  /* Activating each trigger must navigate to the XForms 1.1 specification. */
+  test("10.14.a — load element attributes navigate to XForms spec", async ({ page }) => {
+    const triggerLabels = [
+      "Load Xforms Spec From resource Attribute",
+      "Load Xforms Spec From ref Attribute",
+      "Load Xforms Spec From bind Attribute",
+    ];
+    // TEST-TRACE: promote 10.14.a from render smoke check by asserting all resource/ref/bind load paths navigate.
+    for (const triggerLabel of triggerLabels) {
+      await loadAndWait(page, "Chapt10/10.14/10.14.a.xhtml");
+      await clickTrigger(page, triggerLabel);
+      await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
+    }
+  });
+
+  /* Show default and replace must replace this page, while show=new must open the spec without replacing this page. */
+  test("10.14.b — load show attribute semantics", async ({ page }) => {
+    await loadAndWait(page, "Chapt10/10.14/10.14.b.xhtml");
+    await clickTrigger(page, "Show Not Defined");
+    // TEST-TRACE: promote 10.14.b from render smoke check by asserting show-not-defined behaves like replace.
+    await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
+
+    await loadAndWait(page, "Chapt10/10.14/10.14.b.xhtml");
+    await clickTrigger(page, "Show=Replace");
+    // TEST-TRACE: assert explicit show=replace replaces current page with the target spec URL.
+    await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
+
+    await loadAndWait(page, "Chapt10/10.14/10.14.b.xhtml");
+    const popupPromise = page.waitForEvent("popup", { timeout: 15_000 });
+    await clickTrigger(page, "Show=New");
+    const popup = await popupPromise;
+    await popup.waitForLoadState("domcontentloaded", { timeout: 15_000 });
+    // TEST-TRACE: assert show=new opens the target spec in a new window and preserves this form.
+    expect(popup.url()).toMatch(xformsSpecUrl);
+    await expect(page.getByRole("button", { name: "Show=New", exact: true })).toBeVisible();
+    await popup.close().catch(() => { });
+  });
+
+  /* When either trigger is activated you must see an xforms-submit-done message. */
+  test("10.15.a — send element emits submit-done for both submissions", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.15/10.15.a.xhtml");
+    // TEST-TRACE: promote 10.15.a from render smoke check to per-trigger submit completion message assertions.
+    await assertDialogPatternsAfterTrigger(page, dialogMessages, "Send Color", [/^xforms-submit-done$/i]);
+    await assertDialogPatternsAfterTrigger(page, dialogMessages, "Send Condition", [/^xforms-submit-done$/i]);
+  });
+
+  /* Both triggers must display "Instance Message", with bind/ref data taking precedence over inline content. */
+  test("10.16.a — message bind/ref precedence over inline text", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.16/10.16.a.xhtml");
+    const bindMessages = await assertDialogPatternsAfterTrigger(
+      page,
+      dialogMessages,
+      "Message with bind attribute",
+      [/^Instance Message$/i]
+    );
+    const refMessages = await assertDialogPatternsAfterTrigger(
+      page,
+      dialogMessages,
+      "Message with ref attribute",
+      [/^Instance Message$/i]
+    );
+    // TEST-TRACE: promote 10.16.a from render smoke check to bind/ref precedence assertions over inline content.
+    expect(bindMessages.some((message) => /^Inline Message$/i.test(message))).toBe(false);
+    expect(refMessages.some((message) => /^Inline Message$/i.test(message))).toBe(false);
+  });
+
+  /* Modal, modeless, and ephemeral triggers must each display their corresponding message text. */
+  test("10.16.b — message level variants display expected text", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.16/10.16.b.xhtml");
+    const beforeModalMessages = dialogMessages.length;
+    await clickTrigger(page, "Display Modal Message");
+    await expect.poll(
+      () => dialogMessages.slice(beforeModalMessages).some((message) => /^Modal Message$/i.test(message)),
+      { timeout: 10_000 }
+    ).toBe(true);
+
+    await clickTrigger(page, "Display Modeless Message");
+    await expect.poll(
+      async () => /INFO:\s*Modeless Message/i.test(await getFormControlText(page)),
+      { timeout: 10_000 }
+    ).toBe(true);
+
+    await clickTrigger(page, "Display Ephemeral Message");
+    await expect.poll(
+      async () => /INFO:\s*Ephemeral Message/i.test(await getFormControlText(page)),
+      { timeout: 10_000 }
+    ).toBe(true);
+    // TEST-TRACE: 10.16.b modal uses dialog while modeless/ephemeral render via INFO log lines on page.
+  });
+
+  /* When you activate the See Message trigger you must see a message that says "Hello, world!". */
+  test("10.16.c — message element shows Hello world", async ({ page }) => {
+    const msgs = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt10/10.16/10.16.c.xhtml");
+    const beforeCount = msgs.length;
+    await clickTrigger(page, "See Message");
+    const newMessages = msgs.slice(beforeCount);
+    expect(newMessages).toContain("Hello, world!");
   });
 
   /*
@@ -559,180 +1138,6 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     expect(text).toMatch(/Counter\s*:\s*4\b/i);
   });
 
-  /* You must see the correct values for each output control below. */
-  test("10.3.b — 10.3.b insert action with bind and model attributes", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.3/10.3.b.xhtml");
-    const assertSectionValues = async (sectionLabel: string, expectedValues: string[]): Promise<void> => {
-      const sectionGroup = page.locator(".xforms-group").filter({ hasText: sectionLabel }).first();
-      const sectionOutputs = sectionGroup.locator(".xforms-output");
-      const sectionValues = (await sectionOutputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
-      expect(sectionValues).toEqual(expectedValues);
-    };
-    // TEST-TRACE: cover all 10.3.b "You must see..." sections across default model and model=\"mod2\" groups.
-    await assertSectionValues("You must see the numbers 4, 5, 6, and 6", ["4", "5", "6", "6"]);
-    await assertSectionValues("You must see the numbers 7, 8, 9, 10, and 10", ["7", "8", "9", "10", "10"]);
-    await assertSectionValues("You must see the numbers 11, 12, 13, 14, and 14", ["11", "12", "13", "14", "14"]);
-  });
-
-  /* You must see the value "7" : */
-  test("10.3.g — 10.3.g insert action - nodeset indicates root element", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.3/10.3.g.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("7");
-  });
-
-  /*
-     You must see the correct values for the two output controls both before and after activating
-     the Perform Insert trigger. The conditions change after the trigger is activated.
-  */
-  test("10.3.h — 10.3.h insert action and repeat element", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.3/10.3.h.xhtml");
-    let text = await getFormControlText(page);
-    expect(text).toMatch(/Before\s*-\s*You must see the value\s*"1"\s*:\s*1\b/i);
-    expect(text).toMatch(/Before\s*-\s*You must see the value\s*"3"\s*:\s*3\b/i);
-
-    await clickTrigger(page, "Perform Insert");
-    text = await getFormControlText(page);
-    expect(text).toMatch(/After\s*-\s*You must see the value\s*"3"\s*:\s*3\b/i);
-    expect(text).toMatch(/After\s*-\s*You must see the value\s*"1"\s*:\s*1\b/i);
-  });
-
-  /* You must see only the numbers 4 and 5 : */
-  test("10.4.b — 10.4.b delete action using context and bind attributes", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.4/10.4.b.xhtml");
-    const outputs = page.locator(".xforms-output");
-    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
-    expect(values).toEqual(["4", "5", "7", "8", "9", "11", "12", "13"]);
-  });
-
-  /* You must see the number 3 : */
-  test("10.4.c — 10.4.c delete action using context attribute terminates with no effect", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.4/10.4.c.xhtml");
-    const outputs = page.locator(".xforms-output");
-    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
-    expect(values).toEqual(["3", "6", "3"]);
-  });
-
-  /* You must see the correct values for each output control below. */
-  test("10.4.f — 10.4.f delete action and repeat element", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.4/10.4.f.xhtml");
-    const outputs = page.locator(".xforms-output");
-    const values = (await outputs.allInnerTexts()).map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
-    expect(values).toEqual(["0", "2", "1", "2", "1"]);
-  });
-
-  /*
-     Activating different triggers will place the the switch element into different cases. When in
-     the In case, you must see a Go To Out Case trigger. When in the Out case, you must see a Go To
-     Exit Case trigger and a Go To In Case trigger. When in the Exit case, you must see a Go To Out
-     Case trigger.
-  */
-  test("10.6.1.b — 10.6.1.b case element child of the toggle element precedence testing", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.6/10.6.1/10.6.1.b.xhtml");
-    await expect(page.getByRole("button", { name: "Go To Out Case", exact: true })).toBeVisible();
-    await clickTrigger(page, "Go To Out Case");
-    await expect(page.getByRole("button", { name: "Go To Exit Case", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Go To In Case", exact: true })).toBeVisible();
-    await clickTrigger(page, "Go To Exit Case");
-    await expect(page.getByRole("button", { name: "Go To Out Case", exact: true })).toBeVisible();
-  });
-
-  /*
-     The triggers below must shift the focus to the proper form controls when activated. The "Set
-     Focus To Age" trigger must place the focus into the input control labeled Age. The "Set Focus
-     To DOB" trigger must place the focus into the input control labeled DOB.
-  */
-  test("10.7.1.a — 10.7.1.a setfocus element with control child element", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.7/10.7.1/10.7.1.a.xhtml");
-    const nameInput = page.locator("input.xforms-input[data-ref*='name']");
-    const ageInput = page.locator("input.xforms-input[data-ref*='age']");
-    const dobInput = page.locator("input.xforms-input[data-ref*='dob']");
-    await expect(nameInput).toHaveCount(1);
-    await expect(ageInput).toHaveCount(1);
-    await expect(dobInput).toHaveCount(1);
-
-    // TEST-TRACE: verify 10.7.1.a trigger actions move focus to Age then DOB controls.
-    await nameInput.focus();
-    await expect(nameInput).toBeFocused();
-    await clickTrigger(page, "Set focus to Age field");
-    await expect(ageInput).toBeFocused();
-
-    await nameInput.focus();
-    await expect(nameInput).toBeFocused();
-    await clickTrigger(page, "Set focus to DOB field");
-    await expect(dobInput).toBeFocused();
-  });
-
-  /*
-     The triggers below must shift the focus to the proper form controls when activated. The "Set
-     Focus To Age" trigger must place the focus into the input control labeled Age. The "Set Focus
-     To DOB" trigger must place the focus into the input control labeled DOB.
-  */
-  test("10.7.1.b — 10.7.1.b control element precedence tests", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.7/10.7.1/10.7.1.b.xhtml");
-    const nameInput = page.locator("input.xforms-input[data-ref*='name']");
-    const ageInput = page.locator("input.xforms-input[data-ref*='age']");
-    const dobInput = page.locator("input.xforms-input[data-ref*='dob']");
-    await expect(nameInput).toHaveCount(1);
-    await expect(ageInput).toHaveCount(1);
-    await expect(dobInput).toHaveCount(1);
-
-    // TEST-TRACE: verify 10.7.1.b control precedence yields focus to Age then DOB.
-    await nameInput.focus();
-    await expect(nameInput).toBeFocused();
-    await clickTrigger(page, "Set Focus To Age");
-    await expect(ageInput).toBeFocused();
-
-    await nameInput.focus();
-    await expect(nameInput).toBeFocused();
-    await clickTrigger(page, "Set Focus To DOB");
-    await expect(dobInput).toBeFocused();
-  });
-
-  /*
-     The triggers below must shift the focus to the proper form controls when activated. The Set
-     Focus To Shipping trigger must place the focus into the empty input control labeled Shipping.
-     The Set Focus To First Item trigger must must place the focus into the input control containing
-     the value "brake pad". The Set Focus To Third Item trigger must must place the focus into the
-     input control containing the value "fan belt".
-  */
-  test("10.7.a — 10.7.a setfocus element", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.7/10.7.a.xhtml");
-    const inputs = page.locator("input.xforms-input");
-    await expect(inputs).toHaveCount(4);
-    const shippingInput = inputs.nth(0);
-    const firstItemInput = inputs.nth(1);
-    const thirdItemInput = inputs.nth(3);
-
-    await expect(firstItemInput).toHaveValue(/brake pad/i);
-    await expect(thirdItemInput).toHaveValue(/fan belt/i);
-
-    await firstItemInput.focus();
-    await expect(firstItemInput).toBeFocused();
-    await clickTrigger(page, "Set Focus To Shipping");
-    await expect.soft(shippingInput).toBeFocused();
-
-    await thirdItemInput.focus();
-    await expect(thirdItemInput).toBeFocused();
-    await clickTrigger(page, "Set Focus To First Item");
-    await expect(firstItemInput).toBeFocused();
-
-    await shippingInput.focus();
-    await expect(shippingInput).toBeFocused();
-    await clickTrigger(page, "Set Focus To Third Item");
-    await expect(thirdItemInput).toBeFocused();
-  });
-
-  /* When you activate the Reset trigger the value in the input control must NOT change to "Audi". */
-  test("10.8.f — 10.8.f dispatch element dispatches cancelled predefined event", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.8/10.8.f.xhtml");
-    const carInput = page.locator("input.xforms-input");
-    await expect(carInput).toHaveValue("Kia");
-    await clickTrigger(page, "Reset");
-    await expect(carInput).toHaveValue("Kia");
-    await expect(carInput).not.toHaveValue("Audi");
-  });
-
   /*
      If you change the value in the Car Model input control and activate the Reset trigger the value
      must be set back to the initial value of "Del Sol".
@@ -745,152 +1150,6 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     await expect(carModel).toHaveValue("Audi");
     await clickTrigger(page, "Reset");
     await expect(carModel).toHaveValue("Del Sol");
-  });
-
-  /* When you activate the Reset trigger you must see an xforms-reset message. */
-  test("10.13.a — reset trigger renders", async ({ page }) => {
-    const msgs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.13/10.13.a.xhtml");
-    const beforeCount = msgs.length;
-    await clickTrigger(page, "Reset");
-    const newMessages = msgs.slice(beforeCount);
-    expect(newMessages.some((message) => /xforms-reset/i.test(message))).toBe(true);
-  });
-
-  /* When you activate the See Message trigger you must see a message that says "Hello, world!". */
-  test("10.16.c — message element shows Hello world", async ({ page }) => {
-    const msgs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.16/10.16.c.xhtml");
-    const beforeCount = msgs.length;
-    await clickTrigger(page, "See Message");
-    const newMessages = msgs.slice(beforeCount);
-    expect(newMessages).toContain("Hello, world!");
-  });
-
-  /*
-     After you activate the Rebuild trigger you must see an xforms-rebuild message. You must not see
-     a custom-event message.
-  */
-  test("10.8.1.a — dispatch rebuild renders", async ({ page }) => {
-    const msgs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.8/10.8.1/10.8.1.a.xhtml");
-    const beforeCount = msgs.length;
-    await clickTrigger(page, "Rebuild");
-    const newMessages = msgs.slice(beforeCount);
-    expect(newMessages.some((message) => /xforms-rebuild/i.test(message))).toBe(true);
-    expect(newMessages.some((message) => /custom-event/i.test(message))).toBe(false);
-  });
-
-  /*
-     After you activate the Rebuild trigger you must see an xforms-rebuild message. If you see a
-     custom-event message you have failed this test case.
-  */
-  test("10.8.1.b — dispatch rebuild renders", async ({ page }) => {
-    const msgs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.8/10.8.1/10.8.1.b.xhtml");
-    const beforeCount = msgs.length;
-    await clickTrigger(page, "Rebuild");
-    const newMessages = msgs.slice(beforeCount);
-    expect(newMessages.some((message) => /xforms-rebuild/i.test(message))).toBe(true);
-    expect(newMessages.some((message) => /custom-event/i.test(message))).toBe(false);
-  });
-
-  /*
-     After you activate the Rebuild trigger you must see an xforms-rebuild message. You must not see
-     a custom-event message.
-  */
-  test("10.8.1.c — dispatch name child @value precedence", async ({ page }) => {
-    const msgs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.8/10.8.1/10.8.1.c.xhtml");
-    const beforeCount = msgs.length;
-    await clickTrigger(page, "Rebuild");
-    const newMessages = msgs.slice(beforeCount);
-    expect(newMessages.some((message) => /xforms-rebuild/i.test(message))).toBe(true);
-    expect(newMessages.some((message) => /custom-event/i.test(message))).toBe(false);
-  });
-
-  /* After you activate the Fire Custom Event trigger you must see a custom-event message. */
-  test("10.8.2.a — dispatch custom-event", async ({ page }) => {
-    const msgs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.8/10.8.2/10.8.2.a.xhtml");
-    const beforeCount = msgs.length;
-    await clickTrigger(page, "Fire Custom Event");
-    const newMessages = msgs.slice(beforeCount);
-    expect(newMessages.length).toBeGreaterThan(0);
-    expect(newMessages.every((message) => message === "custom-event")).toBe(true);
-  });
-
-  /*
-     After you activate the Fire Custom Event trigger you must see a custom-event message. If you
-     see a wrong custom-event message you have failed this test case.
-  */
-  test("10.8.2.b — dispatch custom-event with target", async ({ page }) => {
-    const msgs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.8/10.8.2/10.8.2.b.xhtml");
-    const beforeCount = msgs.length;
-    await clickTrigger(page, "Fire Custom Event");
-    const newMessages = msgs.slice(beforeCount);
-    expect(newMessages).toEqual(["custom-event"]);
-  });
-
-  /*
-     After you activate the Fire Custom Event trigger you must see a custom-event message. If you
-     see a wrong custom-event message you have failed this test case.
-  */
-  test("10.8.2.c — dispatch custom-event with bubbles and cancelable", async ({ page }) => {
-    const msgs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.8/10.8.2/10.8.2.c.xhtml");
-    const beforeCount = msgs.length;
-    await clickTrigger(page, "Fire Custom Event");
-    const newMessages = msgs.slice(beforeCount);
-    expect(newMessages).toEqual(["custom-event"]);
-  });
-
-  /*
-     After activating the Fire Custom Event trigger you must see two messages: Child Element and
-     Parent Element.
-  */
-  test("10.8.d — dispatch bubbling event fires child and parent", async ({ page }) => {
-    const msgs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.8/10.8.d.xhtml");
-    const beforeCount = msgs.length;
-    await clickTrigger(page, "Fire Custom Event");
-    const newMessages = msgs.slice(beforeCount);
-    expect(newMessages.some((message) => message === "Child Element")).toBe(true);
-    expect(newMessages.some((message) => message === "Parent Element")).toBe(true);
-  });
-
-  /* When you activate the Fire Custom Event trigger you must not see a custom-event message. */
-  test("10.8.e — dispatch non-bubbling event does NOT fire parent", async ({ page }) => {
-    const msgs = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.8/10.8.e.xhtml");
-    const beforeCount = msgs.length;
-    await clickTrigger(page, "Fire Custom Event");
-    const newMessages = msgs.slice(beforeCount);
-    expect(newMessages).toEqual([]);
-  });
-
-  /*
-     When you activate the In Case trigger it must be replaced by the Out Case trigger. When you
-     activate the Out Case trigger it must be replaced by the In Case trigger.
-  */
-  test("10.6.1.a — toggle between In Case and Out Case", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.6/10.6.1/10.6.1.a.xhtml");
-    const inCaseTrigger = page.getByRole("button", { name: "In Case", exact: true });
-    const outCaseTrigger = page.getByRole("button", { name: "Out Case", exact: true });
-
-    await expect(inCaseTrigger).toBeVisible();
-    await expect(outCaseTrigger).toHaveCount(0);
-
-    await inCaseTrigger.click();
-    await page.waitForTimeout(300);
-    await expect(outCaseTrigger).toBeVisible();
-    await expect(inCaseTrigger).toHaveCount(0);
-
-    await outCaseTrigger.click();
-    await page.waitForTimeout(300);
-    await expect(inCaseTrigger).toBeVisible();
-    await expect(outCaseTrigger).toHaveCount(0);
   });
 
   /*
@@ -968,265 +1227,6 @@ test.describe("W3C Chapter 10 — XForms Actions", () => {
     const newMessages = msgs.slice(beforeCount);
     expect(newMessages.some((message) => /^xforms:action$/i.test(message))).toBe(true);
     expect(newMessages.some((message) => /^xforms-refresh$/i.test(message))).toBe(true);
-  });
-  const xformsSpecUrl = /w3\.org\/TR\/xforms11\/?/i;
-
-  async function assertDialogPatternsAfterTrigger(
-    page: any,
-    dialogMessages: string[],
-    triggerLabel: string,
-    requiredPatterns: RegExp[],
-    timeout = 10_000
-  ): Promise<string[]> {
-    const beforeCount = dialogMessages.length;
-    await clickTrigger(page, triggerLabel);
-    await expect.poll(
-      () =>
-        requiredPatterns.every((pattern) =>
-          dialogMessages.slice(beforeCount).some((message) => pattern.test(message))
-        ),
-      { timeout }
-    ).toBe(true);
-    return dialogMessages.slice(beforeCount);
-  }
-
-  async function measureRebuildDispatchLatency(
-    page: any,
-    dialogEvents: { message: string; timestamp: number }[],
-    triggerLabel: string
-  ): Promise<number> {
-    const beforeCount = dialogEvents.length;
-    const startedAt = Date.now();
-    await clickTrigger(page, triggerLabel);
-    await expect.poll(
-      () =>
-        dialogEvents.slice(beforeCount).find((event) => /^xforms-rebuild$/i.test(event.message))
-          ?.timestamp ?? null,
-      { timeout: 12_000 }
-    ).not.toBeNull();
-    const eventTimestamp = dialogEvents
-      .slice(beforeCount)
-      .find((event) => /^xforms-rebuild$/i.test(event.message))
-      ?.timestamp;
-    return Number(eventTimestamp ?? startedAt) - startedAt;
-  }
-
-  async function assertDelayedDispatchAppearsSlower(page: any, file: string) {
-    const dialogEvents: { message: string; timestamp: number }[] = [];
-    page.on("dialog", async (dialog: any) => {
-      dialogEvents.push({
-        message: dialog.message().replace(/\s+/g, " ").trim(),
-        timestamp: Date.now(),
-      });
-      await dialog.dismiss();
-    });
-    await loadAndWait(page, file);
-    const withoutDelayMs = await measureRebuildDispatchLatency(
-      page,
-      dialogEvents,
-      "Rebuild Without Delay"
-    );
-    const withDelayMs = await measureRebuildDispatchLatency(
-      page,
-      dialogEvents,
-      "Rebuild With Delay"
-    );
-    expect(withDelayMs).toBeGreaterThan(withoutDelayMs);
-  }
-
-  /* After trigger activation this page must be replaced by the XForms 1.1 specification (child resource precedence). */
-
-  /* Each insert trigger must emit xforms-insert and place a new 0.00/empty row at the expected position. */
-  test("10.3.f — insert action repeat positioning and defaults", async ({ page }) => {
-    const dialogMessages = collectDialogMessages(page);
-    const baseLines = [
-      { price: "3.00", name: "a" },
-      { price: "32.25", name: "b" },
-      { price: "132.99", name: "c" },
-    ];
-    const scenarios: Array<{ triggerLabel: string; insertedIndex: number }> = [
-      { triggerLabel: "Insert At index 1", insertedIndex: 0 },
-      { triggerLabel: "Insert At index 1.5", insertedIndex: 1 },
-      { triggerLabel: "Insert At index 100", insertedIndex: 3 },
-    ];
-    const readLines = async (): Promise<Array<{ price: string; name: string }>> => {
-      const rows = page.locator("[data-repeat-item]");
-      const count = await rows.count();
-      const lines: Array<{ price: string; name: string }> = [];
-      for (let index = 0; index < count; index++) {
-        const rowInputs = rows.nth(index).locator("input.xforms-input");
-        lines.push({
-          price: (await rowInputs.nth(0).inputValue()).trim(),
-          name: (await rowInputs.nth(1).inputValue()).trim(),
-        });
-      }
-      return lines;
-    };
-
-    // TEST-TRACE: promote 10.3.f from render smoke check to insert-event, position, and default-value assertions.
-    for (const { triggerLabel, insertedIndex } of scenarios) {
-      await loadAndWait(page, "Chapt10/10.3/10.3.f.xhtml");
-      expect(await readLines()).toEqual(baseLines);
-      await assertDialogPatternsAfterTrigger(page, dialogMessages, triggerLabel, [/^xforms-insert$/i]);
-      const expected = [...baseLines];
-      expected.splice(insertedIndex, 0, { price: "0.00", name: "" });
-      expect(await readLines()).toEqual(expected);
-    }
-  });
-
-  /* On xforms-ready insert, you must see xforms-insert and Node Count output must be 6. */
-  test("10.3.i — xforms-ready insert emits event and updates node count", async ({ page }) => {
-    const dialogMessages = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.3/10.3.i.xhtml");
-    await expect.poll(
-      () => dialogMessages.some((message) => /^xforms-insert$/i.test(message)),
-      { timeout: 10_000 }
-    ).toBe(true);
-    // TEST-TRACE: promote 10.3.i from render smoke check to xforms-ready insert event and node-count assertions.
-    expect(await getFormControlText(page)).toMatch(/Node Count\s*:\s*6/i);
-  });
-
-  /* On xforms-ready delete, you must see xforms-delete and the numbers 1/2/3 must not appear below. */
-  test("10.4.g — xforms-ready delete emits event and clears repeated values", async ({ page }) => {
-    const dialogMessages = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.4/10.4.g.xhtml");
-    await expect.poll(
-      () => dialogMessages.some((message) => /^xforms-delete$/i.test(message)),
-      { timeout: 10_000 }
-    ).toBe(true);
-    // TEST-TRACE: promote 10.4.g from render smoke check to delete-event and post-delete visibility assertions.
-    await expect(page.locator(".xforms-output")).toHaveCount(0);
-  });
-
-  /* Both triggers must emit xforms-rebuild, with delayed dispatch firing slower than no-delay dispatch. */
-  test("10.8.3.a — dispatch delay child element behavior", async ({ page }) => {
-    // TEST-TRACE: promote 10.8.3.a from render smoke check to delay-precedence timing assertion.
-    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.a.xhtml");
-  });
-
-  /* Both triggers must emit xforms-rebuild, with delay child overriding delay attribute. */
-  test("10.8.3.b — dispatch delay element precedence over attribute", async ({ page }) => {
-    // TEST-TRACE: promote 10.8.3.b from render smoke check to delay-element precedence timing assertion.
-    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.b.xhtml");
-  });
-
-  /* Both triggers must emit xforms-rebuild, with delay @value overriding inline delay content. */
-  test("10.8.3.c — dispatch delay value attribute precedence", async ({ page }) => {
-    // TEST-TRACE: promote 10.8.3.c from render smoke check to delay-value precedence timing assertion.
-    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.3/10.8.3.c.xhtml");
-  });
-
-  /* Both triggers must emit xforms-rebuild, with delay attribute slower than no-delay dispatch. */
-  test("10.8.c — dispatch delay attribute behavior", async ({ page }) => {
-    // TEST-TRACE: promote 10.8.c from render smoke check to delay-attribute timing assertion.
-    await assertDelayedDispatchAppearsSlower(page, "Chapt10/10.8/10.8.c.xhtml");
-  });
-  test("10.14.1.a — load resource child element has precedence", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.14/10.14.1/10.14.1.a.xhtml");
-    await clickTrigger(page, "Go To The XForms 1.1 Spec");
-    // TEST-TRACE: promote 10.14.1.a from render smoke check to resource-precedence navigation assertion.
-    await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
-  });
-
-  /* After trigger activation this page must be replaced by the XForms 1.1 specification (value attribute precedence). */
-  test("10.14.1.b — load value attribute has precedence", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.14/10.14.1/10.14.1.b.xhtml");
-    await clickTrigger(page, "Go To The XForms 1.1 Spec");
-    // TEST-TRACE: promote 10.14.1.b from render smoke check to value-precedence navigation assertion.
-    await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
-  });
-
-  /* Activating each trigger must navigate to the XForms 1.1 specification. */
-  test("10.14.a — load element attributes navigate to XForms spec", async ({ page }) => {
-    const triggerLabels = [
-      "Load Xforms Spec From resource Attribute",
-      "Load Xforms Spec From ref Attribute",
-      "Load Xforms Spec From bind Attribute",
-    ];
-    // TEST-TRACE: promote 10.14.a from render smoke check by asserting all resource/ref/bind load paths navigate.
-    for (const triggerLabel of triggerLabels) {
-      await loadAndWait(page, "Chapt10/10.14/10.14.a.xhtml");
-      await clickTrigger(page, triggerLabel);
-      await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
-    }
-  });
-
-  /* Show default and replace must replace this page, while show=new must open the spec without replacing this page. */
-  test("10.14.b — load show attribute semantics", async ({ page }) => {
-    await loadAndWait(page, "Chapt10/10.14/10.14.b.xhtml");
-    await clickTrigger(page, "Show Not Defined");
-    // TEST-TRACE: promote 10.14.b from render smoke check by asserting show-not-defined behaves like replace.
-    await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
-
-    await loadAndWait(page, "Chapt10/10.14/10.14.b.xhtml");
-    await clickTrigger(page, "Show=Replace");
-    // TEST-TRACE: assert explicit show=replace replaces current page with the target spec URL.
-    await expect(page).toHaveURL(xformsSpecUrl, { timeout: 15_000 });
-
-    await loadAndWait(page, "Chapt10/10.14/10.14.b.xhtml");
-    const popupPromise = page.waitForEvent("popup", { timeout: 15_000 });
-    await clickTrigger(page, "Show=New");
-    const popup = await popupPromise;
-    await popup.waitForLoadState("domcontentloaded", { timeout: 15_000 });
-    // TEST-TRACE: assert show=new opens the target spec in a new window and preserves this form.
-    expect(popup.url()).toMatch(xformsSpecUrl);
-    await expect(page.getByRole("button", { name: "Show=New", exact: true })).toBeVisible();
-    await popup.close().catch(() => { });
-  });
-
-  /* When either trigger is activated you must see an xforms-submit-done message. */
-  test("10.15.a — send element emits submit-done for both submissions", async ({ page }) => {
-    const dialogMessages = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.15/10.15.a.xhtml");
-    // TEST-TRACE: promote 10.15.a from render smoke check to per-trigger submit completion message assertions.
-    await assertDialogPatternsAfterTrigger(page, dialogMessages, "Send Color", [/^xforms-submit-done$/i]);
-    await assertDialogPatternsAfterTrigger(page, dialogMessages, "Send Condition", [/^xforms-submit-done$/i]);
-  });
-
-  /* Both triggers must display "Instance Message", with bind/ref data taking precedence over inline content. */
-  test("10.16.a — message bind/ref precedence over inline text", async ({ page }) => {
-    const dialogMessages = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.16/10.16.a.xhtml");
-    const bindMessages = await assertDialogPatternsAfterTrigger(
-      page,
-      dialogMessages,
-      "Message with bind attribute",
-      [/^Instance Message$/i]
-    );
-    const refMessages = await assertDialogPatternsAfterTrigger(
-      page,
-      dialogMessages,
-      "Message with ref attribute",
-      [/^Instance Message$/i]
-    );
-    // TEST-TRACE: promote 10.16.a from render smoke check to bind/ref precedence assertions over inline content.
-    expect(bindMessages.some((message) => /^Inline Message$/i.test(message))).toBe(false);
-    expect(refMessages.some((message) => /^Inline Message$/i.test(message))).toBe(false);
-  });
-
-  /* Modal, modeless, and ephemeral triggers must each display their corresponding message text. */
-  test("10.16.b — message level variants display expected text", async ({ page }) => {
-    const dialogMessages = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt10/10.16/10.16.b.xhtml");
-    const beforeModalMessages = dialogMessages.length;
-    await clickTrigger(page, "Display Modal Message");
-    await expect.poll(
-      () => dialogMessages.slice(beforeModalMessages).some((message) => /^Modal Message$/i.test(message)),
-      { timeout: 10_000 }
-    ).toBe(true);
-
-    await clickTrigger(page, "Display Modeless Message");
-    await expect.poll(
-      async () => /INFO:\s*Modeless Message/i.test(await getFormControlText(page)),
-      { timeout: 10_000 }
-    ).toBe(true);
-
-    await clickTrigger(page, "Display Ephemeral Message");
-    await expect.poll(
-      async () => /INFO:\s*Ephemeral Message/i.test(await getFormControlText(page)),
-      { timeout: 10_000 }
-    ).toBe(true);
-    // TEST-TRACE: 10.16.b modal uses dialog while modeless/ephemeral render via INFO log lines on page.
   });
 
   /* Insert trigger must display xforms:action, xforms-rebuild, xforms-recalculate, xforms-revalidate, and xforms-refresh. */

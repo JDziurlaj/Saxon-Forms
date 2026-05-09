@@ -20,6 +20,17 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
   });
 
   /*
+     You must not be able to see the Street Name and City input controls or they must be somehow
+     unavailable to you.
+  */
+  test("9.1.1.a1 group with bind relevant=false hides children", async ({ page }) => {
+    await loadAndWait(page, "Chapt09/9.1/9.1.1/9.1.1.a1.xhtml");
+    // group1 binds to shipDate with relevant="false()" — Street Name input must NOT be visible
+    const streetLabel = page.getByText("Street Name", { exact: true });
+    await expect(streetLabel).toBeHidden();
+  });
+
+  /*
      When you activate the Show Out Case trigger you must see "You are now in the Out case" output
      to the screen and a Show In Case trigger. When you activate the Show In Case trigger you must
      see "You are now in the In case" output to the screen and a Show Out Case trigger. When either
@@ -241,6 +252,103 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     await expect(sw.locator('.xforms-case').nth(1)).toBeHidden();
   });
 
+  /*
+     When you activate the In Case trigger it must be replaced by the Out Case trigger. When you
+     activate the Out Case trigger it must be replaced by the In Case trigger.
+  */
+  test("9.2.3.1.a — case element child of toggle element", async ({ page }) => {
+    await loadAndWait(page, "Chapt09/9.2/9.2.3/9.2.3.1/9.2.3.1.a.xhtml");
+    const inCaseTrigger = page.getByRole("button", { name: "In Case" });
+    const outCaseTrigger = page.getByRole("button", { name: "Out Case" });
+
+    await expect(inCaseTrigger).toBeVisible();
+    await expect(outCaseTrigger).toBeHidden();
+
+    await inCaseTrigger.click();
+    await page.waitForTimeout(300);
+    await expect(outCaseTrigger).toBeVisible();
+    await expect(inCaseTrigger).toBeHidden();
+
+    await outCaseTrigger.click();
+    await page.waitForTimeout(300);
+    await expect(inCaseTrigger).toBeVisible();
+    await expect(outCaseTrigger).toBeHidden();
+  });
+  /*
+     Activating different triggers will place the the switch element into different cases. When in
+     the In case, you must see a Go To Out Case trigger. When in the Out case, you must see a Go To
+     Exit Case trigger and a Go To In Case trigger. When in the Exit case, you must see a Go To Out
+     Case trigger.
+  */
+  test("9.2.3.1.b — 9.2.3.1.b case element child of the toggle element precedence testing", async ({ page }) => {
+    await loadAndWait(page, "Chapt09/9.2/9.2.3/9.2.3.1/9.2.3.1.b.xhtml");
+    await expect(page.getByText("You are in the In case", { exact: false })).toBeVisible();
+    const goToOutCase = page.getByRole("button", { name: "Go To Out Case" });
+    await expect(goToOutCase).toBeVisible();
+
+    await goToOutCase.click();
+    await page.waitForTimeout(300);
+    await expect(page.getByText("You are in the Out case", { exact: false })).toBeVisible();
+    const goToExitCase = page.getByRole("button", { name: "Go To Exit Case" });
+    const goToInCase = page.getByRole("button", { name: "Go To In Case" });
+    await expect(goToExitCase).toBeVisible();
+    await expect(goToInCase).toBeVisible();
+
+    await goToExitCase.click();
+    await page.waitForTimeout(300);
+    await expect(page.getByText("You are in the Exit case", { exact: false })).toBeVisible();
+    const exitGoToOutCase = page.getByRole("button", { name: "Go To Out Case" });
+    await expect(exitGoToOutCase).toBeVisible();
+    await expect(goToExitCase).toBeHidden();
+    await expect(goToInCase).toBeHidden();
+
+    await exitGoToOutCase.click();
+    await page.waitForTimeout(300);
+    await expect(page.getByText("You are in the Out case", { exact: false })).toBeVisible();
+    await expect(goToExitCase).toBeVisible();
+    await expect(goToInCase).toBeVisible();
+  });
+
+  /*
+     If you are in the "in" case and you activate the Show Out Case trigger you must see an
+     xforms-deselect(in) message followed by an xforms-select(out) message. If you are in the "out"
+     case and you activate the Show In Case trigger you must see an xforms-deselect(out) message
+     followed by an xforms-select(in) message.
+  */
+  test("9.2.3.a — toggle dispatches deselect/select messages in order", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt09/9.2/9.2.3/9.2.3.a.xhtml");
+
+    const showOutCase = page.getByRole("button", { name: "Show Out Case" });
+    const showInCase = page.getByRole("button", { name: "Show In Case" });
+    await expect(showOutCase).toBeVisible();
+    await expect(showInCase).toBeHidden();
+
+    const beforeOutToggle = dialogMessages.length;
+    await showOutCase.click();
+    await page.waitForTimeout(300);
+    await expect(showInCase).toBeVisible();
+    await expect(showOutCase).toBeHidden();
+    const outToggleMessages = dialogMessages.slice(beforeOutToggle).map((value) => normalizeWhitespace(value));
+    const deselectInIndex = outToggleMessages.findIndex((value) => /xforms-deselect\(in\)/i.test(value));
+    const selectOutIndex = outToggleMessages.findIndex((value) => /xforms-select\(out\)/i.test(value));
+    expect(deselectInIndex).toBeGreaterThanOrEqual(0);
+    expect(selectOutIndex).toBeGreaterThanOrEqual(0);
+    expect(deselectInIndex).toBeLessThan(selectOutIndex);
+
+    const beforeInToggle = dialogMessages.length;
+    await showInCase.click();
+    await page.waitForTimeout(300);
+    await expect(showOutCase).toBeVisible();
+    await expect(showInCase).toBeHidden();
+    const inToggleMessages = dialogMessages.slice(beforeInToggle).map((value) => normalizeWhitespace(value));
+    const deselectOutIndex = inToggleMessages.findIndex((value) => /xforms-deselect\(out\)/i.test(value));
+    const selectInIndex = inToggleMessages.findIndex((value) => /xforms-select\(in\)/i.test(value));
+    expect(deselectOutIndex).toBeGreaterThanOrEqual(0);
+    expect(selectInIndex).toBeGreaterThanOrEqual(0);
+    expect(deselectOutIndex).toBeLessThan(selectInIndex);
+  });
+
   // -----------------------------------------------------------------
   // 9.3 repeat
   // -----------------------------------------------------------------
@@ -454,114 +562,6 @@ test.describe("W3C Ch9 — Container Form Controls [behavioral]", () => {
     expect(itemValues[0]).toBe("windshield wipers tires exhaust air freshener");
     expect(itemValues[1]).toBe("windshield wipers tires exhaust air freshener");
     expect(itemValues.slice(2)).toEqual(["windshield wipers", "tires", "exhaust", "air freshener"]);
-  });
-
-  /*
-     You must not be able to see the Street Name and City input controls or they must be somehow
-     unavailable to you.
-  */
-  test("9.1.1.a1 group with bind relevant=false hides children", async ({ page }) => {
-    await loadAndWait(page, "Chapt09/9.1/9.1.1/9.1.1.a1.xhtml");
-    // group1 binds to shipDate with relevant="false()" — Street Name input must NOT be visible
-    const streetLabel = page.getByText("Street Name", { exact: true });
-    await expect(streetLabel).toBeHidden();
-  });
-
-  /*
-     When you activate the In Case trigger it must be replaced by the Out Case trigger. When you
-     activate the Out Case trigger it must be replaced by the In Case trigger.
-  */
-  test("9.2.3.1.a — case element child of toggle element", async ({ page }) => {
-    await loadAndWait(page, "Chapt09/9.2/9.2.3/9.2.3.1/9.2.3.1.a.xhtml");
-    const inCaseTrigger = page.getByRole("button", { name: "In Case" });
-    const outCaseTrigger = page.getByRole("button", { name: "Out Case" });
-
-    await expect(inCaseTrigger).toBeVisible();
-    await expect(outCaseTrigger).toBeHidden();
-
-    await inCaseTrigger.click();
-    await page.waitForTimeout(300);
-    await expect(outCaseTrigger).toBeVisible();
-    await expect(inCaseTrigger).toBeHidden();
-
-    await outCaseTrigger.click();
-    await page.waitForTimeout(300);
-    await expect(inCaseTrigger).toBeVisible();
-    await expect(outCaseTrigger).toBeHidden();
-  });
-
-  /*
-     If you are in the "in" case and you activate the Show Out Case trigger you must see an
-     xforms-deselect(in) message followed by an xforms-select(out) message. If you are in the "out"
-     case and you activate the Show In Case trigger you must see an xforms-deselect(out) message
-     followed by an xforms-select(in) message.
-  */
-  test("9.2.3.a — toggle dispatches deselect/select messages in order", async ({ page }) => {
-    const dialogMessages = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt09/9.2/9.2.3/9.2.3.a.xhtml");
-
-    const showOutCase = page.getByRole("button", { name: "Show Out Case" });
-    const showInCase = page.getByRole("button", { name: "Show In Case" });
-    await expect(showOutCase).toBeVisible();
-    await expect(showInCase).toBeHidden();
-
-    const beforeOutToggle = dialogMessages.length;
-    await showOutCase.click();
-    await page.waitForTimeout(300);
-    await expect(showInCase).toBeVisible();
-    await expect(showOutCase).toBeHidden();
-    const outToggleMessages = dialogMessages.slice(beforeOutToggle).map((value) => normalizeWhitespace(value));
-    const deselectInIndex = outToggleMessages.findIndex((value) => /xforms-deselect\(in\)/i.test(value));
-    const selectOutIndex = outToggleMessages.findIndex((value) => /xforms-select\(out\)/i.test(value));
-    expect(deselectInIndex).toBeGreaterThanOrEqual(0);
-    expect(selectOutIndex).toBeGreaterThanOrEqual(0);
-    expect(deselectInIndex).toBeLessThan(selectOutIndex);
-
-    const beforeInToggle = dialogMessages.length;
-    await showInCase.click();
-    await page.waitForTimeout(300);
-    await expect(showOutCase).toBeVisible();
-    await expect(showInCase).toBeHidden();
-    const inToggleMessages = dialogMessages.slice(beforeInToggle).map((value) => normalizeWhitespace(value));
-    const deselectOutIndex = inToggleMessages.findIndex((value) => /xforms-deselect\(out\)/i.test(value));
-    const selectInIndex = inToggleMessages.findIndex((value) => /xforms-select\(in\)/i.test(value));
-    expect(deselectOutIndex).toBeGreaterThanOrEqual(0);
-    expect(selectInIndex).toBeGreaterThanOrEqual(0);
-    expect(deselectOutIndex).toBeLessThan(selectInIndex);
-  });
-  /*
-     Activating different triggers will place the the switch element into different cases. When in
-     the In case, you must see a Go To Out Case trigger. When in the Out case, you must see a Go To
-     Exit Case trigger and a Go To In Case trigger. When in the Exit case, you must see a Go To Out
-     Case trigger.
-  */
-  test("9.2.3.1.b — 9.2.3.1.b case element child of the toggle element precedence testing", async ({ page }) => {
-    await loadAndWait(page, "Chapt09/9.2/9.2.3/9.2.3.1/9.2.3.1.b.xhtml");
-    await expect(page.getByText("You are in the In case", { exact: false })).toBeVisible();
-    const goToOutCase = page.getByRole("button", { name: "Go To Out Case" });
-    await expect(goToOutCase).toBeVisible();
-
-    await goToOutCase.click();
-    await page.waitForTimeout(300);
-    await expect(page.getByText("You are in the Out case", { exact: false })).toBeVisible();
-    const goToExitCase = page.getByRole("button", { name: "Go To Exit Case" });
-    const goToInCase = page.getByRole("button", { name: "Go To In Case" });
-    await expect(goToExitCase).toBeVisible();
-    await expect(goToInCase).toBeVisible();
-
-    await goToExitCase.click();
-    await page.waitForTimeout(300);
-    await expect(page.getByText("You are in the Exit case", { exact: false })).toBeVisible();
-    const exitGoToOutCase = page.getByRole("button", { name: "Go To Out Case" });
-    await expect(exitGoToOutCase).toBeVisible();
-    await expect(goToExitCase).toBeHidden();
-    await expect(goToInCase).toBeHidden();
-
-    await exitGoToOutCase.click();
-    await page.waitForTimeout(300);
-    await expect(page.getByText("You are in the Out case", { exact: false })).toBeVisible();
-    await expect(goToExitCase).toBeVisible();
-    await expect(goToInCase).toBeVisible();
   });
 
   /*
