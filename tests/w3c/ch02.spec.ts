@@ -30,7 +30,6 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
 
     // Select Cash — input controls must remain visible
     await select.selectOption("cash");
-    await page.waitForTimeout(500);
     await expect(inputs.nth(0)).toBeVisible();
     await expect(inputs.nth(1)).toBeVisible();
 
@@ -39,7 +38,16 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
     await inputs.nth(0).blur();
     await inputs.nth(1).fill("12/2025");
     await inputs.nth(1).blur();
-    await page.waitForTimeout(500);
+    // TEST-TRACE: poll instance XML instead of sleeping so model-update timing is deterministic; helps tests/w3c/ch02.spec.ts "2.1.a".
+    await expect.poll(
+      async () => {
+        const snapshot = await getInstanceXML(page);
+        return snapshot.includes("cash") &&
+          snapshot.includes("4111111111111111") &&
+          snapshot.includes("12/2025");
+      },
+      { timeout: 3_000 }
+    ).toBe(true);
 
     // Instance data must reflect all user interactions
     const xml = await getInstanceXML(page);
@@ -97,7 +105,6 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
 
     // Select Cash — input controls must remain visible
     await select.selectOption("cash");
-    await page.waitForTimeout(500);
     await expect(inputs.nth(0)).toBeVisible();
     await expect(inputs.nth(1)).toBeVisible();
 
@@ -106,7 +113,16 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
     await inputs.nth(0).blur();
     await inputs.nth(1).fill("12/2025");
     await inputs.nth(1).blur();
-    await page.waitForTimeout(500);
+    // TEST-TRACE: poll instance XML instead of sleeping so model-update timing is deterministic; helps tests/w3c/ch02.spec.ts "2.2.a".
+    await expect.poll(
+      async () => {
+        const snapshot = await getInstanceXML(page);
+        return snapshot.includes("cash") &&
+          snapshot.includes("4111111111111111") &&
+          snapshot.includes("12/2025");
+      },
+      { timeout: 3_000 }
+    ).toBe(true);
 
     // Instance data must reflect all user interactions
     const xml = await getInstanceXML(page);
@@ -160,7 +176,6 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
     await expect(inputs.nth(1)).toBeVisible();
 
     await select.selectOption("cash");
-    await page.waitForTimeout(500);
     await expect(inputs.nth(0)).not.toBeVisible();
     await expect(inputs.nth(1)).not.toBeVisible();
 
@@ -184,10 +199,9 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
     const inputs = page.locator("input.xforms-input");
 
     await select.selectOption("cash");
-    await page.waitForTimeout(500);
-
-    expect(await isUnavailable(inputs.nth(0))).toBe(true);
-    expect(await isUnavailable(inputs.nth(1))).toBe(true);
+    // TEST-TRACE: replace fixed delay with poll-based availability checks; helps tests/w3c/ch02.spec.ts "2.3.a — selecting Cash makes credit inputs unavailable".
+    await expect.poll(() => isUnavailable(inputs.nth(0)), { timeout: 3_000 }).toBe(true);
+    await expect.poll(() => isUnavailable(inputs.nth(1)), { timeout: 3_000 }).toBe(true);
   });
 
   test("2.3.a — selecting Cash still allows submit", async ({ page }) => {
@@ -197,7 +211,6 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
     const submitBtn = page.locator('button[data-submit="submit01"]');
 
     await select.selectOption("cash");
-    await page.waitForTimeout(500);
     await expect(submitBtn).toBeVisible();
     await expect(submitBtn).toContainText("Submit Now");
 
@@ -216,7 +229,8 @@ test.describe("W3C Ch2 — Introduction [behavioral]", () => {
     const submitBtn = page.locator('button[data-submit="submit01"]');
 
     await select.selectOption("cc");
-    await page.waitForTimeout(300);
+    await expect(cardInput).toBeVisible();
+    await expect(expiryInput).toBeVisible();
 
     await cardInput.fill("1234567890123");
     await cardInput.blur();

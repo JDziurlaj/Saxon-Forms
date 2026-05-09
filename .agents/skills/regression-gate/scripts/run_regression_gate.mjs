@@ -150,6 +150,45 @@ function loadSuiteRegistry() {
   };
 }
 
+function getPathType(targetPath) {
+  if (!targetPath || !fs.existsSync(targetPath)) return null;
+  const stat = fs.statSync(targetPath);
+  if (stat.isFile()) return "file";
+  if (stat.isDirectory()) return "directory";
+  return "other";
+}
+
+function validateSuitePaths(queue) {
+  const problems = [];
+  for (const suite of queue) {
+    const configPathType = getPathType(suite.config_path);
+    if (configPathType !== "file") {
+      problems.push(
+        `Suite '${suite.id}' config_path must be an existing file: ${toRepoRelative(suite.config_path)}`
+      );
+    }
+
+    const testPathType = getPathType(suite.test_path);
+    if (!testPathType || (testPathType !== "file" && testPathType !== "directory")) {
+      problems.push(
+        `Suite '${suite.id}' test_path must be an existing file or directory: ${toRepoRelative(suite.test_path)}`
+      );
+    }
+  }
+  if (problems.length > 0) {
+    throw new Error(`Suite path preflight failed:\n- ${problems.join("\n- ")}`);
+  }
+}
+
+function getTotalExecutedTests(stats = {}) {
+  return (
+    (stats.expected || 0) +
+    (stats.unexpected || 0) +
+    (stats.flaky || 0) +
+    (stats.skipped || 0)
+  );
+}
+
 function runPlaywrightToJsonReport({ suite, workers, runDir }) {
   const reportPath = path.join(runDir, "playwright-report.json");
   const configPathArg = toRepoRelative(suite.config_path);
@@ -200,7 +239,14 @@ function runPlaywrightToJsonReport({ suite, workers, runDir }) {
   if (!fs.existsSync(reportPath) || fs.statSync(reportPath).size === 0) {
     throw new Error(`No Playwright JSON report produced for suite ${suite.id}.`);
   }
-  return { result, reportPath, playwrightDurationSeconds };
+  const report = readJson(reportPath);
+  const totalExecuted = getTotalExecutedTests(report?.stats || {});
+  if (totalExecuted === 0) {
+    throw new Error(
+      `Suite '${suite.id}' executed zero tests for ${testPathArg}. Check suite test_path and discovery configuration.`
+    );
+  }
+  return { result, reportPath, playwrightDurationSeconds, totalExecuted };
 }
 
 function ensureW3CDataIfNeeded(queueIds) {
@@ -279,6 +325,7 @@ function main() {
   }
 
   const queue = queueIds.map((suiteId) => ({ id: suiteId, ...suiteMap[suiteId] }));
+  validateSuitePaths(queue);
 
   const missingBaselines = queue
     .filter((suite) => !fs.existsSync(suite.baseline_path))

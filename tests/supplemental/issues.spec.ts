@@ -50,9 +50,11 @@ test.describe("Issue #23 — Remove Attribute (B.6)", () => {
     const btn = page.locator("button[data-action*='trigger-23']");
     await expect(btn).toBeVisible({ timeout: RENDER_TIMEOUT });
     await btn.click();
-
-    // Allow a tick for the action to process
-    await page.waitForTimeout(500);
+    // TEST-TRACE: poll instance mutation instead of sleeping after trigger; helps tests/supplemental/issues.spec.ts "Issue #23".
+    await expect.poll(
+      async () => (await getInstanceXML(page, "i23")).includes("rating"),
+      { timeout: 3_000 }
+    ).toBe(false);
 
     const xml = await getInstanceXML(page, "i23");
     expect(xml).not.toContain("rating");
@@ -76,7 +78,10 @@ test.describe("Issue #24 — Remove Nodeset (B.7)", () => {
     const btn = page.locator("button[data-action*='trigger-24']");
     await expect(btn).toBeVisible({ timeout: RENDER_TIMEOUT });
     await btn.click();
-    await page.waitForTimeout(500);
+    await expect.poll(
+      async () => (await getInstanceXML(page, "i24")).includes("<track"),
+      { timeout: 3_000 }
+    ).toBe(false);
 
     const xml = await getInstanceXML(page, "i24");
     expect(xml).not.toContain("<track");
@@ -100,7 +105,10 @@ test.describe("Issue #21 — Prepend Element Copy (B.1)", () => {
     const btn = page.locator("button[data-action*='trigger-21']");
     await expect(btn).toBeVisible({ timeout: RENDER_TIMEOUT });
     await btn.click();
-    await page.waitForTimeout(500);
+    await expect.poll(
+      async () => (await getInstanceXML(page, "i21")).match(/<person/g)?.length ?? 0,
+      { timeout: 3_000 }
+    ).toBe(2);
 
     const xml = await getInstanceXML(page, "i21");
     expect((xml.match(/<person/g) || []).length).toBe(2);
@@ -128,7 +136,10 @@ test.describe("Issue #22 — Set Attribute (B.4)", () => {
     const btn = page.locator("button[data-action*='trigger-22']");
     await expect(btn).toBeVisible({ timeout: RENDER_TIMEOUT });
     await btn.click();
-    await page.waitForTimeout(500);
+    await expect.poll(
+      async () => (await getInstanceXML(page, "i22")).includes('<item key="42" rating="classified"'),
+      { timeout: 3_000 }
+    ).toBe(true);
 
     const xml = await getInstanceXML(page, "i22");
     // item key="42" should now have rating="classified"
@@ -154,7 +165,10 @@ test.describe("Issue #25 — Replace Instance (B.12)", () => {
     const btn = page.locator("button[data-action*='trigger-25']");
     await expect(btn).toBeVisible({ timeout: RENDER_TIMEOUT });
     await btn.click();
-    await page.waitForTimeout(500);
+    await expect.poll(
+      async () => (await getInstanceXML(page, "i25")).includes("<item"),
+      { timeout: 3_000 }
+    ).toBe(false);
 
     const xml = await getInstanceXML(page, "i25");
     expect(xml).not.toContain("<item");
@@ -184,7 +198,6 @@ test.describe("Issue #26 — instance() predicate in @ref", () => {
     page.on("console", (msg) => consoleLogs.push(msg.text()));
 
     await waitForIssuesForm(page);
-    await page.waitForTimeout(500);
 
     const cardinalityErrors = consoleLogs.filter(
       (line) =>
@@ -215,7 +228,6 @@ test.describe("Issue #27 — Scoped toggle in repeat", () => {
     await expect(row2.locator("button[data-action*='trigger-27-done']")).toBeHidden();
 
     await row1.locator("button[data-action*='trigger-27-edit']").click();
-    await page.waitForTimeout(300);
 
     await expect(row1.locator("button[data-action*='trigger-27-done']")).toBeVisible();
     await expect(row2.locator("button[data-action*='trigger-27-edit']")).toBeVisible();
@@ -265,7 +277,6 @@ test.describe("Issue #29 — group relevance refresh", () => {
     const insertBtn = page.locator("button[data-action*='trigger-29-insert']");
     await expect(insertBtn).toBeVisible();
     await insertBtn.click();
-    await page.waitForTimeout(500);
 
     await expect(group).toBeHidden();
     await expect(page.locator("#out-29-count")).toContainText("1");
@@ -273,7 +284,6 @@ test.describe("Issue #29 — group relevance refresh", () => {
     const deleteBtn = page.locator("button[data-action*='trigger-29-delete']");
     await expect(deleteBtn).toBeVisible();
     await deleteBtn.click();
-    await page.waitForTimeout(500);
 
     await expect(group).toBeVisible();
     await expect(page.locator("#out-29-count")).toContainText("0");
@@ -294,7 +304,6 @@ test.describe("Issue #30 — delete current repeat row", () => {
     const deleteButtons = page.locator("button[data-action*='trigger-30-delete']");
     await expect(deleteButtons).toHaveCount(2);
     await deleteButtons.first().click();
-    await page.waitForTimeout(500);
 
     await expect(repeatRows).toHaveCount(1);
 
@@ -317,7 +326,10 @@ test.describe("Issue #31 — insert fallback on empty nodeset", () => {
     const btn = page.locator("button[data-action*='trigger-31-insert']");
     await expect(btn).toBeVisible({ timeout: RENDER_TIMEOUT });
     await btn.click();
-    await page.waitForTimeout(500);
+    await expect.poll(
+      async () => (await getInstanceXML(page, "i31")).match(/<entry/g)?.length ?? 0,
+      { timeout: 3_000 }
+    ).toBe(1);
 
     const after = await getInstanceXML(page, "i31");
     expect((after.match(/<entry/g) || []).length).toBe(1);

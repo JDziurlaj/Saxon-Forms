@@ -39,7 +39,9 @@ async function selectPort() {
 async function main() {
   const selectedPort = await selectPort();
   const baseUrl = `http://${host}:${selectedPort}`;
-  const forwardedArgs = process.argv.slice(2);
+  const rawArgs = process.argv.slice(2);
+  const includeDiagnostics = rawArgs.includes("--include-diagnostics");
+  const forwardedArgs = rawArgs.filter((arg) => arg !== "--include-diagnostics");
   const isWindows = process.platform === "win32";
   const spawnCommand = isWindows ? "cmd.exe" : "npx";
   const spawnArgs = isWindows
@@ -51,7 +53,8 @@ async function main() {
       event: "playwright-port-selected",
       preferred_port: preferredPort,
       selected_port: selectedPort,
-      base_url: baseUrl
+      base_url: baseUrl,
+      include_diagnostics: includeDiagnostics
     })
   );
   // TEST-TRACE: launch via cmd.exe on Windows to avoid spawn EINVAL from npx.cmd; helps npm run test:e2e:static.
@@ -66,7 +69,8 @@ async function main() {
         PLAYWRIGHT_TEST_HOST: host,
         PLAYWRIGHT_TEST_PORT: String(selectedPort),
         PLAYWRIGHT_BASE_URL: baseUrl,
-        VITE_PORT: String(selectedPort)
+        VITE_PORT: String(selectedPort),
+        ...(includeDiagnostics ? { PLAYWRIGHT_INCLUDE_DIAGNOSTICS: "1" } : {})
       }
     }
   );

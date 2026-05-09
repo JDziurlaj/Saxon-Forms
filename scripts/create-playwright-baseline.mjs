@@ -83,6 +83,46 @@ function toRepoRelative(inputPath) {
   }
   return inputPath;
 }
+
+function getPathType(targetPath) {
+  if (!targetPath || !fs.existsSync(targetPath)) return null;
+  const stat = fs.statSync(targetPath);
+  if (stat.isFile()) return "file";
+  if (stat.isDirectory()) return "directory";
+  return "other";
+}
+
+function validateSuitePaths(selectedSuiteIds, suiteDefinitions) {
+  const problems = [];
+  for (const suiteId of selectedSuiteIds) {
+    const suite = suiteDefinitions[suiteId];
+    if (!suite) continue;
+    const configPathType = getPathType(suite.config_path);
+    if (configPathType !== "file") {
+      problems.push(
+        `Suite '${suiteId}' config_path must be an existing file: ${toRepoRelative(suite.config_path)}`
+      );
+    }
+    const testPathType = getPathType(suite.test_path);
+    if (!testPathType || (testPathType !== "file" && testPathType !== "directory")) {
+      problems.push(
+        `Suite '${suiteId}' test_path must be an existing file or directory: ${toRepoRelative(suite.test_path)}`
+      );
+    }
+  }
+  if (problems.length > 0) {
+    fail(`Suite path preflight failed:\n- ${problems.join("\n- ")}`);
+  }
+}
+
+function getTotalExecutedTests(stats = {}) {
+  return (
+    (stats.expected || 0) +
+    (stats.unexpected || 0) +
+    (stats.flaky || 0) +
+    (stats.skipped || 0)
+  );
+}
 function resolveSpawnCommand(command, args) {
   // TEST-TRACE: use cmd.exe to launch npx on Windows where plain "npx" can fail with ENOENT.
   if (process.platform === "win32" && command === "npx") {
@@ -226,6 +266,7 @@ for (const suiteId of selectedSuiteIds) {
     fail(`Unknown suite ID: ${suiteId}`);
   }
 }
+validateSuitePaths(selectedSuiteIds, suiteMap);
 
 const workers = Math.max(1, Math.floor((os.cpus()?.length || 1) * 0.75));
 const playwrightTimeoutMs = Number(process.env.BASELINE_PLAYWRIGHT_TIMEOUT_MS || 1200000);
@@ -349,6 +390,12 @@ for (const suiteId of selectedSuiteIds) {
   const specs = collectSpecs(report?.suites || []);
   const failures = [...new Set(specs.filter((s) => s.failed).map((s) => s.title))].sort();
   const stats = report?.stats || {};
+  const totalExecuted = getTotalExecutedTests(stats);
+  if (totalExecuted === 0) {
+    fail(
+      `Suite '${suiteId}' executed zero tests for ${testPathArg}. Check suite test_path and discovery configuration.`
+    );
+  }
 
   const baseline = {
     suite_id: suiteId,
@@ -356,11 +403,7 @@ for (const suiteId of selectedSuiteIds) {
     config_path: toRepoRelative(suite.config_path),
     last_updated: new Date().toISOString(),
     stats: {
-      total:
-        (stats.expected || 0) +
-        (stats.unexpected || 0) +
-        (stats.flaky || 0) +
-        (stats.skipped || 0),
+      total: totalExecuted,
       passed: stats.expected || 0,
       failed: stats.unexpected || 0,
       flaky: stats.flaky || 0,

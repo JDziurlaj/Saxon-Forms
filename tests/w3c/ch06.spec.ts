@@ -26,7 +26,6 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     // First Name is readonly per bind readonly="true()": typing must not change value
     await fnInput.fill("Changed");
     await fnInput.blur();
-    await page.waitForTimeout(300);
     await expect(fnInput).toHaveValue("Roland");
     // Instance data
     const xml = await getInstanceXML(page);
@@ -53,7 +52,6 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     await fnInput.blur();
     await lnInput.fill("ChangedLast");
     await lnInput.blur();
-    await page.waitForTimeout(300);
     await expect(fnInput).toHaveValue("Roland");
     await expect(lnInput).toHaveValue("Orlando");
     const xml = await getInstanceXML(page);
@@ -90,7 +88,11 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     // After entering First Name, submit should proceed
     await fnInput.fill("Roland");
     await fnInput.blur();
-    await page.waitForTimeout(300);
+    // TEST-TRACE: poll instance state instead of sleeping before submit capture; helps tests/w3c/ch06.spec.ts "6.1.3.a".
+    await expect.poll(
+      async () => (await getInstanceXML(page)).includes(">Roland<"),
+      { timeout: 3_000 }
+    ).toBe(true);
     const allowedSubmission = await submitAndCapture(page, submitBtn, 5000);
     expect(allowedSubmission).not.toBeNull();
     const postBody = allowedSubmission?.postData() || "";
@@ -128,13 +130,11 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
 
     // Click "Enter 1500" — discount output should become relevant/visible
     await page.getByRole('button', { name: 'Enter 1500' }).click();
-    await page.waitForTimeout(500);
     await expect(discountOutput).toBeVisible();
     await expect(discountRow).toContainText(/Discount\s*:\s*\S+/);
 
     // Click "Enter 250" — discount output should become non-relevant/hidden
     await page.getByRole('button', { name: 'Enter 250' }).click();
-    await page.waitForTimeout(500);
     await expect(discountOutput).toBeHidden();
   });
 
@@ -164,12 +164,10 @@ test.describe("W3C Ch6 — Model Item Properties [behavioral]", () => {
     await expect(page.locator('button.xforms-trigger')).toHaveCount(3);
 
     await page.getByRole('button', { name: 'Enter 1500' }).click();
-    await page.waitForTimeout(500);
     await expect(discountOutput).toBeVisible();
     await expect(discountRow).toContainText(/Discount\s*:\s*750(?:\.0+)?\b/);
 
     await page.getByRole('button', { name: 'Enter 2000' }).click();
-    await page.waitForTimeout(500);
     await expect(discountOutput).toBeVisible();
     await expect(discountRow).toContainText(/Discount\s*:\s*1000(?:\.0+)?\b/);
   });

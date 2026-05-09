@@ -7,14 +7,14 @@
     "issues-spec": {
       "description": "Core upstream issue regressions for insert/delete/ref behavior",
       "config_path": "playwright.config.ts",
-      "test_path": "tests/issues.spec.ts",
+      "test_path": "tests/supplemental/issues.spec.ts",
       "baseline_path": ".agents/skills/regression-gate/baselines/issues-spec.json",
       "regression_policy": "waivable-with-justification"
     },
     "saxon-forms": {
       "description": "General Saxon-Forms behavior smoke/regression checks",
       "config_path": "playwright.config.ts",
-      "test_path": "tests/saxon-forms.spec.ts",
+      "test_path": "tests/supplemental/saxon-forms.spec.ts",
       "baseline_path": ".agents/skills/regression-gate/baselines/saxon-forms.json",
       "regression_policy": "waivable-with-justification"
     },
