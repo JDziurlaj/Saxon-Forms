@@ -8,25 +8,16 @@ const ch8_1_smoke: [string, string][] = [
   ["8.1.3.b — secret binding restrictions", "Chapt08/8.1/8.1.3/8.1.3.b.xhtml"],  // depends on incremental update or binding restriction enforcement
   ["8.1.4.a — textarea incremental", "Chapt08/8.1/8.1.4/8.1.4.a.xhtml"],  // depends on incremental update or binding restriction enforcement
   ["8.1.4.b — textarea binding restrictions", "Chapt08/8.1/8.1.4/8.1.4.b.xhtml"],  // depends on incremental update or binding restriction enforcement
-  ["8.1.5.b — output value attribute", "Chapt08/8.1/8.1.5/8.1.5.b.xhtml"],
   ["8.1.5.c — output UI common", "Chapt08/8.1/8.1.5/8.1.5.c.xhtml"],  // expects modal message from event handler
   ["8.1.6.a — upload mediatype", "Chapt08/8.1/8.1.6/8.1.6.a.xhtml"],  // non-normative test
   ["8.1.6.b — upload incremental", "Chapt08/8.1/8.1.6/8.1.6.b.xhtml"],  // expects modal message or error dialog
   ["8.1.6.c — upload filename/mediatype", "Chapt08/8.1/8.1.6/8.1.6.c.xhtml"],  // depends on file upload interaction
   ["8.1.6.d — upload binding restrictions", "Chapt08/8.1/8.1.6/8.1.6.d.xhtml"],  // expects xforms-binding-exception message or fatal error
   ["8.1.6.e — upload element", "Chapt08/8.1/8.1.6/8.1.6.e.xhtml"],  // depends on file upload interaction
-  ["8.1.7.d — range incremental", "Chapt08/8.1/8.1.7/8.1.7.d.xhtml"],  // depends on incremental update or binding restriction enforcement
   ["8.1.7.f — range binding restrictions", "Chapt08/8.1/8.1.7/8.1.7.f.xhtml"],  // depends on incremental update or binding restriction enforcement
   ["8.1.7.g — range binding basic", "Chapt08/8.1/8.1.7/8.1.7.g.xhtml"],  // depends on incremental update or binding restriction enforcement
-  ["8.1.8.a — trigger", "Chapt08/8.1/8.1.8/8.1.8.a.xhtml"],  // expects modal message after trigger activation
-  ["8.1.8.b — trigger appearance", "Chapt08/8.1/8.1.8/8.1.8.b.xhtml"],  // tests visual appearance attribute (rendering-dependent)
   ["8.1.9.a — submit", "Chapt08/8.1/8.1.9/8.1.9.a.xhtml"],  // no testable output criteria in spec
-  ["8.1.9.b — submit appearance", "Chapt08/8.1/8.1.9/8.1.9.b.xhtml"],  // tests visual appearance attribute (rendering-dependent)
-  ["8.1.10.b — select incremental", "Chapt08/8.1/8.1.10/8.1.10.b.xhtml"],  // depends on incremental update or binding restriction enforcement
-  ["8.1.10.c — select appearance", "Chapt08/8.1/8.1.10/8.1.10.c.xhtml"],  // tests visual appearance attribute (rendering-dependent)
   ["8.1.10.d — select out of range", "Chapt08/8.1/8.1.10/8.1.10.d.xhtml"],  // expects modal message after trigger activation
-  ["8.1.11.b — select1 incremental", "Chapt08/8.1/8.1.11/8.1.11.b.xhtml"],  // depends on incremental update or binding restriction enforcement
-  ["8.1.11.c — select1 appearance", "Chapt08/8.1/8.1.11/8.1.11.c.xhtml"],  // tests visual appearance attribute (rendering-dependent)
   ["8.1.11.d — select1 out of range", "Chapt08/8.1/8.1.11/8.1.11.d.xhtml"],  // expects modal message after trigger activation
 ];
 
@@ -459,6 +450,45 @@ test.describe("W3C Chapter 8 — output bind precedence", () => {
 
 test.describe("W3C Ch8 [smoke → behavioral promoted]", () => {
   // --- Render checks ---
+  /*
+     You must see an xforms-value-changed message whenever you change the selection in the Select A
+     Flavor select control. When you make a selection a list of the first letter of the flavor(s)
+     must be displayed in the Selected Flavor output control.
+  */
+  test("8.1.10.b — select incremental dispatches xforms-value-changed", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt08/8.1/8.1.10/8.1.10.b.xhtml");
+    // TEST-TRACE: Promote smoke coverage by asserting incremental select updates dialog, output, and instance.
+    const flavorSelect = page.locator("div.xforms-select select");
+    await expect(flavorSelect).toHaveCount(1);
+    await flavorSelect.selectOption(["v"]);
+    await page.waitForTimeout(300);
+    const normalizedMessages = dialogMessages.map((message) => normalizeWhitespace(message));
+    expect(normalizedMessages.some((message) => /\bxforms-value-changed\b/i.test(message))).toBe(true);
+    await expect(page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..")).toContainText(/Selected Flavor\s*:\s*v/);
+    const xml = await getInstanceXML(page);
+    expect(xml).toContain("<flavor>v</flavor>");
+  });
+
+  /*
+     You must see an xforms-value-changed message whenever you change the selection in the Select A
+     Flavor select1 control. When you make a selection the first letter of the flavor must be
+     displayed in the Selected Flavor output control.
+  */
+  test("8.1.11.b — select1 incremental dispatches xforms-value-changed", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt08/8.1/8.1.11/8.1.11.b.xhtml");
+    // TEST-TRACE: Promote smoke coverage by asserting incremental select1 updates dialog, output, and instance.
+    const flavorSelect1 = page.locator("div.xforms-select select");
+    await expect(flavorSelect1).toHaveCount(1);
+    await flavorSelect1.selectOption("s");
+    await page.waitForTimeout(300);
+    const normalizedMessages = dialogMessages.map((message) => normalizeWhitespace(message));
+    expect(normalizedMessages.some((message) => /\bxforms-value-changed\b/i.test(message))).toBe(true);
+    await expect(page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..")).toContainText(/Selected Flavor\s*:\s*s/);
+    const xml = await getInstanceXML(page);
+    expect(xml).toContain("<flavor>s</flavor>");
+  });
 
   /*
      You must see three select controls each with a different value for appearance (Full, Compact,
