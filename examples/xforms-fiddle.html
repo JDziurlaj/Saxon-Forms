@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>XForms Fiddle</title>
+    <script src="/Saxon-JS/SaxonJS3.rt.js"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html, body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        color: #e2e8f0;
+        background: #020617;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #334155;
+        background: #0f172a;
+      }
+      .toolbar h1 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+      #refresh-xforms {
+        border: 1px solid #475569;
+        border-radius: 4px;
+        background: #1e293b;
+        color: #e2e8f0;
+        font-weight: 600;
+        padding: 0.45rem 0.85rem;
+        cursor: pointer;
+      }
+      #refresh-xforms:hover {
+        background: #334155;
+      }
+      .fiddle-layout {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-rows: minmax(0, 1fr) 220px;
+        gap: 0.75rem;
+        padding: 0.75rem;
+      }
+      .pane {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        background: #0f172a;
+      }
+      .pane h2 {
+        margin: 0;
+        font-size: 0.85rem;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        padding: 0.55rem 0.7rem;
+        border-bottom: 1px solid #334155;
+      }
+      .xml-renderer {
+        margin: 0;
+        padding: 0.75rem;
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        background: #020617;
+        color: #e2e8f0;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: pre;
+      }
+      .xml-editor {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        background: #020617;
+      }
+      .xml-editor-highlight,
+      #xforms-source-editor {
+        position: absolute;
+        inset: 0;
+        margin: 0;
+        padding: 0.75rem;
+        border: 0;
+        overflow: auto;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: pre;
+      }
+      .xml-editor-highlight {
+        pointer-events: none;
+      }
+      #xforms-source-editor {
+        resize: none;
+        outline: none;
+        background: transparent;
+        color: transparent;
+        caret-color: #f8fafc;
+      }
+      #xforms-source-editor::selection {
+        background: rgba(59, 130, 246, 0.45);
+        color: transparent;
+      }
+      #rendered-xforms {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 0.75rem;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      #xForm {
+        min-height: 100%;
+      }
+      .console-pane {
+        grid-column: 1 / -1;
+      }
+      #fiddle-console {
+        margin: 0;
+        padding: 0.75rem;
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        background: #020617;
+        color: #cbd5e1;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+      }
+      .console-line {
+        margin: 0;
+      }
+      .level-info {
+        color: #93c5fd;
+      }
+      .level-warn {
+        color: #fcd34d;
+      }
+      .level-error {
+        color: #fca5a5;
+      }
+      .xml-prolog {
+        color: #7dd3fc;
+      }
+      .xml-comment {
+        color: #94a3b8;
+      }
+      .xml-punctuation {
+        color: #cbd5e1;
+      }
+      .xml-tag-name {
+        color: #fda4af;
+      }
+      .xml-attr-name {
+        color: #93c5fd;
+      }
+      .xml-attr-value {
+        color: #86efac;
+      }
+      @media (max-width: 1200px) {
+        .fiddle-layout {
+          grid-template-columns: 1fr;
+          grid-template-rows: repeat(3, minmax(220px, 1fr)) 220px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="toolbar">
+      <h1>XForms Fiddle</h1>
+      <button id="refresh-xforms" type="button">Refresh XForms</button>
+    </header>
+    <main class="fiddle-layout">
+      <section class="pane">
+        <h2>XSLT source (SaxonForms)</h2>
+        <pre id="xslt-source" class="xml-renderer"></pre>
+      </section>
+      <section class="pane">
+        <h2>XForms source</h2>
+        <div class="xml-editor">
+          <pre id="xforms-source-highlight" class="xml-renderer xml-editor-highlight" aria-hidden="true"></pre>
+          <textarea id="xforms-source-editor" spellcheck="false" aria-label="XForms source"></textarea>
+        </div>
+      </section>
+      <section class="pane">
+        <h2>Rendered XForms</h2>
+        <div id="rendered-xforms">
+          <div id="xForm"></div>
+        </div>
+      </section>
+      <section class="pane console-pane">
+        <h2>Console output</h2>
+        <pre id="fiddle-console" aria-live="polite"></pre>
+      </section>
+    </main>
+    <script src="js/xforms-fiddle.js"></script>
+  </body>
+</html>

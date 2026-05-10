@@ -5,12 +5,12 @@
       <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
        <title>Demo of query in XForms</title>
       <link rel="stylesheet" href="css/style.css" type="text/css" />
-      <script src="../../Saxon-JS/SaxonJS3.rt.js"></script>
+      <script src="../Saxon-JS/SaxonJS3.rt.js"></script>
 
       <script>
       window.onload = function() {
         SaxonJS.transform({
-           "stylesheetLocation":"../../sef/saxon-xforms.sef.json",
+           "stylesheetLocation":"../sef/saxon-xforms.sef.json",
            "sourceLocation":"xml/demo-query.xml",
            "stylesheetParams": {"xforms-file":"xml/demo-query.xml"}
            })

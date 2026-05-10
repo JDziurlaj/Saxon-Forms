@@ -4,14 +4,14 @@
    <head>
       <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
       <title>Sample 3 XForms test</title>
-      <link rel="stylesheet" href="style.css" type="text/css" />
-      <script src="../../Saxon-JS/SaxonJS3.rt.js"></script>
+      <link rel="stylesheet" href="css/style.css" type="text/css" />
+      <script src="../Saxon-JS/SaxonJS3.rt.js"></script>
 
       <script>
       window.onload = function() {
         SaxonJS.transform({
-           "stylesheetLocation":"../../sef/saxon-xforms.sef.json",
-           "sourceLocation":"xml/sample3form.xml"
+           "stylesheetLocation":"generated/sample3.sef.xml",
+           "initialTemplate":"main"
             })
       }     
       </script>

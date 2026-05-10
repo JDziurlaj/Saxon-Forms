@@ -1,22 +1,24 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
+const generatedRoot = path.join(repoRoot, "examples", "generated");
 
-const sampleCompilations = [
+const exampleCompilations = [
   {
     name: "sample2",
-    stylesheetPath: "samples/sample2/sample2.xsl",
-    exportPath: "samples/sample2/sample2.sef.xml"
+    stylesheetPath: "examples/xsl/sample2.xsl",
+    exportPath: "examples/generated/sample2.sef.xml"
   },
   {
     name: "sample3",
-    stylesheetPath: "samples/sample3/xsl/sample3.xsl",
-    exportPath: "samples/sample3/sef/sample3.sef.xml"
+    stylesheetPath: "examples/xsl/sample3.xsl",
+    exportPath: "examples/generated/sample3.sef.xml"
   }
 ];
 
@@ -48,7 +50,8 @@ function runXslt3(args) {
 }
 
 async function main() {
-  for (const compilation of sampleCompilations) {
+  await fs.mkdir(generatedRoot, { recursive: true });
+  for (const compilation of exampleCompilations) {
     console.log(`Compiling ${compilation.name} with xslt3...`);
     await runXslt3([
       "-t",

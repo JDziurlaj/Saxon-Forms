@@ -19,13 +19,17 @@ npm run build:sef
 ```
 
 ## Setup
-Saxon-Forms currently supports Saxon-JS 3. To run Saxon-Forms you will need Saxon-JS which can be downloaded at 
-[Saxon-JS](http://www.saxonica.com/saxon-js/index.xml) (older versions available at the [archive](https://www.saxonica.com/saxon-js/archive.xml)). Please see sample1 and sample2 which show two alternative ways to use Saxon-Forms.
+Saxon-Forms currently supports Saxon-JS 3. To run Saxon-Forms you will need Saxon-JS which can be downloaded at
+[Saxon-JS](http://www.saxonica.com/saxon-js/index.xml) (older versions available at the [archive](https://www.saxonica.com/saxon-js/archive.xml)). Example pages are consolidated under `examples/`.
 
-- Saxon-Forms can be loaded directly with the source document being the XForms application. See
-[sample1](https://github.com/Saxonica/Saxon-Forms/tree/master/samples/sample1).
-- Alternatively, Saxon-Forms can be loaded via a seperate stylsheet by a xsl:call-template or apply-template. See
-[sample2](https://github.com/Saxonica/Saxon-Forms/tree/master/samples/sample2). 
+- Run all examples:
+  - `npm run examples`
+- Compile stylesheet-driven integration examples on demand:
+  - `npm run examples:compile`
+- Direct XForms-source loading example:
+  - `examples/sample1.html`
+- Stylesheet-driven loading example:
+  - `examples/sample2.html`
 
 ## End-to-end tests (Playwright)
 

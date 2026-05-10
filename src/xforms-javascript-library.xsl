@@ -429,6 +429,12 @@
         var getOutput = function(name){
             return outputs[name];
         }
+        
+        var removeOutput = function(name){
+            if (name in outputs) {
+                delete outputs[name];
+            }
+        }
                 
         var getOutputKeys = function() {
             return Object.keys(outputs);

@@ -4,19 +4,17 @@
    <head>
       <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
          <title>Booking Form</title>
-      <link rel="stylesheet" href="style.css" type="text/css" />
-      <script src="../../Saxon-JS/SaxonJS3.rt.js"></script>
+      <link rel="stylesheet" href="css/style.css" type="text/css" />
+      <script src="../Saxon-JS/SaxonJS3.rt.js"></script>
 
       <script>
       window.onload = function() {
         SaxonJS.transform({
-           "stylesheetLocation":"../../sef/saxon-xforms.sef.json",
-           "sourceLocation":"sampleBookingForm.xml",
+           "stylesheetLocation":"generated/sample2.sef.xml",
+           "initialTemplate":"main",
            })
       }     
       </script>
-      <script src="saxonRequests.js"></script>
-<!--      <script type="application/json" id="xforms-jinstance"></script>-->
    </head>
 
    <body>

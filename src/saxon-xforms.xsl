@@ -4409,7 +4409,8 @@
                     </xsl:result-document>
                 </xsl:when>
                 <xsl:otherwise>
-                    <xsl:message>[refreshOutputs-JS] Can't find form control with ID '<xsl:sequence select="$this-key"/>'</xsl:message>
+                    <xsl:message use-when="$debugMode">[refreshOutputs-JS] Can't find form control with ID '<xsl:sequence select="$this-key"/>'</xsl:message>
+                    <xsl:sequence select="js:removeOutput($this-key)"/>
                 </xsl:otherwise>
             </xsl:choose>
             
@@ -4430,7 +4431,9 @@
                 </xsl:call-template>
             </xsl:variable>
             
-            <ixsl:set-attribute name="class" select="$htmlClass" object="$associated-form-control"/>
+            <xsl:if test="exists($associated-form-control)">
+                <ixsl:set-attribute name="class" select="$htmlClass" object="$associated-form-control"/>
+            </xsl:if>
             
         </xsl:for-each>
         

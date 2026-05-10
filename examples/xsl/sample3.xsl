@@ -14,7 +14,7 @@
     version="3.0"
     >
 
-    <xsl:import href="../../../src/saxon-xforms.xsl"/>
+    <xsl:import href="../../src/saxon-xforms.xsl"/>
 
     <!-- The $sampleForm document contains the main form, in XForms format -->
     <!-- relative to HTML file calling SaxonJS.transform() -->
