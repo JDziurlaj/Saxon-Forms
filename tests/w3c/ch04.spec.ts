@@ -107,13 +107,12 @@ async function expectDialogFragments(
   );
 }
 
-test.describe("W3C Ch4 — Processing Model [smoke]", () => {
+test.describe("W3C Ch4 — Processing Model [smoke tests]", () => {
   for (const [name, file] of ch4_smoke_only) {
     test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
   }
 });
-
-test.describe("W3C Ch4 [smoke → behavioral promoted]", () => {
+test.describe("W3C Ch4 — Processing Model [behavioral]", () => {
   const onLoadDialogCases: Array<{ name: string; file: string; expected: string[] }> = [
     {
       name: "4.2.1.a — model-construct events",
@@ -240,9 +239,6 @@ test.describe("W3C Ch4 [smoke → behavioral promoted]", () => {
       }
     });
   }
-});
-
-test.describe("W3C Ch4 — Processing Model [behavioral]", () => {
   /* You must see a value of "NaN" : */
   // helps tests / w3c / ch07.spec.ts "7.7.5.b" */
 

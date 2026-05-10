@@ -1,37 +1,5 @@
-import { test, expect, loadTest, loadAndWait, getRenderedText, getInstanceXML, getFormControlText, collectDialogMessages, normalizeWhitespace, waitForCondition, escapeRegex } from "./helpers";
+import { test, expect, loadAndWait, getRenderedText, getInstanceXML, getFormControlText, collectDialogMessages, normalizeWhitespace, waitForCondition, escapeRegex } from "./helpers";
 
-const ch7_smoke: [string, string][] = [
-  ["7.5.a — compute exception", "Chapt07/7.5/7.5.a.xhtml"],  // expects xforms-compute-exception message or fatal error
-  ["7.5.b — binding exception", "Chapt07/7.5/7.5.b.xhtml"],  // expects xforms-binding-exception message or fatal error
-  ["7.8.2.c — property() invalid NCNAME", "Chapt07/7.8/7.8.2/7.8.2.c.xhtml"],  // expects xforms-binding-exception message or fatal error
-  ["7.8.3.c — digest() invalid NCNAME", "Chapt07/7.8/7.8.3/7.8.3.c.xhtml"],  // expects xforms-compute-exception message or fatal error
-  ["7.8.3.d — digest() invalid QName", "Chapt07/7.8/7.8.3/7.8.3.d.xhtml"],  // expects xforms-compute-exception message or fatal error
-  ["7.8.3.e — digest() invalid encoding", "Chapt07/7.8/7.8.3/7.8.3.e.xhtml"],  // expects xforms-binding-exception message or fatal error
-  ["7.8.4.c — hmac() invalid NCNAME", "Chapt07/7.8/7.8.4/7.8.4.c.xhtml"],  // expects xforms-compute-exception message or fatal error
-  ["7.8.4.d — hmac() invalid QName", "Chapt07/7.8/7.8.4/7.8.4.d.xhtml"],  // expects xforms-compute-exception message or fatal error
-  ["7.8.4.e — hmac() invalid encoding", "Chapt07/7.8/7.8.4/7.8.4.e.xhtml"],  // expects xforms-compute-exception message or fatal error
-  ["7.10.2.a — current() ex1", "Chapt07/7.10/7.10.2/7.10.2.a.xhtml"],
-  ["7.10.2.b — current() ex2", "Chapt07/7.10/7.10.2/7.10.2.b.xhtml"],
-  ["7.12.a — invalid functions attr", "Chapt07/7.12/7.12.a.xhtml"],  // expects xforms-compute-exception message or fatal error
-  ["7.2.c", "Chapt07/7.2/7.2.c.xhtml"],  // no testable output criteria in spec
-];
-const ch7_promoted_smoke_names = new Set<string>([
-  "7.5.a — compute exception",
-  "7.5.b — binding exception",
-  "7.8.2.c — property() invalid NCNAME",
-  "7.8.3.c — digest() invalid NCNAME",
-  "7.8.3.d — digest() invalid QName",
-  "7.8.3.e — digest() invalid encoding",
-  "7.8.4.c — hmac() invalid NCNAME",
-  "7.8.4.d — hmac() invalid QName",
-  "7.8.4.e — hmac() invalid encoding",
-  "7.10.2.a — current() ex1",
-  "7.10.2.b — current() ex2",
-  "7.12.a — invalid functions attr",
-  "7.2.c",
-]);
-
-const ch7_smoke_only = ch7_smoke.filter(([name]) => !ch7_promoted_smoke_names.has(name));
 const ch7_exception_signal_gap_cases = new Set<string>([
   "7.5.a — compute exception",
   "7.5.b — binding exception",
@@ -69,12 +37,7 @@ async function expectExceptionDialogOrFatal(
 }
 
 
-test.describe("W3C Ch7 — XPath Expressions [smoke]", () => {
-  for (const [name, file] of ch7_smoke_only) {
-    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
-  }
-});
-test.describe("W3C Ch7 [smoke → behavioral promoted]", () => {
+test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
   const exceptionCases: Array<{ name: string; file: string; expectedException: string }> = [
     { name: "7.5.a — compute exception", file: "Chapt07/7.5/7.5.a.xhtml", expectedException: "xforms-compute-exception" },
     { name: "7.5.b — binding exception", file: "Chapt07/7.5/7.5.b.xhtml", expectedException: "xforms-binding-exception" },
@@ -110,28 +73,6 @@ test.describe("W3C Ch7 [smoke → behavioral promoted]", () => {
     });
   }
 
-  test("7.8.2.c — property() invalid NCNAME renders empty Invalid Property output", async ({ page }) => {
-    // TEST-TRACE: assert invalid property() output remains empty while binding-exception signal is raised; helps tests/w3c/ch07.spec.ts "7.8.2.c".
-    test.fixme("property('invalid') negative path currently fails before rendering stable Invalid Property output line.");
-    await loadAndWait(page, "Chapt07/7.8/7.8.2/7.8.2.c.xhtml");
-    const text = await getFormControlText(page);
-    const invalidLine = text.match(/Invalid Property\\s*:\\s*([^\\n\\r]*)/i);
-    expect(invalidLine).not.toBeNull();
-    expect((invalidLine?.[1] ?? "").trim()).toBe("");
-  });
-
-  test("7.2.c — context node stays in context model (outputs 1, 2, 3)", async ({ page }) => {
-    // TEST-TRACE: replace prior smoke-only render check with concrete context-model output assertions; helps tests/w3c/ch07.spec.ts "7.2.c".
-    await loadAndWait(page, "Chapt07/7.2/7.2.c.xhtml");
-    const outputs = page.locator(".xforms-output");
-    await expect(outputs).toHaveCount(3);
-    await expect(outputs.nth(0)).toHaveText("1");
-    await expect(outputs.nth(1)).toHaveText("2");
-    await expect(outputs.nth(2)).toHaveText("3");
-  });
-});
-
-test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
   /*
      You must see a value of "Seth" for First Name, a value of "Peters" for Last Name, and a value
      of "speters@example.com" for Email Address.
@@ -164,6 +105,16 @@ test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
     await expect(lnInput).toHaveValue("Hewie");
     const emailOutput = page.locator('.xforms-output');
     await expect(emailOutput).toHaveText("chewie@example.com");
+  });
+
+  test("7.2.c — context node stays in context model (outputs 1, 2, 3)", async ({ page }) => {
+    // TEST-TRACE: replace prior smoke-only render check with concrete context-model output assertions; helps tests/w3c/ch07.spec.ts "7.2.c".
+    await loadAndWait(page, "Chapt07/7.2/7.2.c.xhtml");
+    const outputs = page.locator(".xforms-output");
+    await expect(outputs).toHaveCount(3);
+    await expect(outputs.nth(0)).toHaveText("1");
+    await expect(outputs.nth(1)).toHaveText("2");
+    await expect(outputs.nth(2)).toHaveText("3");
   });
 
   /*
@@ -397,6 +348,15 @@ test.describe("W3C Ch7 — XPath Expressions [behavioral]", () => {
     await loadAndWait(page, "Chapt07/7.8/7.8.2/7.8.2.b.xhtml");
     const text = await getFormControlText(page);
     expect(text).toMatch(/Conformance Level\s*:\s*full\b/i);
+  });
+  test("7.8.2.c — property() invalid NCNAME renders empty Invalid Property output", async ({ page }) => {
+    // TEST-TRACE: assert invalid property() output remains empty while binding-exception signal is raised; helps tests/w3c/ch07.spec.ts "7.8.2.c".
+    test.fixme("property('invalid') negative path currently fails before rendering stable Invalid Property output line.");
+    await loadAndWait(page, "Chapt07/7.8/7.8.2/7.8.2.c.xhtml");
+    const text = await getFormControlText(page);
+    const invalidLine = text.match(/Invalid Property\\s*:\\s*([^\\n\\r]*)/i);
+    expect(invalidLine).not.toBeNull();
+    expect((invalidLine?.[1] ?? "").trim()).toBe("");
   });
 
   /* You must see no value for the Invalid Property output. */

@@ -31,47 +31,23 @@ const ch8_3_smoke: [string, string][] = [
   ["8.3.3.a — value binding restrictions", "Chapt08/8.3/8.3.3/8.3.3.a.xhtml"],  // expects modal message or error dialog
 ];
 
-test.describe("W3C Ch8 §8.1 — Core Controls [smoke]", () => {
+test.describe("W3C Ch8 — UI [smoke tests]", () => {
   for (const [name, file] of ch8_1_smoke) {
     test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
   }
+  for (const [name, file] of ch8_2_smoke) {
+    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
+  }
+  for (const [name, file] of ch8_3_smoke) {
+    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
+  }
 });
-
-test.describe("W3C Ch8 §8.1 — Core Controls [behavioral]", () => {
+test.describe("W3C Ch8 — UI [behavioral]", () => {
   /*
      You must see three output controls. The Car Make output control must have the value "Lotus".
      The Car Year output control must have the value "2005". The Car Color output control must have
      the value "Aztec Bronze".
   */
-  test("8.1.5.a — output controls show car instance values", async ({ page }) => {
-    await loadAndWait(page, "Chapt08/8.1/8.1.5/8.1.5.a.xhtml");
-    // Scoped: check output elements contain expected car data
-    const outputs = page.locator('.xforms-output');
-    const texts = await outputs.allInnerTexts();
-    expect(texts).toContain("Lotus");
-    expect(texts).toContain("2005");
-    expect(texts).toContain("Aztec Bronze");
-    // Instance data
-    const xml = await getInstanceXML(page);
-    expect(xml).toContain(">Lotus<");
-    expect(xml).toContain(">2005<");
-    expect(xml).toContain(">Aztec Bronze<");
-  });
-});
-
-test.describe("W3C Ch8 §8.2 — UI Common [smoke]", () => {
-  for (const [name, file] of ch8_2_smoke) {
-    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
-  }
-});
-
-test.describe("W3C Ch8 §8.3 — Selection Controls [smoke]", () => {
-  for (const [name, file] of ch8_3_smoke) {
-    test(`${name} renders`, async ({ page }) => { await loadTest(page, file); });
-  }
-});
-
-test.describe("W3C Ch8 [behavioral promoted]", () => {
   /*
      You must see an xforms-enabled message, an xforms-value-changed message, an xforms-valid
      message, an xforms-readwrite message, and an xforms-optional message.
@@ -94,24 +70,6 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
         !normalizedMessages.some((message) => new RegExp(`\\b${eventName}\\b`, "i").test(message))
     );
     expect(missingEvents).toEqual([]);
-  });
-
-  /*
-     You must be able to both select a value from the Select A Flavor select control and enter your
-     own value into it.
-  */
-  test("8.1.10.a — 8.1.10.a selection attribute of select element", async ({ page }) => {
-    test.fixme("xf:select selection='open' custom value entry is not implemented yet.");
-    await loadAndWait(page, "Chapt08/8.1/8.1.10/8.1.10.a.xhtml");
-  });
-
-  /*
-     You must be able to both select a value from the Select A Flavor select1 control and enter your
-     own value into it.
-  */
-  test("8.1.11.a — 8.1.11.a selection attribute of select1 element", async ({ page }) => {
-    test.fixme("xf:select1 selection='open' custom value entry is not implemented yet.");
-    await loadAndWait(page, "Chapt08/8.1/8.1.11/8.1.11.a.xhtml");
   });
 
   /*
@@ -156,6 +114,32 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
   test("8.1.5.1.a — 8.1.5.1.a mediatype element", async ({ page }) => {
     test.fixme("Dynamic output rendering from xf:mediatype child content is not implemented yet.");
     await loadAndWait(page, "Chapt08/8.1/8.1.5/8.1.5.1/8.1.5.1.a.xhtml");
+  });
+  test("8.1.5.a — output controls show car instance values", async ({ page }) => {
+    await loadAndWait(page, "Chapt08/8.1/8.1.5/8.1.5.a.xhtml");
+    // Scoped: check output elements contain expected car data
+    const outputs = page.locator('.xforms-output');
+    const texts = await outputs.allInnerTexts();
+    expect(texts).toContain("Lotus");
+    expect(texts).toContain("2005");
+    expect(texts).toContain("Aztec Bronze");
+    // Instance data
+    const xml = await getInstanceXML(page);
+    expect(xml).toContain(">Lotus<");
+    expect(xml).toContain(">2005<");
+    expect(xml).toContain(">Aztec Bronze<");
+  });
+  /*
+     You must see the value "1032" for the Tax output control and the value "2005" for the Car Year
+     output control.
+  */
+  test("8.1.5.b output with @value and @bind — bind takes precedence", async ({ page }) => {
+    await loadAndWait(page, "Chapt08/8.1/8.1.5/8.1.5.b.xhtml");
+    // Tax output: value="0.024 * /car/price" → 1032
+    // Car Year output: value="/car/price" bind="year_bind" → bind wins, shows 2005
+    const text = await getFormControlText(page);
+    expect(text).toContain("1032");
+    expect(text).toContain("2005");
   });
 
   /* You should see the "calendar-picker-open.png" image. */
@@ -279,6 +263,166 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
     await expect(page.locator(".xforms-output[data-ref*='balance']").locator("xpath=..")).toContainText(/Balance\s*:\s*1\.5/);
     const xml = await getInstanceXML(page);
     expect(xml).toContain(">1.5<");
+  });
+  /*
+     When you activate the DOMActivate trigger control you must see a DOMActivate message.
+  */
+  test("8.1.8.a — DOMActivate trigger shows popup", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt08/8.1/8.1.8/8.1.8.a.xhtml");
+    // TEST-TRACE: Verify clicking the DOMActivate trigger emits the expected modal dialog message.
+    await clickTrigger(page, "DOMActivate");
+    await page.waitForTimeout(300);
+    const normalizedMessages = dialogMessages.map((message) => normalizeWhitespace(message));
+    expect(normalizedMessages.some((message) => /\bDOMActivate\b/i.test(message))).toBe(true);
+  });
+
+  /*
+     You must see two trigger controls on this page, one labeled "Regular Trigger" and the other
+     labeled "Minimal Trigger". They may look different.
+  */
+  test("8.1.8.b — two trigger controls rendered", async ({ page }) => {
+    await loadAndWait(page, "Chapt08/8.1/8.1.8/8.1.8.b.xhtml");
+    const text = await getFormControlText(page);
+    expect(text).toContain("Regular Trigger");
+    expect(text).toContain("Minimal Trigger");
+  });
+
+  /*
+     You must see two submit controls on this page, one labeled "Regular Submit" and the other
+     labeled "Minimal Submit". They may look different.
+  */
+  test("8.1.9.b — two submit controls rendered", async ({ page }) => {
+    await loadAndWait(page, "Chapt08/8.1/8.1.9/8.1.9.b.xhtml");
+    const text = await getFormControlText(page);
+    expect(text).toContain("Regular Submit");
+    expect(text).toContain("Minimal Submit");
+  });
+
+  /*
+     You must be able to both select a value from the Select A Flavor select control and enter your
+     own value into it.
+  */
+  test("8.1.10.a — 8.1.10.a selection attribute of select element", async ({ page }) => {
+    test.fixme("xf:select selection='open' custom value entry is not implemented yet.");
+    await loadAndWait(page, "Chapt08/8.1/8.1.10/8.1.10.a.xhtml");
+  });
+  // --- Render checks ---
+  /*
+     You must see an xforms-value-changed message whenever you change the selection in the Select A
+     Flavor select control. When you make a selection a list of the first letter of the flavor(s)
+     must be displayed in the Selected Flavor output control.
+  */
+  test("8.1.10.b — select incremental dispatches xforms-value-changed", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt08/8.1/8.1.10/8.1.10.b.xhtml");
+    // TEST-TRACE: Promote smoke coverage by asserting incremental select updates dialog, output, and instance.
+    const flavorSelect = page.locator("div.xforms-select select");
+    await expect(flavorSelect).toHaveCount(1);
+    await flavorSelect.selectOption(["v"]);
+    await page.waitForTimeout(300);
+    const normalizedMessages = dialogMessages.map((message) => normalizeWhitespace(message));
+    expect(normalizedMessages.some((message) => /\bxforms-value-changed\b/i.test(message))).toBe(true);
+    await expect(page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..")).toContainText(/Selected Flavor\s*:\s*v/);
+    const xml = await getInstanceXML(page);
+    expect(xml).toContain("<flavor>v</flavor>");
+  });
+
+  /*
+     You must see three select controls each with a different value for appearance (Full, Compact,
+     or Minimal). When you make a selection a list of the first letter of the flavor(s) must be
+     displayed in the Selected Flavor output control. Each letter is separated by a space in the
+     list.
+  */
+  test("8.1.10.c — three select appearances (full, compact, minimal)", async ({ page }) => {
+    await loadAndWait(page, "Chapt08/8.1/8.1.10/8.1.10.c.xhtml");
+    // TEST-TRACE: Assert xf:select appearance wiring and enforced minimal->compact degrade for Chapt08/8.1/8.1.10/8.1.10.c.xhtml.
+    const fullSelect = page.locator("select[data-appearance-requested='full']").first();
+    const compactSelect = page.locator("select[data-appearance-requested='compact']").first();
+    const minimalSelect = page.locator("select[data-appearance-requested='minimal']").first();
+    const selectedFlavorOutput = page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..").first();
+
+    await expect(fullSelect).toHaveCount(1);
+    await expect(fullSelect).toHaveAttribute("data-appearance", "full");
+    await expect(fullSelect).toHaveAttribute("multiple", /^(true|multiple)$/);
+
+    await expect(compactSelect).toHaveCount(1);
+    await expect(compactSelect).toHaveAttribute("data-appearance", "compact");
+    await expect(compactSelect).toHaveAttribute("multiple", /^(true|multiple)$/);
+
+    await expect(minimalSelect).toHaveCount(1);
+    await expect(minimalSelect).toHaveAttribute("data-appearance", "compact");
+    await expect(minimalSelect).toHaveAttribute("data-appearance-degraded", "true");
+    await expect(minimalSelect).toHaveAttribute("multiple", /^(true|multiple)$/);
+
+    await fullSelect.selectOption(["v"]);
+    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*v/);
+    await compactSelect.selectOption(["s"]);
+    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*s/);
+    await minimalSelect.selectOption(["c"]);
+    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*c/);
+  });
+
+  /*
+     You must be able to both select a value from the Select A Flavor select1 control and enter your
+     own value into it.
+  */
+  test("8.1.11.a — 8.1.11.a selection attribute of select1 element", async ({ page }) => {
+    test.fixme("xf:select1 selection='open' custom value entry is not implemented yet.");
+    await loadAndWait(page, "Chapt08/8.1/8.1.11/8.1.11.a.xhtml");
+  });
+
+  /*
+     You must see an xforms-value-changed message whenever you change the selection in the Select A
+     Flavor select1 control. When you make a selection the first letter of the flavor must be
+     displayed in the Selected Flavor output control.
+  */
+  test("8.1.11.b — select1 incremental dispatches xforms-value-changed", async ({ page }) => {
+    const dialogMessages = collectDialogMessages(page);
+    await loadAndWait(page, "Chapt08/8.1/8.1.11/8.1.11.b.xhtml");
+    // TEST-TRACE: Promote smoke coverage by asserting incremental select1 updates dialog, output, and instance.
+    const flavorSelect1 = page.locator("div.xforms-select select");
+    await expect(flavorSelect1).toHaveCount(1);
+    await flavorSelect1.selectOption("s");
+    await page.waitForTimeout(300);
+    const normalizedMessages = dialogMessages.map((message) => normalizeWhitespace(message));
+    expect(normalizedMessages.some((message) => /\bxforms-value-changed\b/i.test(message))).toBe(true);
+    await expect(page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..")).toContainText(/Selected Flavor\s*:\s*s/);
+    const xml = await getInstanceXML(page);
+    expect(xml).toContain("<flavor>s</flavor>");
+  });
+
+  /*
+     You must see three select1 controls each with a different value for appearance (Full, Compact,
+     or Minimal). When you make a selection the first letter of the flavor must be displayed in the
+     Selected Flavor output control.
+  */
+  test("8.1.11.c — three select1 appearances (full, compact, minimal)", async ({ page }) => {
+    await loadAndWait(page, "Chapt08/8.1/8.1.11/8.1.11.c.xhtml");
+    // TEST-TRACE: Assert xf:select1 appearance wiring for full/compact/minimal and output updates for each control in Chapt08/8.1/8.1.11/8.1.11.c.xhtml.
+    const fullSelect1 = page.locator("select[data-appearance-requested='full']").first();
+    const compactSelect1 = page.locator("select[data-appearance-requested='compact']").first();
+    const minimalSelect1 = page.locator("select[data-appearance-requested='minimal']").first();
+    const selectedFlavorOutput = page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..").first();
+
+    await expect(fullSelect1).toHaveCount(1);
+    await expect(fullSelect1).toHaveAttribute("data-appearance", "full");
+    await expect(fullSelect1).toHaveAttribute("size", "3");
+
+    await expect(compactSelect1).toHaveCount(1);
+    await expect(compactSelect1).toHaveAttribute("data-appearance", "compact");
+    await expect(compactSelect1).toHaveAttribute("size", "2");
+
+    await expect(minimalSelect1).toHaveCount(1);
+    await expect(minimalSelect1).toHaveAttribute("data-appearance", "minimal");
+    await expect(minimalSelect1).not.toHaveAttribute("size", /.*/);
+
+    await fullSelect1.selectOption("v");
+    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*v/);
+    await compactSelect1.selectOption("s");
+    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*s/);
+    await minimalSelect1.selectOption("c");
+    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*c/);
   });
 
   /*
@@ -430,166 +574,6 @@ test.describe("W3C Ch8 [behavioral promoted]", () => {
     const selectedFlavorOutput = page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..");
     await expect(selectedFlavorOutput).toHaveCount(1);
     await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*Neapolitan/);
-  });
-});
-
-test.describe("W3C Chapter 8 — output bind precedence", () => {
-  /*
-     You must see the value "1032" for the Tax output control and the value "2005" for the Car Year
-     output control.
-  */
-  test("8.1.5.b output with @value and @bind — bind takes precedence", async ({ page }) => {
-    await loadAndWait(page, "Chapt08/8.1/8.1.5/8.1.5.b.xhtml");
-    // Tax output: value="0.024 * /car/price" → 1032
-    // Car Year output: value="/car/price" bind="year_bind" → bind wins, shows 2005
-    const text = await getFormControlText(page);
-    expect(text).toContain("1032");
-    expect(text).toContain("2005");
-  });
-});
-
-test.describe("W3C Ch8 [smoke → behavioral promoted]", () => {
-  // --- Render checks ---
-  /*
-     You must see an xforms-value-changed message whenever you change the selection in the Select A
-     Flavor select control. When you make a selection a list of the first letter of the flavor(s)
-     must be displayed in the Selected Flavor output control.
-  */
-  test("8.1.10.b — select incremental dispatches xforms-value-changed", async ({ page }) => {
-    const dialogMessages = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt08/8.1/8.1.10/8.1.10.b.xhtml");
-    // TEST-TRACE: Promote smoke coverage by asserting incremental select updates dialog, output, and instance.
-    const flavorSelect = page.locator("div.xforms-select select");
-    await expect(flavorSelect).toHaveCount(1);
-    await flavorSelect.selectOption(["v"]);
-    await page.waitForTimeout(300);
-    const normalizedMessages = dialogMessages.map((message) => normalizeWhitespace(message));
-    expect(normalizedMessages.some((message) => /\bxforms-value-changed\b/i.test(message))).toBe(true);
-    await expect(page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..")).toContainText(/Selected Flavor\s*:\s*v/);
-    const xml = await getInstanceXML(page);
-    expect(xml).toContain("<flavor>v</flavor>");
-  });
-
-  /*
-     You must see an xforms-value-changed message whenever you change the selection in the Select A
-     Flavor select1 control. When you make a selection the first letter of the flavor must be
-     displayed in the Selected Flavor output control.
-  */
-  test("8.1.11.b — select1 incremental dispatches xforms-value-changed", async ({ page }) => {
-    const dialogMessages = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt08/8.1/8.1.11/8.1.11.b.xhtml");
-    // TEST-TRACE: Promote smoke coverage by asserting incremental select1 updates dialog, output, and instance.
-    const flavorSelect1 = page.locator("div.xforms-select select");
-    await expect(flavorSelect1).toHaveCount(1);
-    await flavorSelect1.selectOption("s");
-    await page.waitForTimeout(300);
-    const normalizedMessages = dialogMessages.map((message) => normalizeWhitespace(message));
-    expect(normalizedMessages.some((message) => /\bxforms-value-changed\b/i.test(message))).toBe(true);
-    await expect(page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..")).toContainText(/Selected Flavor\s*:\s*s/);
-    const xml = await getInstanceXML(page);
-    expect(xml).toContain("<flavor>s</flavor>");
-  });
-
-  /*
-     You must see three select controls each with a different value for appearance (Full, Compact,
-     or Minimal). When you make a selection a list of the first letter of the flavor(s) must be
-     displayed in the Selected Flavor output control. Each letter is separated by a space in the
-     list.
-  */
-  test("8.1.10.c — three select appearances (full, compact, minimal)", async ({ page }) => {
-    await loadAndWait(page, "Chapt08/8.1/8.1.10/8.1.10.c.xhtml");
-    // TEST-TRACE: Assert xf:select appearance wiring and enforced minimal->compact degrade for Chapt08/8.1/8.1.10/8.1.10.c.xhtml.
-    const fullSelect = page.locator("select[data-appearance-requested='full']").first();
-    const compactSelect = page.locator("select[data-appearance-requested='compact']").first();
-    const minimalSelect = page.locator("select[data-appearance-requested='minimal']").first();
-    const selectedFlavorOutput = page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..").first();
-
-    await expect(fullSelect).toHaveCount(1);
-    await expect(fullSelect).toHaveAttribute("data-appearance", "full");
-    await expect(fullSelect).toHaveAttribute("multiple", /^(true|multiple)$/);
-
-    await expect(compactSelect).toHaveCount(1);
-    await expect(compactSelect).toHaveAttribute("data-appearance", "compact");
-    await expect(compactSelect).toHaveAttribute("multiple", /^(true|multiple)$/);
-
-    await expect(minimalSelect).toHaveCount(1);
-    await expect(minimalSelect).toHaveAttribute("data-appearance", "compact");
-    await expect(minimalSelect).toHaveAttribute("data-appearance-degraded", "true");
-    await expect(minimalSelect).toHaveAttribute("multiple", /^(true|multiple)$/);
-
-    await fullSelect.selectOption(["v"]);
-    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*v/);
-    await compactSelect.selectOption(["s"]);
-    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*s/);
-    await minimalSelect.selectOption(["c"]);
-    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*c/);
-  });
-
-  /*
-     You must see three select1 controls each with a different value for appearance (Full, Compact,
-     or Minimal). When you make a selection the first letter of the flavor must be displayed in the
-     Selected Flavor output control.
-  */
-  test("8.1.11.c — three select1 appearances (full, compact, minimal)", async ({ page }) => {
-    await loadAndWait(page, "Chapt08/8.1/8.1.11/8.1.11.c.xhtml");
-    // TEST-TRACE: Assert xf:select1 appearance wiring for full/compact/minimal and output updates for each control in Chapt08/8.1/8.1.11/8.1.11.c.xhtml.
-    const fullSelect1 = page.locator("select[data-appearance-requested='full']").first();
-    const compactSelect1 = page.locator("select[data-appearance-requested='compact']").first();
-    const minimalSelect1 = page.locator("select[data-appearance-requested='minimal']").first();
-    const selectedFlavorOutput = page.locator(".xforms-output[data-ref*='flavor']").locator("xpath=..").first();
-
-    await expect(fullSelect1).toHaveCount(1);
-    await expect(fullSelect1).toHaveAttribute("data-appearance", "full");
-    await expect(fullSelect1).toHaveAttribute("size", "3");
-
-    await expect(compactSelect1).toHaveCount(1);
-    await expect(compactSelect1).toHaveAttribute("data-appearance", "compact");
-    await expect(compactSelect1).toHaveAttribute("size", "2");
-
-    await expect(minimalSelect1).toHaveCount(1);
-    await expect(minimalSelect1).toHaveAttribute("data-appearance", "minimal");
-    await expect(minimalSelect1).not.toHaveAttribute("size", /.*/);
-
-    await fullSelect1.selectOption("v");
-    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*v/);
-    await compactSelect1.selectOption("s");
-    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*s/);
-    await minimalSelect1.selectOption("c");
-    await expect(selectedFlavorOutput).toContainText(/Selected Flavor\s*:\s*c/);
-  });
-  /*
-     When you activate the DOMActivate trigger control you must see a DOMActivate message.
-  */
-  test("8.1.8.a — DOMActivate trigger shows popup", async ({ page }) => {
-    const dialogMessages = collectDialogMessages(page);
-    await loadAndWait(page, "Chapt08/8.1/8.1.8/8.1.8.a.xhtml");
-    // TEST-TRACE: Verify clicking the DOMActivate trigger emits the expected modal dialog message.
-    await clickTrigger(page, "DOMActivate");
-    await page.waitForTimeout(300);
-    const normalizedMessages = dialogMessages.map((message) => normalizeWhitespace(message));
-    expect(normalizedMessages.some((message) => /\bDOMActivate\b/i.test(message))).toBe(true);
-  });
-
-  /*
-     You must see two trigger controls on this page, one labeled "Regular Trigger" and the other
-     labeled "Minimal Trigger". They may look different.
-  */
-  test("8.1.8.b — two trigger controls rendered", async ({ page }) => {
-    await loadAndWait(page, "Chapt08/8.1/8.1.8/8.1.8.b.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("Regular Trigger");
-    expect(text).toContain("Minimal Trigger");
-  });
-
-  /*
-     You must see two submit controls on this page, one labeled "Regular Submit" and the other
-     labeled "Minimal Submit". They may look different.
-  */
-  test("8.1.9.b — two submit controls rendered", async ({ page }) => {
-    await loadAndWait(page, "Chapt08/8.1/8.1.9/8.1.9.b.xhtml");
-    const text = await getFormControlText(page);
-    expect(text).toContain("Regular Submit");
-    expect(text).toContain("Minimal Submit");
   });
 
   /*

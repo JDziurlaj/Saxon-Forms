@@ -33,7 +33,7 @@
       "regression_policy": "mandatory-no-regressions"
     },
     "w3c-ch04": {
-      "description": "W3C Chapter 4 model item property coverage",
+      "description": "W3C Chapter 4 processing model coverage",
       "config_path": "playwright.config.ts",
       "test_path": "tests/w3c/ch04.spec.ts",
       "baseline_path": ".agents/skills/regression-gate/baselines/w3c-ch04.json",
@@ -47,7 +47,7 @@
       "regression_policy": "mandatory-no-regressions"
     },
     "w3c-ch06": {
-      "description": "W3C Chapter 6 submission coverage",
+      "description": "W3C Chapter 6 model item property coverage",
       "config_path": "playwright.config.ts",
       "test_path": "tests/w3c/ch06.spec.ts",
       "baseline_path": ".agents/skills/regression-gate/baselines/w3c-ch06.json",
@@ -81,6 +81,13 @@
       "baseline_path": ".agents/skills/regression-gate/baselines/w3c-ch10.json",
       "regression_policy": "mandatory-no-regressions"
     },
+    "w3c-ch11": {
+      "description": "W3C Chapter 11 submission coverage",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/w3c/ch11.spec.ts",
+      "baseline_path": ".agents/skills/regression-gate/baselines/w3c-ch11.json",
+      "regression_policy": "mandatory-no-regressions"
+    },
     "w3c-appendix": {
       "description": "W3C Appendix B data mutation patterns",
       "config_path": "playwright.config.ts",
@@ -89,7 +96,7 @@
       "regression_policy": "mandatory-no-regressions"
     },
     "w3c-conformance": {
-      "description": "All W3C per-chapter and appendix specs",
+      "description": "All W3C per-chapter (2-11) and appendix specs",
       "config_path": "playwright.config.ts",
       "test_path": "tests/w3c",
       "baseline_path": ".agents/skills/regression-gate/baselines/w3c-conformance.json",

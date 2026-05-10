@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+import type { SaxonFormsWindow } from "./types";
 export type SubmissionXPathEvaluationResult = {
   parseError: string;
   xpathError: string;
@@ -5,7 +7,7 @@ export type SubmissionXPathEvaluationResult = {
 };
 
 export async function evaluateSubmissionXPath(
-  page: any,
+  page: Page,
   xmlBody: string,
   expressions: Record<string, string>
 ): Promise<SubmissionXPathEvaluationResult> {
@@ -22,8 +24,14 @@ export async function evaluateSubmissionXPath(
         };
       }
       try {
-        const evaluateXPath = (expression: string) =>
-          (window as any).SaxonJS.XPath.evaluate(expression, parsed);
+        const evaluateXPath = (expression: string) => {
+          const g = window as unknown as SaxonFormsWindow;
+          const xpath = g.SaxonJS?.XPath;
+          if (!xpath || typeof xpath.evaluate !== "function") {
+            throw new Error("SaxonJS XPath evaluator is unavailable.");
+          }
+          return xpath.evaluate(expression, parsed);
+        };
         const values: Record<string, string> = {};
         for (const [key, expression] of Object.entries(xpathExpressions)) {
           values[key] = String(evaluateXPath(String(expression)));
