@@ -19,6 +19,9 @@
     <p>Hello, <xf:output ref="instance('demo-data')/name"/></p>
   </div>
 </xf:xform>`;
+  const DEFAULT_SAXONFORMS_SOURCE_PLACEHOLDER = `<!-- Full SaxonForms source loads on demand.
+Click "Compile SaxonForms" (or focus this editor) to fetch ../src/saxon-xforms.xsl. -->
+<xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"/>`;
 
   const SAXONFORMS_SOURCE_URL = "../src/saxon-xforms.xsl";
   const PRECOMPILED_STYLESHEET_LOCATION = "../sef/saxon-xforms.sef.json";
@@ -42,6 +45,8 @@
   let compiledSaxonFormsSourceText = null;
   let compiledSaxonFormsVersion = 0;
   let busyOperationCount = 0;
+  let saxonFormsSourceLoaded = false;
+  let saxonFormsSourceLoadingPromise = null;
 
   function escapeHtml(value) {
     return String(value)
@@ -130,6 +135,7 @@
   function clearConsole() {
     consoleElement.textContent = "";
   }
+
 
   function parseXml(xmlText, label) {
     const parser = new DOMParser();
@@ -360,22 +366,51 @@
     });
   }
 
-  async function loadSaxonFormsSource() {
-    try {
-      const response = await fetch(SAXONFORMS_SOURCE_URL);
-      if (!response.ok) {
-        throw new Error(`Unable to load XSLT source (${response.status}).`);
-      }
-      const sourceText = await response.text();
-      setEditorValue(saxonFormsEditor, saxonFormsHighlight, sourceText);
-    } catch (error) {
-      setEditorValue(
-        saxonFormsEditor,
-        saxonFormsHighlight,
-        `<!-- Unable to load SaxonForms source: ${error instanceof Error ? error.message : String(error)} -->`
-      );
-      appendConsoleLine("error", [error]);
+  function setDeferredSaxonFormsPlaceholder() {
+    saxonFormsEditor.readOnly = true;
+    setEditorValue(
+      saxonFormsEditor,
+      saxonFormsHighlight,
+      DEFAULT_SAXONFORMS_SOURCE_PLACEHOLDER
+    );
+  }
+
+  async function loadSaxonFormsSource(options = {}) {
+    const { logProgress = false } = options;
+    if (saxonFormsSourceLoaded) {
+      return;
     }
+    if (saxonFormsSourceLoadingPromise) {
+      await saxonFormsSourceLoadingPromise;
+      return;
+    }
+    saxonFormsSourceLoadingPromise = (async function () {
+      try {
+        if (logProgress) {
+          appendConsoleLine("info", ["Loading SaxonForms source…"]);
+        }
+        const response = await fetch(SAXONFORMS_SOURCE_URL);
+        if (!response.ok) {
+          throw new Error(`Unable to load XSLT source (${response.status}).`);
+        }
+        const sourceText = await response.text();
+        setEditorValue(saxonFormsEditor, saxonFormsHighlight, sourceText);
+        saxonFormsEditor.readOnly = false;
+        saxonFormsSourceLoaded = true;
+      } catch (error) {
+        saxonFormsEditor.readOnly = false;
+        setEditorValue(
+          saxonFormsEditor,
+          saxonFormsHighlight,
+          `<!-- Unable to load SaxonForms source: ${error instanceof Error ? error.message : String(error)} -->`
+        );
+        appendConsoleLine("error", [error]);
+        throw error;
+      } finally {
+        saxonFormsSourceLoadingPromise = null;
+      }
+    })();
+    await saxonFormsSourceLoadingPromise;
   }
 
   async function compileSaxonFormsSource() {
@@ -384,6 +419,7 @@
       await runWithBusyIndicator(
         "Compiling SaxonForms source… this may take a while.",
         async function () {
+          await loadSaxonFormsSource({ logProgress: true });
           ensureCompiledModeAvailable();
           parseXml(xformsEditor.value, "XForms source");
 
@@ -453,8 +489,17 @@
   async function initialize() {
     installConsoleCapture();
     setEditorValue(xformsEditor, xformsHighlight, DEFAULT_XFORMS_SOURCE);
+    setDeferredSaxonFormsPlaceholder();
     wireXmlEditor(saxonFormsEditor, saxonFormsHighlight);
     wireXmlEditor(xformsEditor, xformsHighlight);
+
+    saxonFormsEditor.addEventListener(
+      "focus",
+      function handleSaxonFormsEditorFocus() {
+        saxonFormsEditor.removeEventListener("focus", handleSaxonFormsEditorFocus);
+        void loadSaxonFormsSource({ logProgress: false });
+      }
+    );
 
     saxonFormsEditor.addEventListener("keydown", function (event) {
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
@@ -494,7 +539,6 @@
       void refreshXForms();
     });
 
-    await loadSaxonFormsSource();
     await refreshXForms();
   }
 

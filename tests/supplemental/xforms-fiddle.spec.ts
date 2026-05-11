@@ -103,7 +103,7 @@ test.describe("XForms fiddle", () => {
     await expect(sourceSelect.locator("option[value='compiled']")).toBeDisabled();
 
     await page.getByRole("button", { name: "Compile SaxonForms" }).click();
-    await expect(page.locator("#fiddle-console")).toContainText("Compile complete. Using compiled source v1.");
+    await expect(page.locator("#fiddle-console")).toContainText("Compile complete. Using compiled source v1.", { timeout: renderTimeoutMs });
     await expect(sourceSelect).toHaveValue("compiled");
     await expect(sourceSelect.locator("option[value='compiled']")).not.toBeDisabled();
 
