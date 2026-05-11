@@ -20,11 +20,11 @@
   </div>
 </xf:xform>`;
 
-  const SAXONFORMS_SOURCE_URL = "/src/saxon-xforms.xsl";
-  const PRECOMPILED_STYLESHEET_LOCATION = "/sef/saxon-xforms.sef.json";
+  const SAXONFORMS_SOURCE_URL = "../src/saxon-xforms.xsl";
+  const PRECOMPILED_STYLESHEET_LOCATION = "../sef/saxon-xforms.sef.json";
   const PRECOMPILED_STYLESHEET_SOURCE = "precompiled";
   const COMPILED_STYLESHEET_SOURCE = "compiled";
-  const COMPILED_STYLESHEET_TRANSFORM_EXPRESSION = "transform(map { 'stylesheet-text': $stylesheetText, 'source-node': parse-xml($sourceText), 'stylesheet-base-uri': $stylesheetBaseUri })";
+  const COMPILED_STYLESHEET_TRANSFORM_EXPRESSION = "transform(map { 'stylesheet-text': $stylesheetText, 'source-node': parse-xml($sourceText), 'stylesheet-base-uri': $stylesheetBaseUri, 'delivery-format': 'serialized', 'serialization-params': map { 'method': 'html', 'omit-xml-declaration': true() } })";
 
   const consoleElement = document.getElementById("fiddle-console");
   const saxonFormsEditor = document.getElementById("saxonforms-source-editor");
@@ -256,12 +256,23 @@
     return resultEntries[0][1];
   }
 
+  function normalizeCompiledTransformMarkup(markup) {
+    if (typeof markup !== "string") {
+      return "";
+    }
+    return markup
+      .replace(/<\?xml[\s\S]*?\?>/gi, "")
+      .replace(/<!DOCTYPE[\s\S]*?>/gi, "")
+      .replace(/\s+xmlns(?::[\w.-]+)?=(\"[^\"]*\"|'[^']*')/g, "");
+  }
+
   function appendCompiledTransformMarkup(fragment, markup) {
-    if (typeof markup !== "string" || markup.trim() === "") {
+    const normalizedMarkup = normalizeCompiledTransformMarkup(markup);
+    if (normalizedMarkup.trim() === "") {
       return 0;
     }
     const template = document.createElement("template");
-    template.innerHTML = markup;
+    template.innerHTML = normalizedMarkup;
     const renderedNode = template.content.querySelector(`#${renderedContainer.id}`);
     const nodesToAppend = renderedNode ? Array.from(renderedNode.childNodes) : Array.from(template.content.childNodes);
     nodesToAppend.forEach(function (node) {
@@ -269,54 +280,22 @@
     });
     return nodesToAppend.length;
   }
-
-  function appendCompiledTransformNode(fragment, outputNode) {
+  function serializeCompiledTransformNode(outputNode) {
     if (!(outputNode instanceof Node)) {
-      return 0;
-    }
-    if (outputNode.nodeType === Node.ELEMENT_NODE && outputNode.id === renderedContainer.id) {
-      const elementChildren = Array.from(outputNode.childNodes);
-      elementChildren.forEach(function (node) {
-        fragment.appendChild(node.cloneNode(true));
-      });
-      return elementChildren.length;
-    }
-    if (outputNode.nodeType === Node.DOCUMENT_NODE) {
-      const documentNode = outputNode;
-      if (documentNode.documentElement && documentNode.documentElement.id === renderedContainer.id) {
-        const documentChildren = Array.from(documentNode.documentElement.childNodes);
-        documentChildren.forEach(function (node) {
-          fragment.appendChild(node.cloneNode(true));
-        });
-        return documentChildren.length;
-      }
-      if (documentNode.body) {
-        const bodyChildren = Array.from(documentNode.body.childNodes);
-        bodyChildren.forEach(function (node) {
-          fragment.appendChild(node.cloneNode(true));
-        });
-        return bodyChildren.length;
-      }
-      const topLevelNodes = Array.from(documentNode.childNodes);
-      topLevelNodes.forEach(function (node) {
-        fragment.appendChild(node.cloneNode(true));
-      });
-      return topLevelNodes.length;
+      return "";
     }
     if (outputNode.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
-      const renderedNode = typeof outputNode.querySelector === "function"
-        ? outputNode.querySelector(`#${renderedContainer.id}`)
-        : null;
-      const fragmentNodes = renderedNode
-        ? Array.from(renderedNode.childNodes)
-        : Array.from(outputNode.childNodes);
-      fragmentNodes.forEach(function (node) {
-        fragment.appendChild(node.cloneNode(true));
-      });
-      return fragmentNodes.length;
+      return Array.from(outputNode.childNodes)
+        .map(function (node) {
+          return serializeCompiledTransformNode(node);
+        })
+        .join("");
     }
-    fragment.appendChild(outputNode.cloneNode(true));
-    return 1;
+    return new XMLSerializer().serializeToString(outputNode);
+  }
+
+  function appendCompiledTransformNode(fragment, outputNode) {
+    return appendCompiledTransformMarkup(fragment, serializeCompiledTransformNode(outputNode));
   }
 
   function appendCompiledTransformValue(fragment, outputValue) {

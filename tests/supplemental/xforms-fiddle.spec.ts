@@ -112,7 +112,11 @@ test.describe("XForms fiddle", () => {
     await expect(sourceSelect).toHaveValue("compiled");
 
     await page.getByRole("button", { name: "Refresh XForms" }).click();
-    await expect(page.locator("#xForm .xforms-input").first()).toBeVisible({ timeout: renderTimeoutMs });
+    const compiledInput = page.locator("#xForm input.xforms-input").first();
+    await expect(compiledInput).toBeVisible({ timeout: renderTimeoutMs });
+    await compiledInput.fill("Compiled Alice");
+    await compiledInput.blur();
+    await expect(page.locator("#xForm .xforms-output").first()).toContainText("Compiled Alice", { timeout: renderTimeoutMs });
   });
 
   test("refresh clears console and re-renders edited XForms", async ({ page }) => {
