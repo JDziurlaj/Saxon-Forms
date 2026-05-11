@@ -85,12 +85,34 @@ test.describe("XForms fiddle", () => {
   test("renders all panes, XML coloring, and default form", async ({ page }) => {
     await page.goto(`${examplesServer.baseUrl}/xforms-fiddle.html`);
     await expect(page).toHaveTitle("XForms Fiddle");
-
-    await expect(page.locator("#xslt-source")).toContainText("<xsl:stylesheet", { timeout: renderTimeoutMs });
-    await expect(page.locator("#xslt-source .xml-tag-name").first()).toBeVisible({ timeout: renderTimeoutMs });
+    await expect(page.locator("#saxonforms-source-editor")).toHaveValue(/<xsl:stylesheet/, { timeout: renderTimeoutMs });
+    await expect(page.locator("#saxonforms-source-highlight .xml-tag-name").first()).toBeVisible({ timeout: renderTimeoutMs });
+    await expect(page.locator("#stylesheet-source-select")).toHaveValue("precompiled");
     await expect(page.locator("#xforms-source-editor")).toHaveValue(/<xf:xform/);
     await expect(page.locator("#xForm .xforms-input").first()).toBeVisible({ timeout: renderTimeoutMs });
     await expect(page.locator("#fiddle-console")).toContainText("Render complete.");
+  });
+
+  test("compile enables compiled source mode and uses compiled snapshot", async ({ page }) => {
+    test.slow();
+    await page.goto(`${examplesServer.baseUrl}/xforms-fiddle.html`);
+    await expect(page.locator("#xForm .xforms-input").first()).toBeVisible({ timeout: renderTimeoutMs });
+
+    const sourceSelect = page.locator("#stylesheet-source-select");
+    await expect(sourceSelect).toHaveValue("precompiled");
+    await expect(sourceSelect.locator("option[value='compiled']")).toBeDisabled();
+
+    await page.getByRole("button", { name: "Compile SaxonForms" }).click();
+    await expect(page.locator("#fiddle-console")).toContainText("Compile complete. Using compiled source v1.");
+    await expect(sourceSelect).toHaveValue("compiled");
+    await expect(sourceSelect.locator("option[value='compiled']")).not.toBeDisabled();
+
+    const saxonFormsEditor = page.locator("#saxonforms-source-editor");
+    await saxonFormsEditor.fill("<xsl:stylesheet");
+    await expect(sourceSelect).toHaveValue("compiled");
+
+    await page.getByRole("button", { name: "Refresh XForms" }).click();
+    await expect(page.locator("#xForm .xforms-input").first()).toBeVisible({ timeout: renderTimeoutMs });
   });
 
   test("refresh clears console and re-renders edited XForms", async ({ page }) => {

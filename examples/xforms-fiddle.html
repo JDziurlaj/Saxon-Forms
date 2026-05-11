@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>XForms Fiddle</title>
-    <script src="/Saxon-JS/SaxonJS3.rt.js"></script>
+    <script src="/Saxon-JS/SaxonJS3.js"></script>
     <style>
       :root {
         color-scheme: dark;
@@ -21,6 +21,9 @@
         color: #e2e8f0;
         background: #020617;
       }
+      body.fiddle-busy {
+        cursor: progress;
+      }
       .toolbar {
         display: flex;
         align-items: center;
@@ -35,6 +38,17 @@
         font-size: 1rem;
         font-weight: 600;
       }
+      .toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+      }
+      .toolbar-label {
+        font-size: 0.8rem;
+        color: #cbd5e1;
+      }
+      #stylesheet-source-select,
+      #compile-saxonforms,
       #refresh-xforms {
         border: 1px solid #475569;
         border-radius: 4px;
@@ -42,8 +56,15 @@
         color: #e2e8f0;
         font-weight: 600;
         padding: 0.45rem 0.85rem;
+      }
+      #stylesheet-source-select {
+        padding: 0.4rem 0.55rem;
+      }
+      #compile-saxonforms,
+      #refresh-xforms {
         cursor: pointer;
       }
+      #compile-saxonforms:hover,
       #refresh-xforms:hover {
         background: #334155;
       }
@@ -92,7 +113,7 @@
         background: #020617;
       }
       .xml-editor-highlight,
-      #xforms-source-editor {
+      .xml-editor-textarea {
         position: absolute;
         inset: 0;
         margin: 0;
@@ -107,14 +128,14 @@
       .xml-editor-highlight {
         pointer-events: none;
       }
-      #xforms-source-editor {
+      .xml-editor-textarea {
         resize: none;
         outline: none;
         background: transparent;
         color: transparent;
         caret-color: #f8fafc;
       }
-      #xforms-source-editor::selection {
+      .xml-editor-textarea::selection {
         background: rgba(59, 130, 246, 0.45);
         color: transparent;
       }
@@ -175,6 +196,44 @@
       .xml-attr-value {
         color: #86efac;
       }
+      .busy-overlay[hidden] {
+        display: none;
+      }
+      .busy-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(2, 6, 23, 0.55);
+      }
+      .busy-card {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        border: 1px solid #475569;
+        border-radius: 8px;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 0.75rem 1rem;
+      }
+      .busy-spinner {
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid #334155;
+        border-top-color: #93c5fd;
+        border-radius: 50%;
+        animation: fiddle-spinner 1s linear infinite;
+      }
+      .busy-message {
+        font-size: 0.85rem;
+      }
+      @keyframes fiddle-spinner {
+        to {
+          transform: rotate(360deg);
+        }
+      }
       @media (max-width: 1200px) {
         .fiddle-layout {
           grid-template-columns: 1fr;
@@ -186,18 +245,29 @@
   <body>
     <header class="toolbar">
       <h1>XForms Fiddle</h1>
-      <button id="refresh-xforms" type="button">Refresh XForms</button>
+      <div class="toolbar-actions">
+        <label for="stylesheet-source-select" class="toolbar-label">SaxonForms source</label>
+        <select id="stylesheet-source-select" aria-label="SaxonForms source selection">
+          <option value="precompiled">Precompiled SEF</option>
+          <option value="compiled" disabled>Compiled from editor</option>
+        </select>
+        <button id="compile-saxonforms" type="button">Compile SaxonForms</button>
+        <button id="refresh-xforms" type="button">Refresh XForms</button>
+      </div>
     </header>
     <main class="fiddle-layout">
       <section class="pane">
-        <h2>XSLT source (SaxonForms)</h2>
-        <pre id="xslt-source" class="xml-renderer"></pre>
+        <h2>SaxonForms source (editable)</h2>
+        <div class="xml-editor">
+          <pre id="saxonforms-source-highlight" class="xml-renderer xml-editor-highlight" aria-hidden="true"></pre>
+          <textarea id="saxonforms-source-editor" class="xml-editor-textarea" spellcheck="false" aria-label="SaxonForms source"></textarea>
+        </div>
       </section>
       <section class="pane">
         <h2>XForms source</h2>
         <div class="xml-editor">
           <pre id="xforms-source-highlight" class="xml-renderer xml-editor-highlight" aria-hidden="true"></pre>
-          <textarea id="xforms-source-editor" spellcheck="false" aria-label="XForms source"></textarea>
+          <textarea id="xforms-source-editor" class="xml-editor-textarea" spellcheck="false" aria-label="XForms source"></textarea>
         </div>
       </section>
       <section class="pane">
@@ -211,6 +281,12 @@
         <pre id="fiddle-console" aria-live="polite"></pre>
       </section>
     </main>
+    <div id="fiddle-busy-indicator" class="busy-overlay" hidden aria-live="polite" aria-atomic="true">
+      <div class="busy-card" role="status">
+        <span class="busy-spinner" aria-hidden="true"></span>
+        <span id="fiddle-busy-text" class="busy-message">Processing…</span>
+      </div>
+    </div>
     <script src="js/xforms-fiddle.js"></script>
   </body>
 </html>
