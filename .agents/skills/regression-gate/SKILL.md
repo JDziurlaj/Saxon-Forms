@@ -1,19 +1,24 @@
 ---
 name: regression-gate
-description: Run compile + targeted + full regression checks for Saxon-Forms-fork using stored baselines, with mandatory no-regression enforcement for W3C suites and justification-only waivers for non-W3C suites.
+description: Run compile + targeted + full regression checks for Saxon-Forms-fork against stored baselines. Trigger after a checkpoint commit (clean tree) whenever code/tests/build config change, and whenever user asks to run the gate, verify regressions, or confirm test-count parity. Enforce no W3C regressions and capture commit-linked provenance.
 ---
 
 # Regression Gate (Saxon-Forms-fork)
 
 ## When to use
-Use this skill after any code change in `src/`, `test-app/xforms/`, `tests/`, or build/test config files.
+Use this skill after any code change in `src/`, `test-app/xforms/`, `tests/`, `examples/`, or build/test config files.
 
 ## Goal
-Prevent regressions by requiring:
-1. successful stylesheet compilation,
-2. targeted verification for changed behavior,
-3. mandatory no-regression verification for W3C suites,
-4. full suite verification against stored baseline snapshots (no baseline re-discovery runs).
+Prevent regressions. The gate enforces two groups of requirements:
+
+### Verification steps
+1. Successful stylesheet compilation.
+2. Targeted verification for changed behavior.
+3. Full suite verification against stored baseline snapshots (no baseline re-discovery runs).
+
+### Integrity requirements
+4. Mandatory no-regression verification for `mandatory_suite_ids` (see `suites.json`).
+5. Commit-linked run provenance (head SHA, branch, tree state, and run directory).
 
 ## Key files
 - Suite registry (source of truth for test organization):
@@ -31,11 +36,25 @@ Prevent regressions by requiring:
   - Must contain at least:
     - `playwright-report.json`
     - `comparison.json`
+- Required per-run provenance sidecar:
+  - `.agents/skills/regression-gate/runs/<suite-id>/<timestamp>/vcs-context.json`
+- Run provenance ledger (append-only):
+  - `.agents/skills/regression-gate/runs/run-index.ndjson`
+  - One JSON record per suite run, including `suite_id`, `run_dir`, `policy_result`, `git_head_sha`, `git_branch`, `git_tree_state`, and `related_commit_sha`
 - W3C Playwright coverage lives in:
-  - `tests/w3c/ch02.spec.ts` ... `tests/w3c/ch10.spec.ts`
+  - `tests/w3c/ch02.spec.ts` ... `tests/w3c/ch11.spec.ts`
   - `tests/w3c/appendix.spec.ts`
 
 Do not infer baseline from ad-hoc reruns. Always compare to the stored baseline file for the selected suite.
+## VCS provenance capture (mandatory)
+The gate runs after a checkpoint commit (see git skill), so the tree should always be clean and HEAD should point to the checkpoint.
+Before running the gate, capture:
+- `git --no-pager rev-parse --verify HEAD` (head SHA — this is the checkpoint commit),
+- `git --no-pager rev-parse --abbrev-ref HEAD` (branch),
+- `git --no-pager status --porcelain` (tree state — expected empty/clean),
+- `git --no-pager diff --name-only` (changed files — expected none).
+Set `related_commit_sha` to the HEAD SHA. It must never be `null` under this workflow.
+If the tree is unexpectedly dirty, warn the user and recommend committing or stashing before proceeding. Do not run the gate on a dirty tree.
 ## Main commands
 - Run default gate (uses `default_suite_id`, then appends mandatory suites):
   - `node .agents/skills/regression-gate/scripts/run_regression_gate.mjs`
@@ -80,29 +99,43 @@ Use the repeatable baseline script for initialization/refresh instead of manual 
    - Regressions are still undesirable and should be fixed first.
    - A regression may proceed only when explicitly justified in run artifacts and user-visible reporting.
 ## Required workflow
-1. **Inspect scope of change**
-   - Run: `git --no-pager diff --name-only`
+1. **Verify clean tree after checkpoint**
+   - Confirm tree is clean (`git status --porcelain` is empty). The gate assumes a checkpoint commit has already been made (see git skill).
+   - Record HEAD SHA (the checkpoint commit), branch, and tree state (see "VCS provenance capture").
 2. **Run gate**
-   - Use the gate runner script from this skill (see “Main commands”).
-3. **Interpret policy result**
-   - Hard fail (`exit 2`): mandatory-suite regression; stop and fix.
-   - Soft fail (`exit 3`): non-mandatory regression; add explicit justification before proceeding.
-4. **Baseline promotion rule**
+   - Use the gate runner script from this skill (see "Main commands").
+3. **Persist run provenance**
+   - For each suite run directory produced by the gate, write `vcs-context.json` with the captured Git metadata and `related_commit_sha` (always the checkpoint SHA).
+   - Append one record per suite run to `.agents/skills/regression-gate/runs/run-index.ndjson`.
+4. **Interpret policy result**
+   - Hard fail (`exit 2`): mandatory-suite regression; roll back the checkpoint (`git reset --soft HEAD~1`), fix, and re-checkpoint.
+   - Soft fail (`exit 3`): non-mandatory regression; prefer rollback and fix; finalize only with explicit justification.
+6. **Baseline promotion rule**
    - Baseline may be promoted automatically by the comparison script only when:
      - there are **zero new regressions**, and
      - current run is better than stored baseline (more passes and/or fewer failures/flaky).
    - Runs that rely on non-W3C waivers must not be treated as successful baseline-promotion candidates.
-5. **Uninitialized suites**
+7. **Uninitialized suites**
    - If a suite baseline file does not exist, initialize it only after user approval using:
      - `npm run test:baseline -- --suite <suite-id>`
    - For broad refreshes, use:
      - `npm run test:baseline -- --mandatory`
      - `npm run test:baseline -- --all`
+## Regression-to-commit triage
+When a regression is detected, identify likely cause commits using provenance records:
+1. Find the latest passing ledger entry for the same suite (`policy_result: pass` and no new regressions).
+2. Compare its `related_commit_sha` to the failing run’s `related_commit_sha`.
+3. Build the suspect range:
+   - `git --no-pager log --oneline <last-passing-sha>..<failing-sha>`
+4. Report this range alongside failing tests.
 
 ## Reporting format
 Always report:
 - primary suite ID used,
 - full suite queue executed,
+- per-suite run directory and run timestamp,
+- Git head SHA, branch, and tree state for the run,
+- related commit SHA (always the checkpoint commit SHA),
 - per-suite policy (`mandatory-no-regressions` or `waivable-with-justification`),
 - baseline file path used per suite,
 - compile status,
@@ -111,6 +144,7 @@ Always report:
 - failing test names per suite,
 - whether failures are only baseline or include new regressions,
 - whether baseline was promoted,
+- suspect commit range for each new regression (when determinable),
 - whether any non-W3C regression waiver was used (and justification path).
 
 ## Baseline maintenance rule
@@ -119,4 +153,4 @@ Do not manually edit baseline snapshots during normal runs. Use `npm run test:ba
 ## Portability rule
 - Keep all skill documentation and suite registry paths repo-relative.
 - Do not embed machine-specific path fragments (usernames or host-specific mount points).
-- Scripts must derive repository root dynamically and work across WSL/Linux/macOS.
+- Scripts must derive repository root dynamically and work across Windows/WSL/Linux/macOS.

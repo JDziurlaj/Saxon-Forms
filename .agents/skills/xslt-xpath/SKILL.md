@@ -1,6 +1,6 @@
 ---
 name: xslt-xpath
-description: Guidance for authoring and reviewing XSLT/XPath changes with modern XSLT 3.0 + XPath 3.1 practices, prioritizing SaxonJS3-compatible features and avoiding deprecated functionality.
+description: Guidance for authoring and reviewing XSLT/XPath changes with modern XSLT 3.0 + XPath 3.1 practices, prioritizing SaxonJS3-compatible features and avoiding deprecated functionality. Trigger for `.xsl`/XSLT templates, XPath expressions, XForms transform logic, or SaxonJS integration edits; do not trigger for pure TypeScript/Playwright changes unless they directly modify XSLT behavior.
 ---
 
 # XSLT + XPath Modernization (SaxonJS3-first)
@@ -9,8 +9,8 @@ description: Guidance for authoring and reviewing XSLT/XPath changes with modern
 Use this skill whenever making or reviewing changes in XSLT stylesheets, XPath expressions, or XSLT-driven JavaScript integration points.
 
 ## Core requirements
-1. Prefer XSLT 3.0 features over legacy constructs.
-2. Prefer XPath 3.1 expression capabilities and function library behavior.
+1. Prefer XSLT 3.0+ features over legacy constructs.
+2. Prefer XPath 3.1+ expression capabilities and function library behavior.
 3. Prefer SaxonJS3-compatible features and idioms.
 4. Avoid deprecated functionality unless absolutely required for compatibility.
 5. When something can be done equivalently in either XPath or XSLT, prefer the approach used by the existing codebase.
@@ -32,3 +32,6 @@ Use this skill whenever making or reviewing changes in XSLT stylesheets, XPath e
 1. New/updated XSLT+XPath logic follows XSLT 3.0 and XPath 3.1-first conventions.
 2. SaxonJS3 compatibility is preserved.
 3. No unnecessary deprecated functionality remains in the change.
+
+## Resources
+1. Use the [Saxonica documentation](https://www.saxonica.com/saxonjs/documentation3/index.html) as needed to understand the use of the `ixsl`, `js` and `saxon` namespaces.
