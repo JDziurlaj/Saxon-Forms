@@ -2,7 +2,7 @@
   "suite_id": "issues-spec",
   "test_path": "tests/issues.spec.ts",
   "config_path": "playwright.config.ts",
-  "last_updated": "2026-04-04T17:17:57.488Z",
+  "last_updated": "2026-05-12T21:58:37.933Z",
   "stats": {
     "total": 18,
     "passed": 16,

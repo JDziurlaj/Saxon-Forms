@@ -164,6 +164,12 @@
         <xsl:variable name="xforms-doc-local" as="document-node()" select="ixsl:page()"/>
 
         <xsl:apply-templates select="$xforms-doc-local/*:html/*:head" mode="set-js"/>
+        <!-- TEST-TRACE: clear cached bindings/actions before each fresh render so repeated
+             xforms-fiddle refreshes don't duplicate xf:bind registrations (XTTE0570 on 2nd refresh);
+             helps tests/supplemental/xforms-fiddle.spec.ts "refreshing same bind-heavy source twice does not fail". -->
+        <xsl:if test="not($reset)">
+            <xsl:sequence select="js:reset()"/>
+        </xsl:if>
         
        
         <!-- 
@@ -1440,9 +1446,13 @@
     <!-- TEST-TRACE: context-node made optional (node()?) to handle models without instances;
          helps tests/w3c/ch04.spec.ts "4.2.1.a", "4.2.1.d", "4.2.2.a", "4.2.3.a", "4.5.2.a" -->
     <xsl:function name="xforms:evaluate-xpath-with-context-node">
-        <xsl:param name="xpath" as="xs:string"/>
+        <!-- TEST-TRACE: tolerate empty-sequence XPath callers and treat as empty expression
+             (no-op) instead of raising cardinality errors; helps tests/supplemental/xforms-fiddle.spec.ts
+             "refreshing same bind-heavy source twice does not fail". -->
+        <xsl:param name="xpath" as="xs:string?"/>
         <xsl:param name="context-node" as="node()?"/>
         <xsl:param name="namespace-context" as="element()?"/>
+        <xsl:variable name="xpath-normalized" as="xs:string" select="($xpath,'')[1]"/>
         
         <xsl:variable name="namespace-context-item" as="element()?" select="
             if (exists($namespace-context))
@@ -1458,11 +1468,11 @@
             )"/>
         
         <xsl:choose>
-            <xsl:when test="$xpath ne '' and exists($context-node) and exists($namespace-context-item)">
-                <xsl:evaluate xpath="xforms:impose($xpath)" context-item="$context-node" namespace-context="$namespace-context-item"/>
+            <xsl:when test="$xpath-normalized ne '' and exists($context-node) and exists($namespace-context-item)">
+                <xsl:evaluate xpath="xforms:impose($xpath-normalized)" context-item="$context-node" namespace-context="$namespace-context-item"/>
             </xsl:when>
-            <xsl:when test="$xpath ne '' and exists($context-node)">
-                <xsl:evaluate xpath="xforms:impose($xpath)" context-item="$context-node"/>
+            <xsl:when test="$xpath-normalized ne '' and exists($context-node)">
+                <xsl:evaluate xpath="xforms:impose($xpath-normalized)" context-item="$context-node"/>
             </xsl:when>
             <xsl:otherwise/>
         </xsl:choose>
@@ -2015,20 +2025,23 @@
                                   <xsl:sequence select="$instanceXML"/>
                               </xsl:document>
                           </xsl:variable>
-                          <xsl:variable name="updatedNode" as="node()" select="xforms:evaluate-xpath-with-context-node($targetref,$instanceXML,())"/>
+                          <xsl:variable name="updatedNode" as="node()?" select="(xforms:evaluate-xpath-with-context-node($targetref,$instanceXML,()))[1]"/>
                           <xsl:variable name="updatedInstanceXML" as="element()">
                               <xsl:choose>
-                                  <xsl:when test="$instanceDoc//node()[. is $updatedNode]">
+                                  <xsl:when test="exists($updatedNode) and $instanceDoc//node()[. is $updatedNode]">
                                       <xsl:apply-templates select="$instanceDoc" mode="recalculate">
                                           <xsl:with-param name="updated-nodes" select="$updatedNode" tunnel="yes"/>
                                           <xsl:with-param name="updated-value" select="string($response)" tunnel="yes"/>
                                       </xsl:apply-templates>
                                   </xsl:when>
-                                  <xsl:otherwise>
+                                  <xsl:when test="exists($updatedNode)">
                                       <xsl:apply-templates select="$instanceXML" mode="recalculate">
                                           <xsl:with-param name="updated-nodes" select="$updatedNode" tunnel="yes"/>
                                           <xsl:with-param name="updated-value" select="string($response)" tunnel="yes"/>
                                       </xsl:apply-templates>
+                                  </xsl:when>
+                                  <xsl:otherwise>
+                                      <xsl:sequence select="$instanceXML"/>
                                   </xsl:otherwise>
                               </xsl:choose>
                           </xsl:variable>
@@ -4125,9 +4138,12 @@
         <xd:param name="nodeset">XPath binding expression</xd:param>
     </xd:doc>
     <xsl:function name="xforms:getInstanceId" as="xs:string">
-        <xsl:param name="nodeset" as="xs:string"/>
+        <!-- TEST-TRACE: accept empty-sequence callers and fall back to default instance ID
+             instead of raising a cardinality error; helps tests/supplemental/xforms-fiddle.spec.ts
+             "refreshing same bind-heavy source twice does not fail". -->
+        <xsl:param name="nodeset" as="xs:string?"/>
         
-        <xsl:variable name="nodeset-normalized" as="xs:string" select="normalize-space($nodeset)"/>
+        <xsl:variable name="nodeset-normalized" as="xs:string" select="normalize-space(($nodeset,'')[1])"/>
         
         <xsl:choose>
             <xsl:when test="$nodeset-normalized = ''">
@@ -6704,24 +6720,29 @@
         
         <xsl:variable name="updatedInstanceXML" as="element()?">
             <xsl:choose>
-                <xsl:when test="exists($refi)">
-                    <xsl:variable name="updatedNode" as="node()" select="xforms:evaluate-xpath-with-context-node($refi,$instanceXML,())"/>
+                <!-- TEST-TRACE: avoid cardinality errors when DOMActivate source controls
+                     have no data-ref (e.g. action-only buttons in xforms-fiddle). -->
+                <xsl:when test="$refi ne ''">
+                    <xsl:variable name="updatedNode" as="node()?" select="(xforms:evaluate-xpath-with-context-node($refi,$instanceXML,()))[1]"/>
                     <xsl:variable name="new-value" as="xs:string">
                         <xsl:apply-templates select="$form-control" mode="get-field"/>
                     </xsl:variable>
                     
                     <xsl:choose>
-                        <xsl:when test="$instanceDoc//node()[. is $updatedNode]">
+                        <xsl:when test="exists($updatedNode) and $instanceDoc//node()[. is $updatedNode]">
                             <xsl:apply-templates select="$instanceDoc" mode="recalculate">
                                 <xsl:with-param name="updated-nodes" select="$updatedNode" tunnel="yes"/>
                                 <xsl:with-param name="updated-value" select="$new-value" tunnel="yes"/>
                             </xsl:apply-templates>
                         </xsl:when>
-                        <xsl:otherwise>
+                        <xsl:when test="exists($updatedNode)">
                             <xsl:apply-templates select="$instanceXML" mode="recalculate">
                                 <xsl:with-param name="updated-nodes" select="$updatedNode" tunnel="yes"/>
                                 <xsl:with-param name="updated-value" select="$new-value" tunnel="yes"/>
                             </xsl:apply-templates>
+                        </xsl:when>
+                        <xsl:otherwise>
+                            <xsl:sequence select="$instanceXML"/>
                         </xsl:otherwise>
                     </xsl:choose>
                 </xsl:when>
@@ -7023,7 +7044,10 @@
                 <xsl:sequence select="$instanceXML"/>
             </xsl:document>
         </xsl:variable>
-        <xsl:variable name="updatedNode" as="node()" select="xforms:evaluate-xpath-with-context-node($refi,$instanceXML,())"/>
+        <!-- TEST-TRACE: tolerate empty @data-ref lookups during control updates so
+             refresh/event sequencing does not raise cardinality errors on empty matches;
+             helps tests/supplemental/xforms-fiddle.spec.ts "refreshing same bind-heavy source twice does not fail". -->
+        <xsl:variable name="updatedNode" as="node()?" select="(xforms:evaluate-xpath-with-context-node($refi,$instanceXML,()))[1]"/>
         <xsl:variable name="old-value" as="xs:string" select="string($updatedNode)"/>
         <xsl:variable name="new-value" as="xs:string">
             <xsl:apply-templates select="$form-control" mode="get-field"/>
@@ -7032,17 +7056,20 @@
         <xsl:variable name="selection-changed" as="xs:boolean" select="$is-select-control and $old-value ne $new-value"/>
         <xsl:variable name="updatedInstanceXML" as="element()">
             <xsl:choose>
-                <xsl:when test="$instanceDoc//node()[. is $updatedNode]">
+                <xsl:when test="exists($updatedNode) and $instanceDoc//node()[. is $updatedNode]">
                     <xsl:apply-templates select="$instanceDoc" mode="recalculate">
                         <xsl:with-param name="updated-nodes" select="$updatedNode" tunnel="yes"/>
                         <xsl:with-param name="updated-value" select="$new-value" tunnel="yes"/>
                     </xsl:apply-templates>
                 </xsl:when>
-                <xsl:otherwise>
+                <xsl:when test="exists($updatedNode)">
                     <xsl:apply-templates select="$instanceXML" mode="recalculate">
                         <xsl:with-param name="updated-nodes" select="$updatedNode" tunnel="yes"/>
                         <xsl:with-param name="updated-value" select="$new-value" tunnel="yes"/>
                     </xsl:apply-templates>
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:sequence select="$instanceXML"/>
                 </xsl:otherwise>
             </xsl:choose>
         </xsl:variable>

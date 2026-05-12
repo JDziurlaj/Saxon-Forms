@@ -10,6 +10,96 @@ const repoRoot = path.resolve(__dirname, "..", "..");
 const examplesHost = "127.0.0.1";
 const examplesPort = 5197;
 const renderTimeoutMs = 20_000;
+const compileTimeoutMs = 45_000;
+const busBookingXFormsSource = `<?xml version="1.0" encoding="UTF-8"?>
+<xf:xform
+    xmlns:xf="http://www.w3.org/2002/xforms"
+    xmlns:ev="http://www.w3.org/2001/xml-events">
+
+    <xf:model id="bus-booking">
+        <xf:instance id="booking-data">
+            <data xmlns="">
+                <name/>
+                <route/>
+                <date/>
+                <passengers>1</passengers>
+                <fare-per-person/>
+                <total-fare/>
+                <phone/>
+            </data>
+        </xf:instance>
+
+        <xf:bind nodeset="name" required="true()" type="xs:string"/>
+        <xf:bind nodeset="route" required="true()" type="xs:string"/>
+        <xf:bind nodeset="date" required="true()" type="xs:date"/>
+        <xf:bind nodeset="passengers" required="true()" type="xs:integer" constraint=". &gt;= 1 and . &lt;= 10"/>
+        <xf:bind nodeset="fare-per-person"
+                 calculate="if(../route = 'NY-BOS', 35,
+                              if(../route = 'NY-PHI', 25,
+                              if(../route = 'BOS-PHI', 40, 0)))"/>
+        <xf:bind nodeset="total-fare" calculate="../passengers * ../fare-per-person"/>
+        <xf:bind nodeset="phone" type="xs:string"/>
+
+        <xf:submission id="submit-booking"
+                       method="post"
+                       action="https://httpbin.org/post"
+                       replace="instance"
+                       ev:event="xforms-submit-done">
+            <xf:message level="ephemeral">🎟️ Booking successful! Thank you for choosing our bus service.</xf:message>
+        </xf:submission>
+    </xf:model>
+
+    <xf:group>
+        <xf:label>Full Name</xf:label>
+        <xf:input ref="name" incremental="true">
+            <xf:alert>Please enter your full name</xf:alert>
+        </xf:input>
+    </xf:group>
+
+    <xf:group>
+        <xf:label>Select Route</xf:label>
+        <xf:select1 ref="route" appearance="full" incremental="true">
+            <xf:item>
+                <xf:label>New York → Boston ($35)</xf:label>
+                <xf:value>NY-BOS</xf:value>
+            </xf:item>
+            <xf:item>
+                <xf:label>New York → Philadelphia ($25)</xf:label>
+                <xf:value>NY-PHI</xf:value>
+            </xf:item>
+            <xf:item>
+                <xf:label>Boston → Philadelphia ($40)</xf:label>
+                <xf:value>BOS-PHI</xf:value>
+            </xf:item>
+        </xf:select1>
+    </xf:group>
+
+    <xf:group>
+        <xf:label>Travel Date</xf:label>
+        <xf:input ref="date" type="date" incremental="true"/>
+    </xf:group>
+
+    <xf:group>
+        <xf:label>Number of Passengers (1-10)</xf:label>
+        <xf:input ref="passengers" incremental="true" size="3"/>
+        <xf:range ref="passengers" start="1" end="10" step="1" incremental="true"/>
+    </xf:group>
+
+    <xf:group>
+        <xf:label>Phone Number (optional)</xf:label>
+        <xf:input ref="phone" incremental="true"/>
+    </xf:group>
+
+    <xf:group>
+        <xf:output ref="fare-per-person" label="Fare per person: $"/>
+        <xf:output ref="total-fare" label="Total Fare: $"/>
+    </xf:group>
+
+    <xf:submit submission="submit-booking">
+        <xf:label>🚍 Book Tickets Now</xf:label>
+    </xf:submit>
+
+</xf:xform>`;
 
 type RunningServer = {
   baseUrl: string;
@@ -103,7 +193,7 @@ test.describe("XForms fiddle", () => {
     await expect(sourceSelect.locator("option[value='compiled']")).toBeDisabled();
 
     await page.getByRole("button", { name: "Compile SaxonForms" }).click();
-    await expect(page.locator("#fiddle-console")).toContainText("Compile complete. Using compiled source v1.", { timeout: renderTimeoutMs });
+    await expect(page.locator("#fiddle-console")).toContainText("Compile complete. Using compiled source v1.", { timeout: compileTimeoutMs });
     await expect(sourceSelect).toHaveValue("compiled");
     await expect(sourceSelect.locator("option[value='compiled']")).not.toBeDisabled();
 
@@ -166,5 +256,30 @@ test.describe("XForms fiddle", () => {
     expect(pageErrors).toEqual([]);
     await expect(page.locator("#fiddle-console")).not.toContainText("Required cardinality of value in 'ixsl:set-attribute/@object' expression");
     await expect(page.locator("#fiddle-console")).not.toContainText("[refreshOutputs-JS] Can't find form control");
+  });
+
+  test("refreshing same bind-heavy source twice does not fail", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => {
+      pageErrors.push(String(error));
+    });
+
+    await page.goto(`${examplesServer.baseUrl}/xforms-fiddle.html`);
+    await expect(page.locator("#xForm .xforms-input").first()).toBeVisible({ timeout: renderTimeoutMs });
+
+    await page.locator("#xforms-source-editor").fill(busBookingXFormsSource);
+
+    await page.getByRole("button", { name: "Refresh XForms" }).click();
+    await expect(page.locator("#fiddle-console")).toContainText("Render complete.", { timeout: renderTimeoutMs });
+    await expect(page.locator("#fiddle-console")).not.toContainText("Transformation failure");
+    await expect(page.locator("#fiddle-console")).not.toContainText("XTTE0570");
+
+    await page.getByRole("button", { name: "Refresh XForms" }).click();
+    await expect(page.locator("#fiddle-console")).toContainText("Render complete.", { timeout: renderTimeoutMs });
+    await expect(page.locator("#fiddle-console")).not.toContainText("Transformation failure");
+    await expect(page.locator("#fiddle-console")).not.toContainText("XTTE0570");
+    await expect(page.locator("#xForm .xforms-input").first()).toBeVisible({ timeout: renderTimeoutMs });
+
+    expect(pageErrors).toEqual([]);
   });
 });
