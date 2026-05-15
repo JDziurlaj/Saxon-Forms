@@ -10,11 +10,10 @@ Create small, frequent commits while preventing regressions. Use a **checkpoint-
 
 ## Non-negotiable rules
 1. Commit frequently, but keep each commit atomic (one coherent change).
-2. Do not finalize a checkpoint if any mandatory-suite regression exists (W3C regressions are always blocking).
-3. Non-W3C regressions should be fixed before finalizing; waiver is allowed only with explicit written justification.
-4. Treat W3C suite `.xhtml` files as immutable; never modify them.
-5. Only adjust Playwright assertions when they demonstrably mismatch the pass criteria in the corresponding W3C `.xhtml`.
-6. Every finalized commit must be traceable to regression-gate artifacts via run directory + commit SHA metadata.
+2. Do not finalize a checkpoint if the regression gate reports a mandatory-suite failure (see regression-gate skill for policy tiers).
+3. Non-mandatory regressions should be fixed before finalizing; waiver is allowed only with explicit written justification.
+4. Never stage changes to W3C suite `.xhtml` test documents (see regression-gate skill for W3C integrity policy).
+5. Every finalized commit must be traceable to regression-gate artifacts via run directory + commit SHA metadata.
 
 ## Key concept: checkpoint commit
 A checkpoint commit is a normal `git commit` that is treated as **tentative** until the regression gate blesses it.
@@ -42,23 +41,11 @@ This eliminates the dirty-tree/clean-tree two-pass dance. Every gate run is agai
    - Commit with a concise, scoped message: `git commit -m "<type(scope): summary>"`
    - This is a real commit. HEAD now points to it. The tree is clean.
 6. **Run regression gate on checkpoint**
-   - Execute the regression-gate process (compile, targeted tests when relevant, full gate comparison against baseline).
-   - Provenance captures the checkpoint commit's SHA, branch, and clean tree state.
-   - `related_commit_sha` is always the checkpoint SHA (never `null`).
-7. **Interpret gate result**
-   - **Gate passes (exit 0) + baseline promoted:**
-     - The checkpoint is the final commit. Optionally amend to add gate trailers:
-       - `Gate-Run: <run-dir>`
-       - `Gate-Head: <sha>`
-     - Proceed to next slice.
-   - **Gate passes (exit 0) but no baseline promotion:**
-     - Checkpoint stands. No trailer amendment needed unless desired.
-   - **Mandatory-suite regression (exit 2):**
-     - Roll back: `git reset --soft HEAD~1` (changes return to staged).
-     - Fix the regression, then re-checkpoint from step 5.
-   - **Non-mandatory regression (exit 3):**
-     - Prefer rollback and fix.
-     - If waiver is justified: amend the checkpoint with waiver rationale in the commit message or PR notes, then proceed.
+   - Execute the regression gate on the clean tree (see regression-gate skill for commands and provenance capture).
+7. **Finalize or rollback based on gate result**
+   - **Gate passes:** the checkpoint becomes the final commit. Optionally amend to add gate trailers (`Gate-Run: <run-dir>`, `Gate-Head: <sha>`).
+   - **Gate fails:** roll back with `git reset --soft HEAD~1` (changes return to staged), fix, and re-checkpoint from step 5.
+   - See regression-gate skill for interpreting mandatory vs waivable failures.
 8. **Repeat**
    - Continue with the next small slice; do not wait to batch many unrelated changes into one commit.
 
@@ -81,6 +68,6 @@ git --no-pager reset --soft HEAD~1
 ```
 
 ## Failure handling
-- If a mandatory (W3C) regression exists after checkpoint: roll back with `git reset --soft HEAD~1`, fix, and re-checkpoint.
-- If only non-W3C regressions remain: prefer rollback and fix; finalize only when waiver justification is explicit and user-visible.
+- Gate failure after checkpoint: roll back with `git reset --soft HEAD~1`, fix, and re-checkpoint.
+- See regression-gate skill for whether a failure is mandatory (must fix) or waivable (may finalize with justification).
 - If a commit would require violating these rules: stop and ask the user how to proceed.

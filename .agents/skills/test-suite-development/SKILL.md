@@ -27,7 +27,7 @@ This repository's changes must remain conservative and easy to defend. Avoid maj
    - which specific test(s) this change helps pass.
 
 ### 4. Link to provenance
-6. Any regression-gate run used to declare progress or completion must include VCS provenance (HEAD SHA, branch, tree state, run directory, and related commit SHA). The gate always runs after a checkpoint commit, so `related_commit_sha` is always populated.
+6. Every regression-gate run must include VCS provenance linked to a checkpoint commit (see regression-gate skill for provenance requirements).
 
 ## Required test-trace comment convention
 Use a short `TEST-TRACE` comment immediately next to each changed block, using the file’s native comment syntax.
@@ -43,12 +43,9 @@ Keep comments concise and factual (one short line whenever possible).
 1. Identify failing tests and the smallest likely fix surface.
 2. Implement narrowly scoped code changes.
 3. Add `TEST-TRACE` comments adjacent to each change.
-4. Checkpoint commit, then run the regression gate (see git skill for checkpoint workflow).
-   - Confirm staging scope with the user if the agent did not make the changes.
-   - Stage relevant files, checkpoint commit, then run the gate on the clean tree.
-   - Provenance captures the exact checkpoint SHA (never a dirty-tree snapshot).
-   - If the gate fails, roll back (`git reset --soft HEAD~1`), fix, and re-checkpoint.
-5. If mandatory suites regress, roll back the checkpoint and continue fixing (no waiver).
+4. Checkpoint and gate: stage, checkpoint commit, then run the regression gate (see git skill for checkpoint workflow, regression-gate skill for gate execution).
+   - If the agent did not make the changes, confirm staging scope with the user before checkpointing.
+5. If the gate fails, handle per git skill (rollback) and regression-gate skill (policy interpretation). Continue fixing until mandatory suites pass.
 6. If non-mandatory regressions remain, document explicit justification before considering progress complete.
 
 ## Done criteria

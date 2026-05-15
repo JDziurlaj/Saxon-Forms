@@ -54,7 +54,7 @@ Before running the gate, capture:
 - `git --no-pager status --porcelain` (tree state — expected empty/clean),
 - `git --no-pager diff --name-only` (changed files — expected none).
 Set `related_commit_sha` to the HEAD SHA. It must never be `null` under this workflow.
-If the tree is unexpectedly dirty, warn the user and recommend committing or stashing before proceeding. Do not run the gate on a dirty tree.
+If the tree is unexpectedly dirty, do not run the gate. Defer to the git skill to resolve the tree state before proceeding.
 ## Main commands
 - Run default gate (uses `default_suite_id`, then appends mandatory suites):
   - `node .agents/skills/regression-gate/scripts/run_regression_gate.mjs`
@@ -108,8 +108,8 @@ Use the repeatable baseline script for initialization/refresh instead of manual 
    - For each suite run directory produced by the gate, write `vcs-context.json` with the captured Git metadata and `related_commit_sha` (always the checkpoint SHA).
    - Append one record per suite run to `.agents/skills/regression-gate/runs/run-index.ndjson`.
 4. **Interpret policy result**
-   - Hard fail (`exit 2`): mandatory-suite regression; roll back the checkpoint (`git reset --soft HEAD~1`), fix, and re-checkpoint.
-   - Soft fail (`exit 3`): non-mandatory regression; prefer rollback and fix; finalize only with explicit justification.
+   - Hard fail (`exit 2`): mandatory-suite regression. Report failing tests; defer to git skill for rollback.
+   - Soft fail (`exit 3`): non-mandatory regression. Report failing tests with justification requirement; defer to git skill for rollback or finalize decision.
 6. **Baseline promotion rule**
    - Baseline may be promoted automatically by the comparison script only when:
      - there are **zero new regressions**, and

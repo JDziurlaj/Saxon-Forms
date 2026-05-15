@@ -1,0 +1,46 @@
+@startuml
+title SaxonForms component model and one-hop environment interactions
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+
+package "Browser Environment" {
+  [HTML/DOM Tree] as DOM
+  [DOM Event Loop] as EVENT_LOOP
+  [JavaScript Runtime\n(xforms-javascript-library.xsl)] as JS_RUNTIME
+}
+
+package "SaxonForms Runtime" {
+  [XForms Source\n(xforms:xform / xhtml:html)] as XFORMS_SOURCE
+  [SEF Transform\n(saxon-xforms.sef.xml)] as SEF
+  [Model State\n(instances, binds, MIPs)] as MODEL_STATE
+  [Action Dispatcher\napplyActions (L4666)\noutermost-action-handler (L6589)] as ACTIONS
+  [Submission Adapter\nHTTPsubmit (L1801)\nxforms-submit (L5729)] as SUBMISSION
+  [Function Library\nxforms-function-library.xsl\nxforms-xpath-functions.xsl] as FUNC_LIB
+  [XSD Helpers\nxsd-helpers.xsl] as XSD
+}
+
+package "SaxonJS 3" {
+  [Interactive XSLT Engine\nixsl:* extension functions] as SAXONJS
+}
+
+XFORMS_SOURCE --> SAXONJS : "SaxonJS.transform2({stylesheetLocation})"
+SAXONJS --> SEF : execute xformsjs-main (L154)
+SEF --> MODEL_STATE : xforms-model-construct (L5205)
+SEF --> FUNC_LIB : xforms:impose(), xforms:instance()
+FUNC_LIB --> MODEL_STATE : evaluate-xpath-with-context-node (L1448)
+MODEL_STATE --> XSD : xsdh:is-type-valid()
+MODEL_STATE --> DOM : xforms-refresh (L5622)\nrefreshOutputs-JS (L4345)
+DOM --> EVENT_LOOP : native onchange/onclick/onkeyup
+EVENT_LOOP --> ACTIONS : ixsl:onchange/onclick mode templates
+ACTIONS --> SEF : action-* named templates
+SUBMISSION --> JS_RUNTIME : ixsl:promise (fetch)
+SUBMISSION --> MODEL_STATE : instance replacement/merge
+JS_RUNTIME --> EVENT_LOOP : promise callback
+JS_RUNTIME --> DOM : readFileAsXML(), setFocus()
+
+note right of ACTIONS
+One-hop browser interactions are explicit:
+DOM and JS runtime are first-class neighbors.
+Line numbers reference saxon-xforms.xsl.
+end note
+@enduml

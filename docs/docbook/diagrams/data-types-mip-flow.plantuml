@@ -1,0 +1,40 @@
+@startuml
+title Data types and MIP propagation flow
+autonumber
+
+participant "xforms:bind\n(model definition)" as BIND
+participant "xforms-rebuild\n(L5296)" as REBUILD
+participant "add-context mode\n(L5321)" as ADDCTX
+participant "xforms-recalculate\n(L5392)" as RECALC
+participant "recalculate-binding\n(L5431)" as RECALC_BIND
+participant "xforms-revalidate\n(L5531)" as REVAL
+participant "xsd-helpers.xsl\nxsdh:is-type-valid (L41)\nxsdh:canonical-type (L16)" as XSD
+participant "DOM Controls" as DOM
+
+== Rebuild Phase ==
+BIND -> REBUILD : binds parsed from model
+REBUILD -> ADDCTX : add-context mode\nresolve @nodeset to instance nodes
+ADDCTX -> ADDCTX : annotate bind with\n@instance-context\n@nodeset (absolute)
+
+== Recalculate Phase ==
+RECALC -> RECALC_BIND : for each bind
+RECALC_BIND -> RECALC_BIND : evaluate @calculate\n(try/catch for type coercion)
+RECALC_BIND -> RECALC_BIND : evaluate @relevant\n(boolean coercion)
+RECALC_BIND -> RECALC_BIND : evaluate @readonly\n(boolean, inherits from parent)
+RECALC_BIND -> RECALC_BIND : evaluate @required\n(boolean)
+RECALC_BIND -> RECALC_BIND : evaluate @constraint\n(boolean expression)
+
+== Revalidate Phase ==
+REVAL -> REVAL : check-required-fields (L1576)\nfor each required=true() binding
+REVAL -> REVAL : check-constraints-on-fields (L1626)\nevaluate constraint expressions
+REVAL -> REVAL : check-required-bindings (L1681)\nvalidate non-empty + required
+REVAL -> REVAL : check-instance-xsi-types (L1706)\nvalidate xsi:type attributes
+REVAL -> XSD : xsdh:canonical-type()\nnormalize type QNames
+REVAL -> XSD : xsdh:is-type-valid()\nvalidate value against XSD type
+
+== Refresh Phase (MIP Projection to DOM) ==
+REVAL --> DOM : refreshOutputs-JS (L4345)\nupdate output values
+REVAL --> DOM : refreshRelevantFields-JS (L4550)\nshow/hide based on relevant
+REVAL --> DOM : getRelevantStatus (L4244)\ngetHtmlClass (L4175)\napply readonly/required CSS classes
+REVAL --> DOM : dispatch xforms-valid\nor xforms-invalid events
+@enduml

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<chapter xmlns="http://docbook.org/ns/docbook" id="chapter-processing-model" xmlns:xi="http://www.w3.org/2001/XInclude">
+    <title>Processing Model (XForms 1.1 Chapter 4)</title>
+    <para>This chapter maps lifecycle events and deferred processing behavior to SaxonForms runtime dispatch, recalculate/revalidate/refresh orchestration, and DOM updates.</para>
+
+    <section id="chapter-processing-model-events">
+        <title>Event mapping: XForms to DOM/runtime events</title>
+        <para>The XForms processing model defines a lifecycle that begins with model construction and culminates in a ready state where the form is interactive. SaxonForms implements this lifecycle through named templates in <literal>saxon-xforms.xsl</literal> that execute in sequence during the <literal>xformsjs-main</literal> entry point (<literal>L154</literal>).</para>
+
+        <section id="chapter-processing-model-construction">
+            <title>Model construction phase</title>
+            <para>The <literal>xformsjs-main</literal> template (<literal>L154</literal>) orchestrates model construction:</para>
+            <orderedlist>
+                <listitem><para><emphasis>Document parsing</emphasis> — The XForms source is read from the page DOM via <literal>ixsl:page()</literal>. The source may be an embedded <literal>xforms:xform</literal> element or an XHTML document with XForms in the <literal>&lt;head&gt;</literal>. Namespace declarations are propagated via <literal>addNamespaceDeclarationsToDocument()</literal> (<literal>L4069</literal>).</para></listitem>
+                <listitem><para><emphasis>Model and instance resolution</emphasis> — Models (<literal>$models</literal>, <literal>L222</literal>) and the default instance (<literal>$first-instance</literal>, <literal>L227</literal>) are extracted. Default IDs are assigned if not present (<literal>$global-default-model-id</literal>, <literal>$global-default-instance-id</literal>, <literal>L100–101</literal>).</para></listitem>
+                <listitem><para><emphasis>Submission map construction</emphasis> — The <literal>$submissions</literal> variable (<literal>L276</literal>) builds a <literal>map(xs:string, map(*))</literal> of all <literal>xforms:submission</literal> elements, keyed by ID, containing method, resource, serialization, replace mode, and other attributes.</para></listitem>
+                <listitem><para><emphasis>xforms-model-construct</emphasis> — The <literal>xforms-model-construct</literal> template (<literal>L5205</literal>) initializes each model: loads instance data (inline or from <literal>@src</literal>), saves initial instance snapshots for <literal>xf:reset</literal>, and stores instances in JavaScript global state.</para></listitem>
+                <listitem><para><emphasis>xforms-rebuild</emphasis> — The <literal>xforms-rebuild</literal> template (<literal>L5296</literal>) processes <literal>xforms:bind</literal> elements via the <literal>add-context</literal> mode (<literal>L5321</literal>), resolving <literal>@nodeset</literal> paths to absolute references and annotating binds with <literal>@instance-context</literal>.</para></listitem>
+                <listitem><para><emphasis>xforms-recalculate</emphasis> — The <literal>xforms-recalculate</literal> template (<literal>L5392</literal>) evaluates all <literal>@calculate</literal>, <literal>@relevant</literal>, <literal>@readonly</literal>, <literal>@required</literal>, and <literal>@constraint</literal> expressions on binds via <literal>xforms-recalculate-binding</literal> (<literal>L5431</literal>).</para></listitem>
+                <listitem><para><emphasis>Validation stage boundary</emphasis> — In the default construction path, SaxonForms performs <literal>xforms-rebuild</literal> and <literal>xforms-recalculate</literal> before dispatching <literal>xforms-model-construct-done</literal>. <literal>xforms-revalidate</literal> runs during deferred update cycles and submission validation rather than as a mandatory construction step.</para></listitem>
+                <listitem><para><emphasis>xforms-model-construct-done</emphasis> — Dispatched after construction completes. Action handlers bound to this event (e.g., <literal>setvalue</literal> on <literal>xforms-model-construct-done</literal>) execute here. Known issue: event handler execution during model construction does not always update instance values (4.2.2.b).</para></listitem>
+                <listitem><para><emphasis>Control rendering</emphasis> — XForms control elements are matched by templates (entry point <literal>L2190</literal>) and transformed to HTML. The <literal>get-properties</literal> mode (<literal>L637</literal>) resolves data bindings for each control. The <literal>set-action</literal> mode (<literal>L847</literal>) builds action maps. The <literal>registerOutput</literal> template (<literal>L4901</literal>) registers output controls for refresh tracking.</para></listitem>
+                <listitem><para><emphasis>xforms-ready</emphasis> — Dispatched when the form is fully initialized and rendered. The form enters the interactive state.</para></listitem>
+            </orderedlist>
+        </section>
+
+        <section id="chapter-processing-model-deferred">
+            <title>Deferred update cycle</title>
+            <para>After each user interaction or action execution, SaxonForms runs the deferred update cycle: <literal>recalculate → revalidate → refresh</literal>. This cycle is triggered by:</para>
+            <itemizedlist>
+                <listitem><para><literal>xforms-value-changed</literal> (<literal>L5635</literal>) — Fired when a form control value changes via the <literal>ixsl:onchange</literal> event handlers.</para></listitem>
+                <listitem><para>Action execution — Insert, delete, and setvalue actions trigger recalculation after modifying instance data.</para></listitem>
+                <listitem><para>Explicit dispatch — The <literal>action-recalculate</literal> (<literal>L7913</literal>) and <literal>action-refresh</literal> (<literal>L7927</literal>) templates handle explicit <literal>xf:recalculate</literal>/<literal>xf:refresh</literal> actions.</para></listitem>
+            </itemizedlist>
+            <para>The recalculate phase (<literal>xforms-recalculate</literal>, <literal>L5392</literal>) iterates binds and evaluates MIP expressions. The recalculate-binding template (<literal>L5431</literal>) evaluates each bind's <literal>@calculate</literal> expression and updates the instance node value if changed. For non-incremental <literal>&lt;select&gt;</literal>/<literal>&lt;select1&gt;</literal> controls, the deferred cycle runs inline during <literal>onchange</literal> to avoid duplicate outer dispatch (<literal>L493–509</literal>; resolved: 4.6.3.a/b/c).</para>
+            <para>The revalidate phase (<literal>xforms-revalidate</literal>, <literal>L5531</literal>) checks required fields, constraint expressions, and XSD type validity. Validation state changes dispatch <literal>xforms-valid</literal>/<literal>xforms-invalid</literal> events (resolved: 6.1.6.a).</para>
+            <para>The refresh phase (<literal>xforms-refresh</literal>, <literal>L5622</literal>) updates the DOM to reflect current model state: <literal>refreshOutputs-JS</literal> (<literal>L4345</literal>) updates output control values, <literal>refreshRepeats-JS</literal> (<literal>L4462</literal>) regenerates repeat content, <literal>refreshRelevantFields-JS</literal> (<literal>L4550</literal>) shows/hides controls based on <literal>relevant</literal> MIP, and <literal>refreshElementsUsingIndexFunction-JS</literal> (<literal>L4629</literal>) updates elements whose values depend on <literal>index()</literal>.</para>
+        </section>
+    </section>
+
+    <section id="chapter-processing-model-sequence">
+        <title>Processing-cycle sequence diagram</title>
+        <para>This sequence diagram drives chapter-level interaction tracing requirements. Each edge maps to an identifiable implementation hook in the source code. Line numbers in participant labels and message annotations reference <literal>saxon-xforms.xsl</literal>.</para>
+        <mediaobject>
+            <imageobject>
+                <imagedata fileref="../diagrams/sequence-processing-cycle.svg" format="SVG" width="100%" scalefit="1"/>
+            </imageobject>
+        </mediaobject>
+    </section>
+
+    <section id="chapter-processing-model-known-issues">
+        <title>Known processing model issues</title>
+        <itemizedlist>
+            <listitem><para><emphasis>4.2.1.a/d, 4.2.2.a, 4.2.3.a, 4.5.2.a</emphasis> — Model-construction crash when model has no instance. Resolved by making <literal>$context-node</literal> parameter optional (<literal>node()?</literal>) in <literal>evaluate-xpath-with-context-node</literal>.</para></listitem>
+            <listitem><para><emphasis>4.2.2.b</emphasis> — <literal>xforms-model-construct-done</literal> setvalue handler does not clear instance data during model construction. Root cause: event handler execution timing during model construction.</para></listitem>
+            <listitem><para><emphasis>4.2.2.c1</emphasis> — Form control referencing instance not yet loaded; output hidden after <literal>xforms-ready</literal>. Root cause: lazy instance resolution timing.</para></listitem>
+            <listitem><para><emphasis>4.4.1.a</emphasis> — <literal>xforms-insert</literal> event properties (<literal>inserted-nodes</literal>) not populated in event handler after trigger click.</para></listitem>
+            <listitem><para><emphasis>4.6.3.a/b/c</emphasis> — Resolved: Non-incremental select/select1 onchange now performs inline recalculate/revalidate/refresh to avoid duplicate outer deferred-cycle dispatch.</para></listitem>
+        </itemizedlist>
+    </section>
+
+    <section id="chapter-processing-model-checkpoint">
+        <title>Checkpoint validation focus</title>
+        <itemizedlist>
+            <listitem><para>Targeted W3C coverage: <literal>tests/w3c/ch04.spec.ts</literal>.</para></listitem>
+            <listitem><para>Sequence trace checkpoints must map each message to concrete runtime hooks and ordered <literal>[SEQTRACE]</literal> template chains in <literal>tests/w3c/sequence-trace.spec.ts</literal>.</para></listitem>
+            <listitem><para>Verify deferred update cycle description against non-incremental select fix (4.6.3.a/b/c).</para></listitem>
+            <listitem><para>Regression command for final acceptance: <literal>npm run test:gate</literal>.</para></listitem>
+        </itemizedlist>
+    </section>
+</chapter>
