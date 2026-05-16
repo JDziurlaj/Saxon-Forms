@@ -10,3 +10,7 @@ public-test/
 test-app/w3c-suite
 public-test/w3c-suite/
 runs/
+builds/
+examples/generated/*.sef.xml
+ant4docbook-0.10.0/
+apache-ant*/

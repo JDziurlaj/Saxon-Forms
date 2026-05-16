@@ -23,7 +23,12 @@
     "test:e2e:ui:static": "node scripts/run-playwright-with-port.mjs --config=playwright.config.ts --ui",
     "docs:build": "node scripts/build-docs.mjs",
     "docs:build:html": "node scripts/build-docs.mjs --html-only",
-    "docs:build:pdf": "node scripts/build-docs.mjs --pdf-only"
+    "docs:build:pdf": "node scripts/build-docs.mjs --pdf-only",
+    "docs:docbook:validate": "node scripts/validate-docbook-sources.mjs",
+    "docs:docbook:build": "node scripts/run-docbook-build.mjs --format=all",
+    "docs:docbook:build:html": "node scripts/run-docbook-build.mjs --format=html",
+    "docs:docbook:build:pdf": "node scripts/run-docbook-build.mjs --format=pdf",
+    "docs:docbook:checkpoints": "node scripts/run-docbook-checkpoints.mjs --list"
   },
   "devDependencies": {
     "@noble/hashes": "^2.0.1",

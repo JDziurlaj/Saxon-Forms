@@ -40,6 +40,27 @@ Saxon-Forms currently supports Saxon-JS 3. To run Saxon-Forms you will need Saxo
 
 To run the tests interactively, use `npm run test:e2e:ui`
 
+## Documentation workflow (DocBook + ant4docbook)
+
+The repository now includes a DocBook-based implementation guide under `docs/docbook/`, with chapter-level checkpoints and standalone UML/BPMN references.
+
+Prerequisite for DocBook builds:
+- Install Apache Ant and ensure `ant` is available on PATH (or provide a custom path via `--ant-bin` in `scripts/run-docbook-build.mjs`).
+
+- Validate DocBook sources, XInclude targets, and checkpoint metadata:
+  - `npm run docs:docbook:validate`
+- Build DocBook HTML + PDF using the local `ant4docbook-0.10.0` distribution:
+  - `npm run docs:docbook:build`
+- Build only one output format:
+  - `npm run docs:docbook:build:html`
+  - `npm run docs:docbook:build:pdf`
+- List checkpoint definitions and targeted chapter test commands:
+  - `npm run docs:docbook:checkpoints`
+
+Generated DocBook outputs are written to `builds/docs-docbook/`.
+
+`npm run examples` starts a local server and continues running until you stop it manually.
+
 ## Cryptographic Functions (Optional)
 
 The XForms `digest()` and `hmac()` functions require the
