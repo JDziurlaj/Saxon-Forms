@@ -190,7 +190,8 @@
         <xsl:variable name="max-exclusive-facets" as="xs:string*" select="$restrictions/xs:maxExclusive/@value ! string(.)"/>
         <xsl:variable name="total-digits-facets" as="xs:integer*" select="$restrictions/xs:totalDigits/@value ! xs:integer(.)"/>
         <xsl:variable name="fraction-digits-facets" as="xs:integer*" select="$restrictions/xs:fractionDigits/@value ! xs:integer(.)"/>
-        <xsl:variable name="length" as="xs:integer" select="string-length($value)"/>
+        <!-- TEST-TRACE: use type-aware facet length semantics (not raw lexical length) for binary families; helps scripts/run-nist-facet-harness.mjs base64Binary length groups. -->
+        <xsl:variable name="length" as="xs:integer?" select="xsdh:facet-length($value,$base-type)"/>
         <!-- TEST-TRACE: support totalDigits/fractionDigits for decimal-derived types; helps scripts/run-nist-facet-harness.mjs decimal digit groups. -->
         <xsl:variable name="decimal-lex" as="xs:string?" select="
             if (xsdh:is-decimal-family($base-type) and ($value castable as xs:decimal))
@@ -205,9 +206,21 @@
             then (if (contains($decimal-lex,'.')) then string-length(substring-after($decimal-lex,'.')) else 0)
             else ()"/>
         <xsl:sequence select="
-            (every $l in $length-facets satisfies $length = $l)
-            and (every $l in $min-length-facets satisfies $length ge $l)
-            and (every $l in $max-length-facets satisfies $length le $l)
+            (
+                if (exists($length-facets))
+                then exists($length) and (every $l in $length-facets satisfies $length = $l)
+                else true()
+            )
+            and (
+                if (exists($min-length-facets))
+                then exists($length) and (every $l in $min-length-facets satisfies $length ge $l)
+                else true()
+            )
+            and (
+                if (exists($max-length-facets))
+                then exists($length) and (every $l in $max-length-facets satisfies $length le $l)
+                else true()
+            )
             and (every $p in $pattern-facets satisfies matches($value,$p))
             and (
                 if (exists($enum-facets))
@@ -229,6 +242,26 @@
                 else true()
             )"/>
     </xsl:function>
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Return facet length using datatype-aware semantics where needed.</xd:p>
+            <xd:p>Binary datatypes count octets; fallback remains lexical string-length.</xd:p>
+        </xd:desc>
+        <xd:param name="value">Facet candidate lexical value</xd:param>
+        <xd:param name="base-type">Resolved base type lexical name</xd:param>
+    </xd:doc>
+
+    <xsl:function name="xsdh:facet-length" as="xs:integer?">
+        <xsl:param name="value" as="xs:string"/>
+        <xsl:param name="base-type" as="xs:string"/>
+        <xsl:variable name="canonical" as="xs:string" select="xsdh:canonical-type($base-type)"/>
+        <xsl:sequence select="
+            if ($canonical = 'base64binary' and ($value castable as xs:base64Binary))
+            then string-length(string(xs:hexBinary(xs:base64Binary($value)))) idiv 2
+            else if ($canonical = 'hexbinary' and ($value castable as xs:hexBinary))
+            then string-length(string(xs:hexBinary($value))) idiv 2
+            else string-length($value)"/>
+    </xsl:function>
 
     <xsl:function name="xsdh:facet-value-eq" as="xs:boolean">
         <xsl:param name="left" as="xs:string"/>
@@ -247,6 +280,8 @@
         <xsl:param name="right" as="xs:string"/>
         <xsl:param name="base-type" as="xs:string"/>
         <xsl:param name="op" as="xs:string"/>
+        <!-- TEST-TRACE: add ordered facet comparisons for date/time families; helps scripts/run-nist-facet-harness.mjs date/dateTime/gDay boundary groups. -->
+        <xsl:variable name="canonical" as="xs:string" select="xsdh:canonical-type($base-type)"/>
         <xsl:sequence select="
             if (xsdh:is-decimal-family($base-type) and ($left castable as xs:decimal) and ($right castable as xs:decimal))
             then (
@@ -256,7 +291,7 @@
                 else if ($op = 'lt') then xs:decimal($left) lt xs:decimal($right)
                 else false()
             )
-            else if ($base-type = ('float','double') and ($left castable as xs:double) and ($right castable as xs:double))
+            else if ($canonical = ('float','double') and ($left castable as xs:double) and ($right castable as xs:double))
             then (
                 if ($op = 'ge') then xs:double($left) ge xs:double($right)
                 else if ($op = 'le') then xs:double($left) le xs:double($right)
@@ -264,6 +299,145 @@
                 else if ($op = 'lt') then xs:double($left) lt xs:double($right)
                 else false()
             )
+            else if ($canonical = 'date' and ($left castable as xs:date) and ($right castable as xs:date))
+            then (
+                if ($op = 'ge') then xs:date($left) ge xs:date($right)
+                else if ($op = 'le') then xs:date($left) le xs:date($right)
+                else if ($op = 'gt') then xs:date($left) gt xs:date($right)
+                else if ($op = 'lt') then xs:date($left) lt xs:date($right)
+                else false()
+            )
+            else if ($canonical = 'datetime' and ($left castable as xs:dateTime) and ($right castable as xs:dateTime))
+            then (
+                if ($op = 'ge') then xs:dateTime($left) ge xs:dateTime($right)
+                else if ($op = 'le') then xs:dateTime($left) le xs:dateTime($right)
+                else if ($op = 'gt') then xs:dateTime($left) gt xs:dateTime($right)
+                else if ($op = 'lt') then xs:dateTime($left) lt xs:dateTime($right)
+                else false()
+            )
+            else if ($canonical = 'time' and ($left castable as xs:time) and ($right castable as xs:time))
+            then (
+                if ($op = 'ge') then xs:time($left) ge xs:time($right)
+                else if ($op = 'le') then xs:time($left) le xs:time($right)
+                else if ($op = 'gt') then xs:time($left) gt xs:time($right)
+                else if ($op = 'lt') then xs:time($left) lt xs:time($right)
+                else false()
+            )
+            else if ($canonical = 'gyearmonth' and ($left castable as xs:gYearMonth) and ($right castable as xs:gYearMonth))
+            then (
+                if ($op = 'ge') then xs:gYearMonth($left) ge xs:gYearMonth($right)
+                else if ($op = 'le') then xs:gYearMonth($left) le xs:gYearMonth($right)
+                else if ($op = 'gt') then xs:gYearMonth($left) gt xs:gYearMonth($right)
+                else if ($op = 'lt') then xs:gYearMonth($left) lt xs:gYearMonth($right)
+                else false()
+            )
+            else if ($canonical = 'gyear' and ($left castable as xs:gYear) and ($right castable as xs:gYear))
+            then (
+                if ($op = 'ge') then xs:gYear($left) ge xs:gYear($right)
+                else if ($op = 'le') then xs:gYear($left) le xs:gYear($right)
+                else if ($op = 'gt') then xs:gYear($left) gt xs:gYear($right)
+                else if ($op = 'lt') then xs:gYear($left) lt xs:gYear($right)
+                else false()
+            )
+            else if ($canonical = 'gmonthday' and ($left castable as xs:gMonthDay) and ($right castable as xs:gMonthDay))
+            then xsdh:facet-compare-gmonthday($left,$right,$op)
+            else if ($canonical = 'gday' and ($left castable as xs:gDay) and ($right castable as xs:gDay))
+            then xsdh:facet-compare-gday($left,$right,$op)
+            else if ($canonical = 'gmonth' and ($left castable as xs:gMonth) and ($right castable as xs:gMonth))
+            then xsdh:facet-compare-gmonth($left,$right,$op)
+            else if ($canonical = 'daytimeduration' and ($left castable as xs:dayTimeDuration) and ($right castable as xs:dayTimeDuration))
+            then (
+                if ($op = 'ge') then xs:dayTimeDuration($left) ge xs:dayTimeDuration($right)
+                else if ($op = 'le') then xs:dayTimeDuration($left) le xs:dayTimeDuration($right)
+                else if ($op = 'gt') then xs:dayTimeDuration($left) gt xs:dayTimeDuration($right)
+                else if ($op = 'lt') then xs:dayTimeDuration($left) lt xs:dayTimeDuration($right)
+                else false()
+            )
+            else if ($canonical = 'yearmonthduration' and ($left castable as xs:yearMonthDuration) and ($right castable as xs:yearMonthDuration))
+            then (
+                if ($op = 'ge') then xs:yearMonthDuration($left) ge xs:yearMonthDuration($right)
+                else if ($op = 'le') then xs:yearMonthDuration($left) le xs:yearMonthDuration($right)
+                else if ($op = 'gt') then xs:yearMonthDuration($left) gt xs:yearMonthDuration($right)
+                else if ($op = 'lt') then xs:yearMonthDuration($left) lt xs:yearMonthDuration($right)
+                else false()
+            )
+            else false()"/>
+    </xsl:function>
+
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Compare gDay lexical values by day-of-month component.</xd:p>
+        </xd:desc>
+        <xd:param name="left">Left lexical gDay</xd:param>
+        <xd:param name="right">Right lexical gDay</xd:param>
+        <xd:param name="op">Comparison operation: ge/le/gt/lt</xd:param>
+    </xd:doc>
+    <xsl:function name="xsdh:facet-compare-gday" as="xs:boolean">
+        <xsl:param name="left" as="xs:string"/>
+        <xsl:param name="right" as="xs:string"/>
+        <xsl:param name="op" as="xs:string"/>
+        <!-- TEST-TRACE: compare gDay boundaries lexically by day component to avoid xs:gDay ordered-comparison runtime errors; helps scripts/run-nist-facet-harness.mjs atomic-gDay max/min groups. -->
+        <xsl:variable name="left-day" as="xs:integer?" select="if (matches($left,'^---[0-9]{2}')) then xs:integer(substring($left,4,2)) else ()"/>
+        <xsl:variable name="right-day" as="xs:integer?" select="if (matches($right,'^---[0-9]{2}')) then xs:integer(substring($right,4,2)) else ()"/>
+        <xsl:sequence select="
+            if (exists($left-day) and exists($right-day))
+            then xsdh:facet-compare-integer($left-day,$right-day,$op)
+            else false()"/>
+    </xsl:function>
+
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Compare gMonth lexical values by month component.</xd:p>
+        </xd:desc>
+        <xd:param name="left">Left lexical gMonth</xd:param>
+        <xd:param name="right">Right lexical gMonth</xd:param>
+        <xd:param name="op">Comparison operation: ge/le/gt/lt</xd:param>
+    </xd:doc>
+    <xsl:function name="xsdh:facet-compare-gmonth" as="xs:boolean">
+        <xsl:param name="left" as="xs:string"/>
+        <xsl:param name="right" as="xs:string"/>
+        <xsl:param name="op" as="xs:string"/>
+        <xsl:variable name="left-month" as="xs:integer?" select="if (matches($left,'^--[0-9]{2}')) then xs:integer(substring($left,3,2)) else ()"/>
+        <xsl:variable name="right-month" as="xs:integer?" select="if (matches($right,'^--[0-9]{2}')) then xs:integer(substring($right,3,2)) else ()"/>
+        <xsl:sequence select="
+            if (exists($left-month) and exists($right-month))
+            then xsdh:facet-compare-integer($left-month,$right-month,$op)
+            else false()"/>
+    </xsl:function>
+
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Compare gMonthDay lexical values by (month,day) tuple.</xd:p>
+        </xd:desc>
+        <xd:param name="left">Left lexical gMonthDay</xd:param>
+        <xd:param name="right">Right lexical gMonthDay</xd:param>
+        <xd:param name="op">Comparison operation: ge/le/gt/lt</xd:param>
+    </xd:doc>
+    <xsl:function name="xsdh:facet-compare-gmonthday" as="xs:boolean">
+        <xsl:param name="left" as="xs:string"/>
+        <xsl:param name="right" as="xs:string"/>
+        <xsl:param name="op" as="xs:string"/>
+        <xsl:variable name="left-month" as="xs:integer?" select="if (matches($left,'^--[0-9]{2}-[0-9]{2}')) then xs:integer(substring($left,3,2)) else ()"/>
+        <xsl:variable name="left-day" as="xs:integer?" select="if (matches($left,'^--[0-9]{2}-[0-9]{2}')) then xs:integer(substring($left,6,2)) else ()"/>
+        <xsl:variable name="right-month" as="xs:integer?" select="if (matches($right,'^--[0-9]{2}-[0-9]{2}')) then xs:integer(substring($right,3,2)) else ()"/>
+        <xsl:variable name="right-day" as="xs:integer?" select="if (matches($right,'^--[0-9]{2}-[0-9]{2}')) then xs:integer(substring($right,6,2)) else ()"/>
+        <xsl:variable name="left-key" as="xs:integer?" select="if (exists($left-month) and exists($left-day)) then ($left-month * 100 + $left-day) else ()"/>
+        <xsl:variable name="right-key" as="xs:integer?" select="if (exists($right-month) and exists($right-day)) then ($right-month * 100 + $right-day) else ()"/>
+        <xsl:sequence select="
+            if (exists($left-key) and exists($right-key))
+            then xsdh:facet-compare-integer($left-key,$right-key,$op)
+            else false()"/>
+    </xsl:function>
+
+    <xsl:function name="xsdh:facet-compare-integer" as="xs:boolean">
+        <xsl:param name="left" as="xs:integer"/>
+        <xsl:param name="right" as="xs:integer"/>
+        <xsl:param name="op" as="xs:string"/>
+        <xsl:sequence select="
+            if ($op = 'ge') then $left ge $right
+            else if ($op = 'le') then $left le $right
+            else if ($op = 'gt') then $left gt $right
+            else if ($op = 'lt') then $left lt $right
             else false()"/>
     </xsl:function>
 

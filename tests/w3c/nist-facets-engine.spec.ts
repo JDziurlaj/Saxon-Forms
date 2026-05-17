@@ -36,12 +36,29 @@ type EngineCase = {
   schemaHref: string;
   typeName: string;
   rootName: string;
+  targetNamespace: string;
   lexicalValue: string;
+};
+type UnsupportedGroup = {
+  facet: string;
+  group: string;
+  reason: string;
+};
+
+type EngineCaseBuildResult = {
+  selectedCount: number;
+  runnableCases: EngineCase[];
+  unsupportedGroups: UnsupportedGroup[];
 };
 
 function loadManifest(): Manifest {
   const manifestPath = path.resolve(repoRoot, "tests/w3c/nist-simpletype-facets.manifest.json");
   return JSON.parse(fs.readFileSync(manifestPath, "utf8")) as Manifest;
+}
+
+function extractSchemaTargetNamespace(schemaXml: string): string {
+  const schemaMatch = schemaXml.match(/<(?:\w+:)?schema\b[^>]*\btargetNamespace="([^"]+)"/);
+  return schemaMatch?.[1] ?? "";
 }
 
 function selectGroups(manifest: Manifest): GroupSelection[] {
@@ -87,10 +104,12 @@ function extractInstanceCases(groupBody: string): InstanceCase[] {
   return out;
 }
 
-function extractSchemaRootAndType(schemaXml: string): { rootName: string; typeName: string } {
-  const elementMatch = schemaXml.match(/<xs:element\b[^>]*\bname="([^"]+)"[^>]*\btype="([^"]+)"/);
-  if (!elementMatch) throw new Error("Unable to extract xs:element/@name and @type from schema");
-  return { rootName: elementMatch[1], typeName: elementMatch[2] };
+function analyzeSchemaRootAndType(schemaXml: string): { ok: true; rootName: string; typeName: string } | { ok: false; reason: string } {
+  const elementMatch = schemaXml.match(/<(?:\w+:)?element\b[^>]*\bname="([^"]+)"[^>]*\btype="([^"]+)"/);
+  if (!elementMatch) {
+    return { ok: false, reason: "schema has no top-level element with both @name and @type" };
+  }
+  return { ok: true, rootName: elementMatch[1], typeName: elementMatch[2] };
 }
 
 function extractInstanceLexicalValue(instanceXml: string): string {
@@ -115,6 +134,11 @@ function buildXhtml(caseDef: EngineCase): string {
   const valueLiteral = xmlEscape(caseDef.lexicalValue);
   const schemaLiteral = `schema-${encodeURIComponent(caseDef.caseId)}.xsd`;
   const inlineSchema = caseDef.schemaText.replace(/^\s*<\?xml[^>]*>\s*/i, "").trim();
+  // TEST-TRACE: use local-name() nodesets so generated tests work for namespaced NIST roots; helps tests/w3c/nist-facets-engine.spec.ts expanded manifest coverage.
+  const rootNodeset = `/*[local-name()='${caseDef.rootName}']`;
+  const rootQName = caseDef.targetNamespace ? `nist:${caseDef.rootName}` : caseDef.rootName;
+  const rootNamespaceDecl = caseDef.targetNamespace ? ` xmlns:nist="${xmlEscape(caseDef.targetNamespace)}"` : "";
+  const schemaLocationNs = caseDef.targetNamespace || "urn:nist";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml"
       xmlns:xforms="http://www.w3.org/2002/xforms"
@@ -123,15 +147,15 @@ function buildXhtml(caseDef: EngineCase): string {
     <title>NIST ${xmlEscape(caseDef.title)}</title>
     <xforms:model>
       <xforms:instance id="nist">
-        <${caseDef.rootName} xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:nist ${schemaLiteral}">${valueLiteral}</${caseDef.rootName}>
+        <${rootQName}${rootNamespaceDecl} xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="${xmlEscape(schemaLocationNs)} ${schemaLiteral}">${valueLiteral}</${rootQName}>
       </xforms:instance>
-      <xforms:bind nodeset="/${caseDef.rootName}" type="${xmlEscape(caseDef.typeName)}"/>
+      <xforms:bind nodeset="${rootNodeset}" type="${xmlEscape(caseDef.typeName)}"/>
       ${inlineSchema}
       <xforms:submission id="nist-submit" instance="nist" resource="/echo.sh" method="post"/>
     </xforms:model>
   </head>
   <body>
-    <xforms:input ref="/${caseDef.rootName}" incremental="true">
+    <xforms:input ref="${rootNodeset}" incremental="true">
       <xforms:label>Value</xforms:label>
     </xforms:input>
     <xforms:submit submission="nist-submit">
@@ -141,47 +165,73 @@ function buildXhtml(caseDef: EngineCase): string {
 </html>`;
 }
 
-function buildEngineCases(): EngineCase[] {
+function buildEngineCases(): EngineCaseBuildResult {
   const manifest = loadManifest();
   const testsetPath = path.resolve(repoRoot, manifest.source_test_set);
   const testsetDir = path.dirname(testsetPath);
   const testsetXml = fs.readFileSync(testsetPath, "utf8");
   const selected = selectGroups(manifest);
-
-  const cases: EngineCase[] = [];
+  const runnableCases: EngineCase[] = [];
+  const unsupportedGroups: UnsupportedGroup[] = [];
   for (const row of selected) {
     const groupBody = extractGroupBody(testsetXml, row.group);
     const schemaHref = extractSchemaHref(groupBody);
     const instanceCases = extractInstanceCases(groupBody);
     const preferredValidity = row.origin === "valid_groups";
     const chosen = instanceCases.find((c) => c.expectedValid === preferredValidity) ?? instanceCases[0];
-    if (!chosen) continue;
+    if (!chosen) {
+      // TEST-TRACE: classify groups with no instance cases as unsupported; helps tests/w3c/nist-facets-engine.spec.ts "NIST facets through Saxon-Forms engine".
+      unsupportedGroups.push({ facet: row.facet, group: row.group, reason: "group has no instanceTest cases" });
+      continue;
+    }
 
     const schemaPath = path.resolve(testsetDir, schemaHref);
     const instancePath = path.resolve(testsetDir, chosen.href);
     const schemaText = fs.readFileSync(schemaPath, "utf8");
     const instanceText = fs.readFileSync(instancePath, "utf8");
-    const { rootName, typeName } = extractSchemaRootAndType(schemaText);
+    const shape = analyzeSchemaRootAndType(schemaText);
+    if (!shape.ok) {
+      // TEST-TRACE: skip unsupported schema shapes instead of throwing; helps tests/w3c/nist-facets-engine.spec.ts expanded non-complex manifest run.
+      unsupportedGroups.push({ facet: row.facet, group: row.group, reason: shape.reason });
+      continue;
+    }
 
-    cases.push({
+    runnableCases.push({
       caseId: `${row.facet}-${row.group}`,
       title: `${row.facet} / ${row.group}`,
       expectedValid: chosen.expectedValid,
       schemaText,
       schemaHref,
-      typeName,
-      rootName,
+      typeName: shape.typeName,
+      rootName: shape.rootName,
+      // TEST-TRACE: preserve schema targetNamespace so generated instance QName matches element declaration; helps tests/w3c/nist-facets-engine.spec.ts atomic-QName* groups.
+      targetNamespace: extractSchemaTargetNamespace(schemaText),
       lexicalValue: extractInstanceLexicalValue(instanceText),
     });
   }
-  return cases;
+  return { selectedCount: selected.length, runnableCases, unsupportedGroups };
 }
 
-const engineCases = buildEngineCases();
+const buildResult = buildEngineCases();
+const engineCases = buildResult.runnableCases;
+const unsupportedGroups = buildResult.unsupportedGroups;
 
 test.describe("NIST facets through Saxon-Forms engine", () => {
   test.describe.configure({ mode: "serial" });
 
+  test("manifest selection partitions into runnable and unsupported groups", async () => {
+    // TEST-TRACE: guard against module-load abort regressions when manifest scope expands; helps tests/w3c/nist-facets-engine.spec.ts "NIST facets through Saxon-Forms engine".
+    expect(engineCases.length + unsupportedGroups.length).toBe(buildResult.selectedCount);
+    expect(engineCases.length).toBeGreaterThan(0);
+  });
+
+  test.beforeAll(async () => {
+    if (!unsupportedGroups.length) return;
+    const sample = unsupportedGroups.slice(0, 10).map((g) => `${g.group} (${g.reason})`).join(", ");
+    // TEST-TRACE: emit one-time unsupported-group diagnostics for expanded manifest triage; helps tests/w3c/nist-facets-engine.spec.ts "NIST facets through Saxon-Forms engine".
+    console.warn(`[nist-engine] runnable=${engineCases.length} unsupported=${unsupportedGroups.length} selected=${buildResult.selectedCount}`);
+    console.warn(`[nist-engine] unsupported sample: ${sample}`);
+  });
   for (const caseDef of engineCases) {
     test(`${caseDef.title} => ${caseDef.expectedValid ? "valid" : "invalid"}`, async ({ page }) => {
       const xhtmlPath = "**/w3c-suite/nist-generated/nist-case.xhtml*";

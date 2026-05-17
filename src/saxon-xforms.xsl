@@ -7688,6 +7688,7 @@
         </xsl:variable>
         <xsl:variable name="name-action" as="map(*)?" select="($nested-actions[map:get(., 'name') = 'name'])[1]"/>
         <xsl:variable name="targetid-action" as="map(*)?" select="($nested-actions[map:get(., 'name') = 'targetid'])[1]"/>
+        <xsl:variable name="delay-action" as="map(*)?" select="($nested-actions[map:get(., 'name') = 'delay'])[1]"/>
         
         <xsl:variable name="instance-context" as="xs:string" select="map:get($action-map, 'instance-context')"/>
         <xsl:variable name="instanceXML" as="element()?" select="xforms:instance($instance-context)"/>
@@ -7746,6 +7747,36 @@
             else ()"/>
         <xsl:variable name="event-bubbles" as="xs:boolean" select="xforms:event-flag(map:get($action-map, '@bubbles'), true())"/>
         <xsl:variable name="event-cancelable" as="xs:boolean" select="xforms:event-flag(map:get($action-map, '@cancelable'), false())"/>
+        <xsl:variable name="delay-from-child" as="xs:string?">
+            <xsl:choose>
+                <xsl:when test="exists($delay-action) and exists(map:get($delay-action, '@value')) and exists($dispatch-context-node)">
+                    <xsl:try>
+                        <xsl:sequence select="string(xforms:evaluate-xpath-with-context-node(map:get($delay-action, '@value'),$dispatch-context-node,()))"/>
+                        <xsl:catch>
+                            <xsl:sequence select="string(map:get($delay-action, '@value'))"/>
+                        </xsl:catch>
+                    </xsl:try>
+                </xsl:when>
+                <xsl:when test="exists($delay-action) and exists(map:get($delay-action, '@value'))">
+                    <xsl:sequence select="string(map:get($delay-action, '@value'))"/>
+                </xsl:when>
+                <xsl:when test="exists($delay-action)">
+                    <xsl:sequence select="normalize-space(string(map:get($delay-action, 'value')))"/>
+                </xsl:when>
+                <xsl:otherwise/>
+            </xsl:choose>
+        </xsl:variable>
+        <xsl:variable name="delay-raw" as="xs:string?" select="
+            if (exists($delay-from-child) and normalize-space($delay-from-child) != '')
+            then normalize-space($delay-from-child)
+            else (if (exists(map:get($action-map, '@delay'))) then normalize-space(string(map:get($action-map, '@delay'))) else ())"/>
+        <!-- TEST-TRACE: apply xf:dispatch delay semantics with child xf:delay precedence,
+             including xf:delay/@value precedence over child text; helps tests/w3c/ch10.spec.ts
+             "10.8.c", "10.8.3.c". -->
+        <xsl:variable name="delay-ms" as="xs:integer" select="
+            if (exists($delay-raw) and $delay-raw castable as xs:double and xs:double($delay-raw) gt 0)
+            then xs:integer(round(xs:double($delay-raw)))
+            else 0"/>
         <xsl:variable name="dispatch-event-context" as="map(*)">
             <xsl:map>
                 <xsl:if test="exists($event-targetid)">
@@ -7763,10 +7794,22 @@
                 bubbles   = <xsl:value-of select="$event-bubbles"/>
                 cancelable= <xsl:value-of select="$event-cancelable"/>
             </xsl:message>
-            <xsl:call-template name="xforms-event-handler">
-                <xsl:with-param name="event-name" select="$event-name" as="xs:string" tunnel="yes"/>
-                <xsl:with-param name="event-context" select="$dispatch-event-context" as="map(*)" tunnel="yes"/>
-            </xsl:call-template>
+            <xsl:choose>
+                <xsl:when test="$delay-ms gt 0">
+                    <ixsl:schedule-action wait="$delay-ms">
+                        <xsl:call-template name="xforms-event-handler">
+                            <xsl:with-param name="event-name" select="$event-name" as="xs:string" tunnel="yes"/>
+                            <xsl:with-param name="event-context" select="$dispatch-event-context" as="map(*)" tunnel="yes"/>
+                        </xsl:call-template>
+                    </ixsl:schedule-action>
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:call-template name="xforms-event-handler">
+                        <xsl:with-param name="event-name" select="$event-name" as="xs:string" tunnel="yes"/>
+                        <xsl:with-param name="event-context" select="$dispatch-event-context" as="map(*)" tunnel="yes"/>
+                    </xsl:call-template>
+                </xsl:otherwise>
+            </xsl:choose>
         </xsl:if>
         
     </xsl:template>

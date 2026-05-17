@@ -2,11 +2,11 @@
   "suite_id": "w3c-conformance",
   "test_path": "tests/w3c",
   "config_path": "playwright.config.ts",
-  "last_updated": "2026-05-12T21:58:47.701Z",
+  "last_updated": "2026-05-17T14:08:23.222Z",
   "stats": {
-    "total": 465,
-    "passed": 406,
-    "failed": 36,
+    "total": 487,
+    "passed": 430,
+    "failed": 34,
     "flaky": 0,
     "skipped": 23
   },
@@ -44,8 +44,6 @@
     "W3C Chapter 10 — XForms Actions › 10.4.f — 10.4.f delete action and repeat element",
     "W3C Chapter 10 — XForms Actions › 10.6.1.b — 10.6.1.b case element child of the toggle element precedence testing",
     "W3C Chapter 10 — XForms Actions › 10.7.1.a — 10.7.1.a setfocus element with control child element",
-    "W3C Chapter 10 — XForms Actions › 10.7.1.b — 10.7.1.b control element precedence tests",
-    "W3C Chapter 10 — XForms Actions › 10.8.3.a — dispatch delay child element behavior",
-    "W3C Chapter 10 — XForms Actions › 10.8.3.b — dispatch delay element precedence over attribute"
+    "W3C Chapter 10 — XForms Actions › 10.7.1.b — 10.7.1.b control element precedence tests"
   ]
 }
