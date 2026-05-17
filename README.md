@@ -9,36 +9,78 @@ See conference papers below:
 [Implementing XForms using interactive XSLT 3.0](http://www.saxonica.com/papers/xmlprague-2018ond.pdf). XML Prague 2018.
 
 [Distributing XSLT Processing between Client and Server](http://xmllondon.com/2017/xmllondon-2017-proceedings.pdf). XML London 2017.
+## Quickstart (5 minutes)
 
-## Build
+### Prerequisites
+- Node.js + npm
+- Saxon-JS 3 runtime assets available in `Saxon-JS/` (or copied to your hosting location)
 
-The latest builds of Saxon-Forms are placed in the builds directory (i.e. saxon-xforms.sef.json). However to build the tool yourself you will use the following command:
+Saxon-JS can be downloaded at [Saxon-JS](http://www.saxonica.com/saxon-js/index.xml) (older versions available at the [archive](https://www.saxonica.com/saxon-js/archive.xml)).
 
+### 1) Install dependencies
+```bash
+npm install
+```
+
+### 2) Build Saxon-Forms SEF
 ```bash
 npm run build:sef
 ```
 
-## Setup
-Saxon-Forms currently supports Saxon-JS 3. To run Saxon-Forms you will need Saxon-JS which can be downloaded at
-[Saxon-JS](http://www.saxonica.com/saxon-js/index.xml) (older versions available at the [archive](https://www.saxonica.com/saxon-js/archive.xml)). Example pages are consolidated under `examples/`.
+This generates `sef/saxon-xforms.sef.json` and syncs it into `test-app/sef/saxon-xforms.sef.json`.
 
-- Run all examples:
-  - `npm run examples`
-- Compile stylesheet-driven integration examples on demand:
-  - `npm run examples:compile`
-- Direct XForms-source loading example:
-  - `examples/sample1.html`
-- Stylesheet-driven loading example:
-  - `examples/sample2.html`
+### 3) Run examples locally
+```bash
+npm run examples
+```
 
-## End-to-end tests (Playwright)
+Then open `http://127.0.0.1:5174/` and start with:
+- `examples/hello.html`
+- `examples/xforms-fiddle.html`
+- `examples/sample1.html` (direct XForms-source loading)
+- `examples/sample2.html` (stylesheet-driven loading)
 
-1. `npm install` to install dependencies
-1. `npm run predev` to start the Vite dev server (required for the Playwright tests)
-1. `npm run build:sef` to build the SEF files for testing
-1. `npm run test:e2e` to run the full suite of Playwright tests
+`npm run examples` starts a local server and continues running until you stop it manually.
 
-To run the tests interactively, use `npm run test:e2e:ui`
+### 4) Run end-to-end tests (Playwright)
+```bash
+npm run test:e2e
+```
+
+To run tests interactively:
+```bash
+npm run test:e2e:ui
+```
+
+### Common commands
+- Build SEF: `npm run build:sef`
+- Run all examples: `npm run examples`
+- Compile stylesheet-driven examples on demand: `npm run examples:compile`
+- Fetch W3C suite: `npm run fetch:w3c`
+- Run full e2e flow (prepare + build + test): `npm run test:e2e:full`
+- Run xsd helper tests: `npm run test:xsd-helpers`
+- Run diagnostics tests: `npm run test:e2e:diagnostics`
+
+### Troubleshooting
+- If W3C tests are missing assets, run `npm run fetch:w3c`.
+- If runtime output looks stale, rerun `npm run build:sef`.
+- If docs builds fail, ensure `ant` is on PATH (or use `--ant-bin` with `scripts/run-docbook-build.mjs`).
+
+## Contributing
+See `CONTRIBUTING.md` for development workflow, validation expectations, and PR standards.
+
+## Support expectations
+Saxon-Forms support maturity is tracked by conformance behavior and implementation coverage.
+
+- Supported and stable: core controls, many processing model actions, and major portions of chapter-based W3C tests.
+- Partial support: areas with known behavioral gaps or edge-case limitations.
+- In progress: features tracked as active gaps in conformance status.
+
+For current details:
+- `tests/w3c/STATUS.md` for live gap and resolution tracking
+- `IMPLEMENTATION.md` for implementation coverage narrative
+
+If you are evaluating feature readiness for production, use those files as the source of truth.
 
 ## Documentation workflow (DocBook + ant4docbook)
 
@@ -58,8 +100,6 @@ Prerequisite for DocBook builds:
   - `npm run docs:docbook:checkpoints`
 
 Generated DocBook outputs are written to `builds/docs-docbook/`.
-
-`npm run examples` starts a local server and continues running until you stop it manually.
 
 ## Cryptographic Functions (Optional)
 

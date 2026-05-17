@@ -145,4 +145,189 @@
             else true()"/>
     </xsl:function>
 
+
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Validate a lexical value against a schema-derived restricted simpleType.</xd:p>
+            <xd:p>This supports scoped XSD facet checks used by the NIST facet harness for Saxon-Forms.</xd:p>
+        </xd:desc>
+        <xd:param name="binding-type">Named simpleType from bind metadata or schema element @type</xd:param>
+        <xd:param name="raw-value">Current lexical value to validate</xd:param>
+        <xd:param name="schema-doc">Schema document containing simpleType restrictions</xd:param>
+    </xd:doc>
+    <xsl:function name="xsdh:is-type-valid-against-schema" as="xs:boolean">
+        <xsl:param name="binding-type" as="xs:string?"/>
+        <xsl:param name="raw-value" as="xs:string?"/>
+        <xsl:param name="schema-doc" as="document-node()?"/>
+        <xsl:variable name="type-name" as="xs:string" select="normalize-space(string($binding-type))"/>
+        <xsl:variable name="type-local" as="xs:string" select="xsdh:local-type-name($type-name)"/>
+        <xsl:variable name="restrictions" as="element(xs:restriction)*" select="xsdh:restriction-chain($schema-doc,$type-local,())"/>
+        <xsl:variable name="base-type" as="xs:string" select="xsdh:resolved-base-type($schema-doc,$type-local,())"/>
+        <!-- TEST-TRACE: apply whiteSpace facet normalization before facet checks; helps scripts/run-nist-facet-harness.mjs whiteSpace groups. -->
+        <xsl:variable name="normalized-value" as="xs:string" select="xsdh:apply-white-space(string($raw-value),$restrictions)"/>
+        <xsl:sequence select="
+            if ($type-name = '' or empty($schema-doc))
+            then xsdh:is-type-valid($type-name,$raw-value)
+            else if (empty($restrictions))
+            then xsdh:is-type-valid($type-name,$raw-value)
+            else if (not(xsdh:is-type-valid($base-type,$normalized-value)))
+            then false()
+            else xsdh:facet-valid($normalized-value,$base-type,$restrictions)"/>
+    </xsl:function>
+
+    <xsl:function name="xsdh:facet-valid" as="xs:boolean">
+        <xsl:param name="value" as="xs:string"/>
+        <xsl:param name="base-type" as="xs:string"/>
+        <xsl:param name="restrictions" as="element(xs:restriction)*"/>
+        <xsl:variable name="length-facets" as="xs:integer*" select="$restrictions/xs:length/@value ! xs:integer(.)"/>
+        <xsl:variable name="min-length-facets" as="xs:integer*" select="$restrictions/xs:minLength/@value ! xs:integer(.)"/>
+        <xsl:variable name="max-length-facets" as="xs:integer*" select="$restrictions/xs:maxLength/@value ! xs:integer(.)"/>
+        <xsl:variable name="pattern-facets" as="xs:string*" select="$restrictions/xs:pattern/@value ! string(.)"/>
+        <xsl:variable name="enum-facets" as="xs:string*" select="$restrictions/xs:enumeration/@value ! string(.)"/>
+        <xsl:variable name="min-inclusive-facets" as="xs:string*" select="$restrictions/xs:minInclusive/@value ! string(.)"/>
+        <xsl:variable name="max-inclusive-facets" as="xs:string*" select="$restrictions/xs:maxInclusive/@value ! string(.)"/>
+        <xsl:variable name="min-exclusive-facets" as="xs:string*" select="$restrictions/xs:minExclusive/@value ! string(.)"/>
+        <xsl:variable name="max-exclusive-facets" as="xs:string*" select="$restrictions/xs:maxExclusive/@value ! string(.)"/>
+        <xsl:variable name="total-digits-facets" as="xs:integer*" select="$restrictions/xs:totalDigits/@value ! xs:integer(.)"/>
+        <xsl:variable name="fraction-digits-facets" as="xs:integer*" select="$restrictions/xs:fractionDigits/@value ! xs:integer(.)"/>
+        <xsl:variable name="length" as="xs:integer" select="string-length($value)"/>
+        <!-- TEST-TRACE: support totalDigits/fractionDigits for decimal-derived types; helps scripts/run-nist-facet-harness.mjs decimal digit groups. -->
+        <xsl:variable name="decimal-lex" as="xs:string?" select="
+            if (xsdh:is-decimal-family($base-type) and ($value castable as xs:decimal))
+            then string(xs:decimal($value))
+            else ()"/>
+        <xsl:variable name="decimal-total-digits" as="xs:integer?" select="
+            if (exists($decimal-lex))
+            then string-length(replace($decimal-lex,'[^0-9]',''))
+            else ()"/>
+        <xsl:variable name="decimal-fraction-digits" as="xs:integer?" select="
+            if (exists($decimal-lex))
+            then (if (contains($decimal-lex,'.')) then string-length(substring-after($decimal-lex,'.')) else 0)
+            else ()"/>
+        <xsl:sequence select="
+            (every $l in $length-facets satisfies $length = $l)
+            and (every $l in $min-length-facets satisfies $length ge $l)
+            and (every $l in $max-length-facets satisfies $length le $l)
+            and (every $p in $pattern-facets satisfies matches($value,$p))
+            and (
+                if (exists($enum-facets))
+                then some $enum in $enum-facets satisfies xsdh:facet-value-eq($value,$enum,$base-type)
+                else true()
+            )
+            and (every $bound in $min-inclusive-facets satisfies xsdh:facet-compare($value,$bound,$base-type,'ge'))
+            and (every $bound in $max-inclusive-facets satisfies xsdh:facet-compare($value,$bound,$base-type,'le'))
+            and (every $bound in $min-exclusive-facets satisfies xsdh:facet-compare($value,$bound,$base-type,'gt'))
+            and (every $bound in $max-exclusive-facets satisfies xsdh:facet-compare($value,$bound,$base-type,'lt'))
+            and (
+                if (exists($total-digits-facets))
+                then exists($decimal-total-digits) and (every $limit in $total-digits-facets satisfies $decimal-total-digits le $limit)
+                else true()
+            )
+            and (
+                if (exists($fraction-digits-facets))
+                then exists($decimal-fraction-digits) and (every $limit in $fraction-digits-facets satisfies $decimal-fraction-digits le $limit)
+                else true()
+            )"/>
+    </xsl:function>
+
+    <xsl:function name="xsdh:facet-value-eq" as="xs:boolean">
+        <xsl:param name="left" as="xs:string"/>
+        <xsl:param name="right" as="xs:string"/>
+        <xsl:param name="base-type" as="xs:string"/>
+        <xsl:sequence select="
+            if (xsdh:is-decimal-family($base-type) and ($left castable as xs:decimal) and ($right castable as xs:decimal))
+            then xs:decimal($left) = xs:decimal($right)
+            else if ($base-type = ('float','double') and ($left castable as xs:double) and ($right castable as xs:double))
+            then xs:double($left) = xs:double($right)
+            else $left = $right"/>
+    </xsl:function>
+
+    <xsl:function name="xsdh:facet-compare" as="xs:boolean">
+        <xsl:param name="left" as="xs:string"/>
+        <xsl:param name="right" as="xs:string"/>
+        <xsl:param name="base-type" as="xs:string"/>
+        <xsl:param name="op" as="xs:string"/>
+        <xsl:sequence select="
+            if (xsdh:is-decimal-family($base-type) and ($left castable as xs:decimal) and ($right castable as xs:decimal))
+            then (
+                if ($op = 'ge') then xs:decimal($left) ge xs:decimal($right)
+                else if ($op = 'le') then xs:decimal($left) le xs:decimal($right)
+                else if ($op = 'gt') then xs:decimal($left) gt xs:decimal($right)
+                else if ($op = 'lt') then xs:decimal($left) lt xs:decimal($right)
+                else false()
+            )
+            else if ($base-type = ('float','double') and ($left castable as xs:double) and ($right castable as xs:double))
+            then (
+                if ($op = 'ge') then xs:double($left) ge xs:double($right)
+                else if ($op = 'le') then xs:double($left) le xs:double($right)
+                else if ($op = 'gt') then xs:double($left) gt xs:double($right)
+                else if ($op = 'lt') then xs:double($left) lt xs:double($right)
+                else false()
+            )
+            else false()"/>
+    </xsl:function>
+
+    <xsl:function name="xsdh:is-decimal-family" as="xs:boolean">
+        <xsl:param name="base-type" as="xs:string"/>
+        <xsl:variable name="canonical" as="xs:string" select="xsdh:canonical-type($base-type)"/>
+        <xsl:sequence select="$canonical = (
+            'decimal','integer','nonpositiveinteger','negativeinteger',
+            'long','int','short','byte','nonnegativeinteger',
+            'unsignedlong','unsignedint','unsignedshort','unsignedbyte','positiveinteger'
+        )"/>
+    </xsl:function>
+
+    <xsl:function name="xsdh:apply-white-space" as="xs:string">
+        <xsl:param name="value" as="xs:string"/>
+        <xsl:param name="restrictions" as="element(xs:restriction)*"/>
+        <xsl:variable name="mode" as="xs:string?" select="($restrictions/xs:whiteSpace/@value ! lower-case(normalize-space(string(.))))[last()]"/>
+        <xsl:sequence select="
+            if ($mode = 'replace')
+            then replace($value,'[	
+]',' ')
+            else if ($mode = 'collapse')
+            then normalize-space(replace($value,'[	
+]',' '))
+            else $value"/>
+    </xsl:function>
+
+    <xsl:function name="xsdh:resolved-base-type" as="xs:string">
+        <xsl:param name="schema-doc" as="document-node()?"/>
+        <xsl:param name="type-local" as="xs:string"/>
+        <xsl:param name="visited" as="xs:string*"/>
+        <xsl:variable name="simple-type" as="element(xs:simpleType)?" select="$schema-doc/xs:schema/xs:simpleType[@name = $type-local][1]"/>
+        <xsl:sequence select="
+            if (empty($simple-type) or $type-local = '' or $type-local = $visited)
+            then $type-local
+            else
+                let $base-lexical := normalize-space(string($simple-type/xs:restriction[1]/@base)),
+                    $base-local := xsdh:local-type-name($base-lexical)
+                return
+                    if ($base-lexical = '' or starts-with(lower-case($base-lexical),'xs:') or starts-with(lower-case($base-lexical),'xsd:'))
+                    then $base-lexical
+                    else xsdh:resolved-base-type($schema-doc,$base-local,($visited,$type-local))"/>
+    </xsl:function>
+
+    <xsl:function name="xsdh:restriction-chain" as="element(xs:restriction)*">
+        <xsl:param name="schema-doc" as="document-node()?"/>
+        <xsl:param name="type-local" as="xs:string"/>
+        <xsl:param name="visited" as="xs:string*"/>
+        <xsl:variable name="simple-type" as="element(xs:simpleType)?" select="$schema-doc/xs:schema/xs:simpleType[@name = $type-local][1]"/>
+        <xsl:variable name="restriction" as="element(xs:restriction)?" select="$simple-type/xs:restriction[1]"/>
+        <xsl:variable name="base-lexical" as="xs:string" select="normalize-space(string($restriction/@base))"/>
+        <xsl:variable name="base-local" as="xs:string" select="xsdh:local-type-name($base-lexical)"/>
+        <xsl:sequence select="
+            if (empty($simple-type) or empty($restriction) or $type-local = '' or $type-local = $visited)
+            then ()
+            else if (starts-with(lower-case($base-lexical),'xs:') or starts-with(lower-case($base-lexical),'xsd:'))
+            then $restriction
+            else (xsdh:restriction-chain($schema-doc,$base-local,($visited,$type-local)),$restriction)"/>
+    </xsl:function>
+
+    <xsl:function name="xsdh:local-type-name" as="xs:string">
+        <xsl:param name="qname-lexical" as="xs:string?"/>
+        <xsl:variable name="raw" as="xs:string" select="normalize-space(string($qname-lexical))"/>
+        <xsl:sequence select="if (contains($raw,':')) then substring-after($raw,':') else $raw"/>
+    </xsl:function>
+
 </xsl:stylesheet>

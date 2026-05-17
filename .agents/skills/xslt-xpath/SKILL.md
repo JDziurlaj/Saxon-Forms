@@ -21,6 +21,7 @@ Use this skill whenever making or reviewing changes in XSLT stylesheets, XPath e
 3. Avoid introducing legacy-only compatibility code paths unless a concrete runtime constraint requires them.
 4. Do not add deprecated functions or syntax when an equivalent modern feature exists.
 5. If an unavoidable compatibility fallback is introduced, add a short comment explaining why modern-only behavior is not possible.
+6. When adding XSLT functions or templates, ensure they are documented using the `http://www.oxygenxml.com/ns/doc/xsl` tagset.
 
 ## Review checklist
 1. Does the change use XSLT 3.0 / XPath 3.1 idioms by default?

@@ -80,6 +80,11 @@
     
     <xsl:param name="LOGLEVEL" as="xs:string" select="'40'" required="no"/>
     <xsl:variable name="LOGLEVEL_INT" as="xs:integer" select="if ($LOGLEVEL castable as xs:integer) then xs:integer($LOGLEVEL) else 100"/>
+    <xsl:param name="sequence-template-trace" as="xs:string" select="'false'" required="no"/>
+    <xsl:variable
+        name="sequence-template-trace-enabled"
+        as="xs:boolean"
+        select="lower-case(normalize-space($sequence-template-trace)) = ('1','true','yes','on')"/>
 
     <xsl:param name="xforms-instance-id" select="'xforms-jinstance'" as="xs:string" required="no"/>
     <xsl:param name="xforms-cache-id" select="'xforms-cache'" as="xs:string" required="no"/>
@@ -159,6 +164,9 @@
         <xsl:param name="reset" as="xs:boolean" select="false()"/>
         
         <xsl:message use-when="$debugMode">[xformsjs-main] START</xsl:message>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=xformsjs-main phase=enter reset=<xsl:value-of select="$reset"/></xsl:message>
+        </xsl:if>
 
         <!-- $xforms-doc-local helps to support XForms in an iframe -->
         <xsl:variable name="xforms-doc-local" as="document-node()" select="ixsl:page()"/>
@@ -1573,6 +1581,101 @@
         <xd:return>Sequence of each HTML field that is required</xd:return>
         <xd:param name="instanceXML">Instance to check</xd:param>
     </xd:doc>
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Resolve a schema document from an instance node's xsi:schemaLocation.</xd:p>
+        </xd:desc>
+        <xd:param name="validation-node">Bound instance node used for validation</xd:param>
+    </xd:doc>
+    <xsl:function name="xforms:resolve-schema-doc" as="document-node()?">
+        <xsl:param name="validation-node" as="node()?"/>
+        <xsl:variable name="instance-root" as="element()?" select="
+            if (exists($validation-node))
+            then (root($validation-node)/*)[1]
+            else ()"/>
+        <xsl:variable name="schema-location-lexical" as="xs:string" select="
+            if (exists($instance-root))
+            then normalize-space(string(($instance-root/@*[local-name() = 'schemaLocation' and (namespace-uri() = '' or namespace-uri() = 'http://www.w3.org/2001/XMLSchema-instance')][1])))
+            else ''"/>
+        <xsl:variable name="schema-tokens" as="xs:string*" select="tokenize($schema-location-lexical,'\s+')"/>
+        <xsl:variable name="schema-namespace-uri" as="xs:string?" select="if (count($schema-tokens) ge 1) then $schema-tokens[1] else ()"/>
+        <xsl:variable name="schema-relative-uri" as="xs:string?" select="if (count($schema-tokens) ge 2) then $schema-tokens[2] else ()"/>
+        <xsl:variable name="inline-schema-doc" as="document-node()?">
+            <!-- TEST-TRACE: prefer inline xs:schema in source XForm before dereferencing schemaLocation URLs;
+                 helps tests/w3c/nist-facets-engine.spec.ts "NIST subset through engine". -->
+            <xsl:variable name="inline-schema" as="element(xs:schema)?" select="
+                if (exists($xforms-doc-global))
+                then (
+                    if (exists($schema-namespace-uri) and $schema-namespace-uri != '')
+                    then ($xforms-doc-global//xs:schema[@targetNamespace = $schema-namespace-uri])[1]
+                    else ($xforms-doc-global//xs:schema)[1]
+                )
+                else ()"/>
+            <xsl:choose>
+                <xsl:when test="exists($inline-schema)">
+                    <xsl:document>
+                        <xsl:sequence select="$inline-schema"/>
+                    </xsl:document>
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:sequence select="()"/>
+                </xsl:otherwise>
+            </xsl:choose>
+        </xsl:variable>
+        <xsl:variable name="base-uri" as="xs:string" select="
+            if (exists($source-base-uri) and normalize-space($source-base-uri) ne '')
+            then string($source-base-uri)
+            else (
+                if (exists($xforms-doc-global))
+                then string(base-uri($xforms-doc-global))
+                else (if (exists($instance-root)) then string(base-uri($instance-root)) else '')
+            )"/>
+        <xsl:variable name="schema-uri" as="xs:anyURI?" select="
+            if (exists($schema-relative-uri))
+            then resolve-uri($schema-relative-uri,$base-uri)
+            else ()"/>
+        <xsl:variable name="schema-doc-from-uri" as="document-node()?">
+            <!-- TEST-TRACE: load schema from xsi:schemaLocation for named simpleType facet checks;
+                 helps tests/w3c/nist-facets-engine.spec.ts "NIST subset through engine". -->
+            <xsl:choose>
+                <xsl:when test="exists($schema-uri)">
+                    <xsl:try>
+                        <xsl:sequence select="doc($schema-uri)"/>
+                        <xsl:catch>
+                            <xsl:sequence select="()"/>
+                        </xsl:catch>
+                    </xsl:try>
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:sequence select="()"/>
+                </xsl:otherwise>
+            </xsl:choose>
+        </xsl:variable>
+        <xsl:sequence select="($inline-schema-doc,$schema-doc-from-uri)[1]"/>
+    </xsl:function>
+
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Validate lexical value against bind/xsi type, using schema-derived facets when available.</xd:p>
+        </xd:desc>
+        <xd:param name="binding-type">Datatype string from bind metadata or xsi:type</xd:param>
+        <xd:param name="typed-value">Current lexical value</xd:param>
+        <xd:param name="validation-node">Bound instance node</xd:param>
+    </xd:doc>
+    <xsl:function name="xforms:is-type-valid-with-schema" as="xs:boolean">
+        <xsl:param name="binding-type" as="xs:string?"/>
+        <xsl:param name="typed-value" as="xs:string?"/>
+        <xsl:param name="validation-node" as="node()?"/>
+        <xsl:variable name="type-name" as="xs:string" select="normalize-space(string($binding-type))"/>
+        <xsl:variable name="schema-doc" as="document-node()?" select="xforms:resolve-schema-doc($validation-node)"/>
+        <xsl:sequence select="
+            if ($type-name = '')
+            then true()
+            else if (exists($schema-doc))
+            then xsdh:is-type-valid-against-schema($type-name,$typed-value,$schema-doc)
+            else xsdh:is-type-valid($type-name,$typed-value)"/>
+    </xsl:function>
+
     <xsl:function name="xforms:check-required-fields" as="item()*">
         <xsl:param name="instanceXML" as="element()"/>
 
@@ -1657,8 +1760,9 @@
                 then normalize-space(string($contexti))
                 else ''"/>
             <xsl:variable name="binding-type" as="xs:string" select="normalize-space(string(@data-binding-type))"/>
-            <!-- Delegate schema/datatype rules to xsd-helpers.xsl for reuse and testability. -->
-            <xsl:variable name="type-validi" as="xs:boolean" select="xsdh:is-type-valid($binding-type,$typed-value)"/>
+            <!-- TEST-TRACE: prefer schema-derived facets (xsi:schemaLocation) for named types during submit checks;
+                 helps tests/w3c/nist-facets-engine.spec.ts "NIST subset through engine". -->
+            <xsl:variable name="type-validi" as="xs:boolean" select="xforms:is-type-valid-with-schema($binding-type,$typed-value,$contexti)"/>
             <xsl:variable name="resulti" as="xs:boolean" select="$constraint-resulti and $type-validi"/>
             <xsl:message use-when="$debugMode">[xforms:check-constraints-on-fields] ref=<xsl:value-of select="@data-ref"/> relevant=<xsl:value-of select="$relevanti"/> bindingType=<xsl:value-of select="$binding-type"/> constraintResult=<xsl:value-of select="$constraint-resulti"/> typeValid=<xsl:value-of select="$type-validi"/></xsl:message>
             <xsl:sequence select="if ($relevanti and not($resulti)) then . else ()"/>
@@ -1719,7 +1823,9 @@
         <xsl:for-each select="$scoped-elements[@*[local-name() = 'type' and namespace-uri() = 'http://www.w3.org/2001/XMLSchema-instance']]">
             <xsl:variable name="declared-type" as="xs:string" select="normalize-space(string(@*[local-name() = 'type' and namespace-uri() = 'http://www.w3.org/2001/XMLSchema-instance'][1]))"/>
             <xsl:variable name="typed-value" as="xs:string" select="normalize-space(string(.))"/>
-            <xsl:if test="$declared-type != '' and not(xsdh:is-type-valid($declared-type,$typed-value))">
+            <!-- TEST-TRACE: apply schema-derived facets for xsi:type values when schemaLocation is present;
+                 helps tests/w3c/nist-facets-engine.spec.ts "NIST subset through engine". -->
+            <xsl:if test="$declared-type != '' and not(xforms:is-type-valid-with-schema($declared-type,$typed-value,.))">
                 <xsl:sequence select="."/>
             </xsl:if>
         </xsl:for-each>
@@ -1768,7 +1874,9 @@
                 </xsl:variable>
                 <xsl:variable name="typed-value" as="xs:string" select="normalize-space(string($bound-node))"/>
                 <xsl:variable name="binding-type" as="xs:string" select="normalize-space(string($binding/@type))"/>
-                <xsl:variable name="type-validi" as="xs:boolean" select="if ($binding-type != '') then xsdh:is-type-valid($binding-type,$typed-value) else true()"/>
+                <!-- TEST-TRACE: prefer schema-derived facets (xsi:schemaLocation) for bind type checks;
+                     helps tests/w3c/nist-facets-engine.spec.ts "NIST subset through engine". -->
+                <xsl:variable name="type-validi" as="xs:boolean" select="xforms:is-type-valid-with-schema($binding-type,$typed-value,$bound-node)"/>
                 <xsl:variable name="resulti" as="xs:boolean" select="$constraint-resulti and $type-validi"/>
                 <xsl:sequence select="if ($in-submission-scope and $relevanti and not($resulti)) then $bound-node else ()"/>
             </xsl:for-each>
@@ -1807,6 +1915,9 @@
         <xsl:param name="submission-id" as="xs:string?" required="no"/>
         <xsl:param name="targetref" as="xs:string?" required="no"/>
         <xsl:param name="replace" as="xs:string?" required="no"/>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=HTTPsubmit submission=<xsl:value-of select="$submission-id"/> replace=<xsl:value-of select="$replace"/></xsl:message>
+        </xsl:if>
         
         <xsl:variable name="refi" as="xs:string" select="concat('instance(''', $instance-id, ''')/')"/>
         <xsl:variable name="submission-id-normalized" as="xs:string?" select="
@@ -4677,6 +4788,9 @@
         <xsl:variable name="position" select="(map:get($action-map, '@position'),'after')[1]" as="xs:string"/>
         <xsl:variable name="context" select="map:get($action-map, '@context')" as="xs:string?"/>
         <xsl:variable name="event" select="map:get($action-map, '@event')" as="xs:string?"/>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=applyActions action=<xsl:value-of select="map:get($action-map,'name')"/> event=<xsl:value-of select="$event"/> handler=<xsl:value-of select="$handler-status"/></xsl:message>
+        </xsl:if>
         
  
         <!--<xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> $action-map @ref = <xsl:sequence select="$ref"/></xsl:message>
@@ -5207,6 +5321,9 @@
         <xsl:param name="default-model-id" as="xs:string" required="no" select="$global-default-model-id" tunnel="yes"/>
         
         <xsl:variable name="model-key" as="xs:string" select="if (exists($model/@id)) then xs:string($model/@id) else $default-model-id"/>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=xforms-model-construct model=<xsl:value-of select="$model-key"/></xsl:message>
+        </xsl:if>
         
         <xsl:variable name="instances" as="element(xforms:instance)*" select="$model/xforms:instance"/>       
         <xsl:variable name="implicit-instance-key-base" as="xs:string"
@@ -5296,6 +5413,9 @@
     <xsl:template name="xforms-rebuild">
         <xsl:param name="get-bindings" as="xs:boolean" select="false()" required="no"/>
         <xsl:param name="model" as="element(xforms:model)?" required="no" tunnel="yes"/>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=xforms-rebuild get-bindings=<xsl:value-of select="$get-bindings"/></xsl:message>
+        </xsl:if>
         
         <xsl:if test="$get-bindings">
             <xsl:variable name="parsed-bindings" as="element(xforms:bind)*">
@@ -5391,6 +5511,9 @@
     </xd:doc>
     <xsl:template name="xforms-recalculate">
         <xsl:message use-when="$debugMode">[xforms-recalculate] START</xsl:message>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=xforms-recalculate</xsl:message>
+        </xsl:if>
         
         <xsl:variable name="bindings" as="element(xforms:bind)*" select="js:getBindings()"/>
         
@@ -5530,6 +5653,9 @@
     </xd:doc>
     <xsl:template name="xforms-revalidate">
         <xsl:message use-when="$debugMode">[xforms-revalidate] START</xsl:message>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=xforms-revalidate</xsl:message>
+        </xsl:if>
 
         <xsl:variable name="valid-actions" as="map(*)*" select="js:getEventAction('xforms-valid')"/>
         <xsl:variable name="invalid-actions" as="map(*)*" select="js:getEventAction('xforms-invalid')"/>
@@ -5574,7 +5700,9 @@
                 else ()"/>
             <xsl:variable name="binding-type" as="xs:string" select="((normalize-space($binding-type-from-bind-exact),normalize-space($binding-type-from-bind-node),normalize-space($binding-type-from-instance))[. ne ''],'')[1]"/>
             <xsl:variable name="typed-value" as="xs:string" select="if (exists($context-node)) then normalize-space(string($context-node)) else ''"/>
-            <xsl:variable name="is-type-valid" as="xs:boolean" select="if (exists($context-node)) then xsdh:is-type-valid($binding-type,$typed-value) else false()"/>
+            <!-- TEST-TRACE: use schema-derived facets for xforms-revalidate context checks when schemaLocation is available;
+                 helps tests/w3c/nist-facets-engine.spec.ts "NIST subset through engine". -->
+            <xsl:variable name="is-type-valid" as="xs:boolean" select="if (exists($context-node)) then xforms:is-type-valid-with-schema($binding-type,$typed-value,$context-node) else false()"/>
             <!-- TEST-TRACE: evaluate bind @constraint (not just type);
                  helps tests/w3c/ch06.spec.ts "6.1.6.a" -->
             <xsl:variable name="constraint-bind" as="element(xforms:bind)?" select="
@@ -5620,6 +5748,9 @@
         </xd:desc>
     </xd:doc>
     <xsl:template name="xforms-refresh">
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=xforms-refresh</xsl:message>
+        </xsl:if>
         <xsl:call-template name="refreshOutputs-JS"/>
         <xsl:call-template name="refreshRepeats-JS"/>
         <xsl:call-template name="refreshElementsUsingIndexFunction-JS"/>
@@ -5661,6 +5792,9 @@
         <xsl:param name="resource-uri" as="xs:string?" required="no"/>
         <xsl:param name="response-status-code" as="item()?" required="no"/>
         <xsl:param name="response-headers" as="map(*)?" required="no"/>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=dispatch-submit-error submission=<xsl:value-of select="$submission-id"/> error-type=<xsl:value-of select="$error-type"/></xsl:message>
+        </xsl:if>
         <xsl:variable name="response-headers-nodes" as="element()*" select="xforms:response-headers-to-nodes($response-headers)"/>
         <xsl:variable name="submit-error-context" as="map(*)">
             <xsl:map>
@@ -5739,6 +5873,9 @@
         <xsl:variable name="submit-message" as="xs:string" select="
             concat('[xforms-submit] Submitting ', map:get($submission-map,'@id') )"/>
         <xsl:message use-when="$debugMode"><xsl:sequence select="$submit-message"/> START</xsl:message>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=xforms-submit submission=<xsl:value-of select="$submission"/> submission-id=<xsl:value-of select="$submission-id"/></xsl:message>
+        </xsl:if>
         
         <xsl:variable name="refi" as="xs:string?" select="map:get($submission-map,'@ref')"/>
         <xsl:variable name="instance-id-submit" as="xs:string" select="xforms:getInstanceId($refi)"/>
@@ -6588,6 +6725,9 @@
     </xd:doc>
     <xsl:template name="outermost-action-handler">
         <xsl:variable name="deferred-update-flags" as="map(*)?" select="js:getDeferredUpdateFlags()"/>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=outermost-action-handler recalculate=<xsl:value-of select="map:get($deferred-update-flags,'recalculate')"/> revalidate=<xsl:value-of select="map:get($deferred-update-flags,'revalidate')"/> refresh=<xsl:value-of select="map:get($deferred-update-flags,'refresh')"/></xsl:message>
+        </xsl:if>
         
         <xsl:message use-when="$debugMode">[outermost-action-handler] START</xsl:message>
         <xsl:message use-when="$debugMode">[outermost-action-handler] Recalculate: <xsl:sequence select="map:get($deferred-update-flags,'recalculate') "/></xsl:message>
@@ -6658,6 +6798,9 @@
         <xsl:variable name="safe-event-context" as="map(*)" select="($event-context, map{})[1]"/>
         <xsl:variable name="log-label" as="xs:string" select="'[xforms-event-handler for ' || $event-name || ']'"/>
         <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> START</xsl:message>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=xforms-event-handler event=<xsl:value-of select="$event-name"/></xsl:message>
+        </xsl:if>
         <xsl:sequence select="js:recordDispatchedEvent($event-name, $safe-event-context)"/>
         <xsl:sequence select="js:pushCurrentEventContext($safe-event-context)"/>
         
@@ -6692,6 +6835,9 @@
     <xsl:template name="DOMActivate">
         <xsl:param name="form-control" as="node()"/>
         <xsl:message use-when="$debugMode">[DOMActivate] START</xsl:message>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=DOMActivate control=<xsl:value-of select="name($form-control)"/> action=<xsl:value-of select="$form-control/@data-action"/></xsl:message>
+        </xsl:if>
         
         <!-- TEST-TRACE: update ancestor repeat indices before processing actions so that
              index() calls inside action handlers (e.g. xf:insert @origin) resolve to the
@@ -6784,6 +6930,9 @@
         
         <xsl:variable name="log-label" as="xs:string" select="'[action-setvalue]'"/>
         <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> START</xsl:message>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=action-setvalue</xsl:message>
+        </xsl:if>
         
         <xsl:variable name="instance-context" select="map:get($action-map, 'instance-context')" as="xs:string"/>
         
@@ -7529,6 +7678,9 @@
     </xd:doc>
     <xsl:template name="action-dispatch">
         <xsl:param name="action-map" required="yes" as="map(*)" tunnel="yes"/>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=action-dispatch</xsl:message>
+        </xsl:if>
         
         <xsl:variable name="nested-actions-array" select="map:get($action-map, 'nested-actions')" as="array(map(*))?"/>
         <xsl:variable name="nested-actions" as="map(*)*">
@@ -7828,6 +7980,9 @@
 <!--        <xsl:message use-when="$debugMode">[action-send] $action-map = <xsl:value-of select="serialize($action-map)"/></xsl:message>-->
         
         <xsl:variable name="submission" as="xs:string" select="map:get($action-map,'@submission')"/>
+        <xsl:if test="$sequence-template-trace-enabled">
+            <xsl:message>[SEQTRACE] template=action-send submission=<xsl:value-of select="$submission"/></xsl:message>
+        </xsl:if>
         
         <xsl:call-template name="xforms-submit">
             <xsl:with-param name="submission" select="$submission"/>

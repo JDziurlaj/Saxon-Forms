@@ -15,11 +15,15 @@
     "examples:compile": "node examples/compile-examples.mjs",
     "dev": "npm run predev && npx http-server test-app -p 5174 -c-1",
     "test:e2e": "npm run test:e2e:static",
+    "test:e2e:full": "npm run predev && npm run build:sef && npm run test:e2e:static",
     "test:e2e:ui": "npm run test:e2e:ui:static",
+    "test:e2e:ui:full": "npm run predev && npm run build:sef && npm run test:e2e:ui:static",
     "test:e2e:static": "node scripts/run-playwright-with-port.mjs --config=playwright.config.ts",
     "test:e2e:diagnostics": "node scripts/run-playwright-with-port.mjs --include-diagnostics --config=playwright.config.ts tests/diagnostics",
     "test:e2e:diagnostics:ui": "node scripts/run-playwright-with-port.mjs --include-diagnostics --config=playwright.config.ts --ui tests/diagnostics",
     "test:xsd-helpers": "npx xslt3 -xsl:tests/xsd-helpers.spec.xsl -s:tests/xsd-helpers-cases.xml",
+    "test:nist-facets": "node scripts/run-nist-facet-harness.mjs --engine saxonforms",
+    "test:nist-facets:list": "node scripts/run-nist-facet-harness.mjs --list-only",
     "test:e2e:ui:static": "node scripts/run-playwright-with-port.mjs --config=playwright.config.ts --ui",
     "docs:build": "node scripts/build-docs.mjs",
     "docs:build:html": "node scripts/build-docs.mjs --html-only",
@@ -28,7 +32,8 @@
     "docs:docbook:build": "node scripts/run-docbook-build.mjs --format=all",
     "docs:docbook:build:html": "node scripts/run-docbook-build.mjs --format=html",
     "docs:docbook:build:pdf": "node scripts/run-docbook-build.mjs --format=pdf",
-    "docs:docbook:checkpoints": "node scripts/run-docbook-checkpoints.mjs --list"
+    "docs:docbook:checkpoints": "node scripts/run-docbook-checkpoints.mjs --list",
+    "test:nist-facets:xmllint": "node scripts/run-nist-facet-harness.mjs --engine xmllint"
   },
   "devDependencies": {
     "@noble/hashes": "^2.0.1",

@@ -1,0 +1,55 @@
+{
+  "manifest_name": "nist-simpletype-facets",
+  "source_test_set": "../xsdtests/nistMeta/NISTXMLSchemaDatatypes.testSet",
+  "scope": "simpleTypes and derived/restricted simpleTypes with facet-focused coverage",
+  "facets": {
+    "length": {
+      "valid_groups": ["atomic-string-maxLength"],
+      "invalid_groups": ["atomic-string-minLength-5"]
+    },
+    "minLength": {
+      "valid_groups": ["atomic-string-minLength"],
+      "invalid_groups": ["atomic-string-minLength-5"]
+    },
+    "maxLength": {
+      "valid_groups": ["atomic-string-maxLength"],
+      "invalid_groups": ["atomic-string-maxLength-5"]
+    },
+    "pattern": {
+      "valid_groups": ["atomic-decimal-pattern"],
+      "invalid_groups": ["atomic-double-pattern-5"]
+    },
+    "enumeration": {
+      "valid_groups": ["atomic-decimal-enumeration"],
+      "invalid_groups": ["atomic-double-enumeration-5"]
+    },
+    "whiteSpace": {
+      "valid_groups": ["atomic-decimal-whiteSpace", "atomic-integer-whiteSpace"],
+      "invalid_groups": []
+    },
+    "minInclusive": {
+      "valid_groups": ["atomic-decimal-minInclusive"],
+      "invalid_groups": ["atomic-decimal-minInclusive-5"]
+    },
+    "maxInclusive": {
+      "valid_groups": ["atomic-decimal-maxInclusive-1"],
+      "invalid_groups": ["atomic-decimal-maxInclusive-5"]
+    },
+    "minExclusive": {
+      "valid_groups": ["atomic-decimal-minExclusive"],
+      "invalid_groups": ["atomic-decimal-minExclusive-6"]
+    },
+    "maxExclusive": {
+      "valid_groups": ["atomic-decimal-maxExclusive-1"],
+      "invalid_groups": ["atomic-decimal-maxExclusive-5"]
+    },
+    "totalDigits": {
+      "valid_groups": ["atomic-decimal-totalDigits"],
+      "invalid_groups": ["atomic-decimal-totalDigits-5"]
+    },
+    "fractionDigits": {
+      "valid_groups": ["atomic-decimal-fractionDigits"],
+      "invalid_groups": ["atomic-decimal-fractionDigits-5"]
+    }
+  }
+}

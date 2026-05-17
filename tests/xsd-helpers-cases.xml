@@ -110,7 +110,7 @@
   <validity-case id="unknown-type-default-pass" type="my:customType" expected="true">
     <value>anything</value>
   </validity-case>
-  <validity-case id="empty-value-default-pass" type="xsd:gYearMonth" expected="true">
+  <validity-case id="empty-value-default-pass" type="xsd:gYearMonth" expected="false">
     <value/>
   </validity-case>
 </cases>

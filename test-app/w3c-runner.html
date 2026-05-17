@@ -9,6 +9,8 @@
     window.addEventListener("DOMContentLoaded", function () {
       var params = new URLSearchParams(window.location.search);
       var testFile = params.get("test");
+      var sequenceTraceParam = (params.get("sequenceTrace") || "").toLowerCase();
+      var sequenceTraceEnabled = ["1", "true", "yes", "on"].indexOf(sequenceTraceParam) !== -1;
       if (!testFile) {
         document.getElementById("xForm").textContent = "No test file specified. Use ?test=filename.xhtml";
         return;
@@ -109,13 +111,16 @@
           var testBaseUrl = window.location.origin + '/w3c-suite/' + testFile.substring(0, testFile.lastIndexOf('/') + 1);
           xformDoc.documentElement.setAttributeNS('http://www.w3.org/XML/1998/namespace', 'xml:base', testBaseUrl);
 
+          var stylesheetParams = {
+            "source-base-uri": testBaseUrl,
+            "sequence-template-trace": sequenceTraceEnabled ? "true" : "false"
+          };
+
           SaxonJS.transform(
             {
               stylesheetLocation: "/sef/saxon-xforms.sef.json",
               sourceNode: xformDoc,
-              stylesheetParams: {
-                "source-base-uri": testBaseUrl
-              }
+              stylesheetParams: stylesheetParams
             },
             "async"
           ).then(function () {
