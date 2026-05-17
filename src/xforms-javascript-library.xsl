@@ -3,7 +3,7 @@
     xmlns:xs="http://www.w3.org/2001/XMLSchema"
     version="3.0">
     
-    <xsl:variable name="saxon-forms-javascript" as="xs:string">
+    <xsl:variable name="saxon-forms-javascript" as="xs:string*">
         var XFormsDoc = null;
         var XForm = null;
         var defaultInstance = null;
@@ -735,6 +735,7 @@
             }
             return nobleHashes.bytesToHex(macBytes);
         };
+        <xsl:value-of select="$saxon-forms-web-components-javascript"/>
          
     </xsl:variable>
 </xsl:stylesheet>

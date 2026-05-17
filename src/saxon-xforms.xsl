@@ -58,6 +58,7 @@
     <xsl:include href="xforms-function-library.xsl"/>
     <xsl:include href="xsd-helpers.xsl"/>
     <xsl:include href="xforms-javascript-library.xsl"/>
+    <xsl:include href="web-components.xsl"/>
     <xsl:include href="xforms-xpath-functions.xsl"/>
     
     <xsl:output method="html" encoding="utf-8" omit-xml-declaration="no" indent="no"
@@ -845,6 +846,9 @@
     <xsl:template match="xforms:*" mode="set-actions">
         <xsl:apply-templates select=" xforms:action | xforms:*[local-name() = $xforms-actions] | xforms:show | xforms:hide | xforms:script | xforms:unload"/>
     </xsl:template>
+    
+    <!-- Web components have no nested XForms actions -->
+    <xsl:template match="*[not(self::xforms:*)][exists(@xforms:ref)]" mode="set-actions" priority="10"/>
     
     <xd:doc scope="component">
         <xd:desc>set-action mode: create map of an action relevant to XForm action element</xd:desc>
@@ -2367,6 +2371,7 @@
         <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> END</xsl:message>
     </xsl:template>
     
+
 
     <xd:doc scope="component">
         <xd:desc>
@@ -4526,6 +4531,9 @@
                     
                     
                     
+                </xsl:when>
+                <xsl:when test="exists($associated-form-control) and $associated-form-control/@data-xf-component = 'true'">
+                    <xsl:sequence select="js:setValue($this-key,$value)"/>
                 </xsl:when>
                 <xsl:when test="exists($associated-form-control) and local-name($associated-form-control) = ('iframe')">
                     <xsl:sequence select="js:setSrc($this-key,$value)"/>
@@ -8216,10 +8224,10 @@
         <!-- "The case to be selected by the toggle action is given by the case attribute or the case element. If both are given, the element takes precedence." -->
         <xsl:variable name="requested-case-id" as="xs:string?">
             <xsl:choose>
-                <xsl:when test="exists($case-id-evaluated) and exists($context-node)">
+                <xsl:when test="exists($case-id-evaluated) and normalize-space($case-id-evaluated) != '' and exists($context-node)">
                     <xsl:sequence select="string(xforms:evaluate-xpath-with-context-node($case-id-evaluated,$context-node,()))"/>
                 </xsl:when>
-                <xsl:when test="exists($case-id-fixed)">
+                <xsl:when test="exists($case-id-fixed) and normalize-space($case-id-fixed) != ''">
                     <xsl:sequence select="$case-id-fixed"/>
                 </xsl:when>
                 <xsl:otherwise/>
@@ -8227,14 +8235,20 @@
         </xsl:variable>
         
         <!-- scope to nearest rendered switch when toggle is inside repeat -->
-        <xsl:variable name="switch-id-scoped" as="xs:string?" select="if (exists($source-control)) then string((($source-control/ancestor-or-self::*[@data-switch-id])[1]/@data-switch-id)[1]) else ()"/>
-        <xsl:variable name="case-id-scoped" as="xs:string?" select="
-            if (exists($switch-id-scoped) and exists($requested-case-id))
-            then string((ixsl:page()//*[@data-switch-id = $switch-id-scoped and @data-case-id-base = $requested-case-id][1]/@id)[1])
+        <xsl:variable name="switch-id-scoped" as="xs:string?" select="
+            if (exists($source-control))
+            then ((($source-control/ancestor-or-self::*[@data-switch-id])[1]/@data-switch-id) ! string(.))[1]
             else ()"/>
-        <xsl:variable name="case-id" as="xs:string?" select="($case-id-scoped,$requested-case-id)[1]"/>
-        <xsl:variable name="switch-id" as="xs:string?" select="if (exists($switch-id-scoped)) then $switch-id-scoped else (if (exists($case-id)) then js:getCaseSwitch($case-id) else ())"/>
-        <xsl:variable name="current-switch-selection" as="xs:string" select="js:getSwitchSelection($switch-id)"/>
+        <xsl:variable name="case-id-scoped" as="xs:string?" select="
+            if (exists($switch-id-scoped) and normalize-space($switch-id-scoped) != '' and exists($requested-case-id) and normalize-space($requested-case-id) != '')
+            then ((ixsl:page()//*[@data-switch-id = $switch-id-scoped and @data-case-id-base = $requested-case-id][1]/@id) ! string(.))[1]
+            else ()"/>
+        <xsl:variable name="case-id" as="xs:string?" select="(($case-id-scoped,$requested-case-id)[normalize-space(.) != ''])[1]"/>
+        <xsl:variable name="switch-id" as="xs:string?" select="
+            if (exists($switch-id-scoped) and normalize-space($switch-id-scoped) != '')
+            then $switch-id-scoped
+            else (if (exists($case-id) and normalize-space($case-id) != '') then js:getCaseSwitch($case-id) else ())"/>
+        <xsl:variable name="current-switch-selection" as="xs:string?" select="if (exists($switch-id) and normalize-space($switch-id) != '') then js:getSwitchSelection($switch-id) else ()"/>
         <xsl:variable name="current-case-base" as="xs:string?" select="
             if (normalize-space($current-switch-selection) != '')
             then (
@@ -8251,7 +8265,7 @@
             )[1]
             else ()"/>
         
-        <xsl:if test="exists($switch-id) and exists($case-id)">
+        <xsl:if test="exists($switch-id) and normalize-space($switch-id) != '' and exists($case-id) and normalize-space($case-id) != ''">
             <xsl:if test="exists($current-case-base)">
                 <xsl:variable name="deselect-event-context" as="map(*)">
                     <xsl:map>
@@ -8266,7 +8280,9 @@
                 </xsl:call-template>
             </xsl:if>
             
-            <xsl:sequence select="js:deselectCase($current-switch-selection)"/>
+            <xsl:if test="exists($current-switch-selection) and normalize-space($current-switch-selection) != ''">
+                <xsl:sequence select="js:deselectCase($current-switch-selection)"/>
+            </xsl:if>
             <xsl:sequence select="js:selectCase($case-id)"/>
             <xsl:sequence select="js:setSwitchSelection($switch-id,$case-id)"/>
             
@@ -8276,7 +8292,7 @@
             </xsl:if>
             
             <xsl:variable name="case-on" as="element()?" select="ixsl:page()//*[@id eq $case-id]"/>
-            <xsl:if test="exists($case-on) and ixsl:style($case-on)?display = 'none'">
+            <xsl:if test="exists($case-on)">
                 <ixsl:remove-property name="style.display" object="$case-on"/>
                 <ixsl:remove-attribute name="style" object="$case-on"/>
             </xsl:if>

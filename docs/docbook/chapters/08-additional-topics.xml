@@ -35,9 +35,10 @@
             <title>DOM field accessors</title>
             <para>The <literal>get-field</literal> and <literal>set-field</literal> mode templates provide a uniform interface for reading from and writing to HTML form controls:</para>
             <itemizedlist>
-                <listitem><para><literal>get-field</literal> — <literal>*:input</literal> (<literal>L3928</literal>), <literal>*:select</literal> (<literal>L3946</literal>), <literal>*:textarea</literal> (<literal>L3957</literal>).</para></listitem>
-                <listitem><para><literal>set-field</literal> — <literal>*:input</literal> (<literal>L3969</literal>), <literal>*:select</literal> (<literal>L3989</literal>), <literal>*:textarea</literal> (<literal>L4004</literal>).</para></listitem>
+                <listitem><para><literal>get-field</literal> — <literal>*:input</literal> (<literal>L3928</literal>), <literal>*:select</literal> (<literal>L3946</literal>), <literal>*:textarea</literal> (<literal>L3957</literal>), <literal>*[@data-xf-component]</literal> (web components).</para></listitem>
+                <listitem><para><literal>set-field</literal> — <literal>*:input</literal> (<literal>L3969</literal>), <literal>*:select</literal> (<literal>L3989</literal>), <literal>*:textarea</literal> (<literal>L4004</literal>), <literal>*[@data-xf-component]</literal> (web components).</para></listitem>
             </itemizedlist>
+            <para>All accessors use the standard <literal>.value</literal> property, making them compatible with both native HTML controls and form-associated custom elements.</para>
         </section>
 
         <section id="chapter-additional-topics-refresh-templates">
@@ -49,6 +50,128 @@
                 <listitem><para><literal>refreshRelevantFields-JS</literal> (<literal>L4550</literal>) — Shows/hides controls based on the <literal>relevant</literal> MIP.</para></listitem>
                 <listitem><para><literal>refreshElementsUsingIndexFunction-JS</literal> (<literal>L4629</literal>) — Updates elements whose values depend on <literal>index()</literal> function results.</para></listitem>
             </itemizedlist>
+        </section>
+    </section>
+
+    <section id="chapter-additional-topics-web-component-binding">
+        <title>Web Component Binding</title>
+        <para>SaxonForms provides a generic mechanism for binding arbitrary HTML custom elements (web components) to XForms instance data. Any non-XForms element that carries an <literal>@xforms:ref</literal> attribute is treated as a bound web component control and participates in the XForms processing model identically to native controls.</para>
+
+        <section id="chapter-additional-topics-wc-usage">
+            <title>Usage in XForms</title>
+            <para>To bind a web component to instance data, add the <literal>xf:ref</literal> attribute (in the XForms namespace) pointing to the target node. All non-XForms attributes are passed through to the rendered HTML element unchanged:</para>
+            <programlisting language="xml"><![CDATA[<tinymce-editor
+    xf:ref="instance('data')/htmlContent"
+    on-Change="xfComponentChanged"
+    height="300"
+    menubar="false"
+    toolbar="bold italic | bullist numlist"
+    plugins="lists"
+    license-key="gpl"
+/>]]></programlisting>
+            <para>The mechanism is not specific to any particular web component. Any custom element that exposes a <literal>.value</literal> property can be bound.</para>
+        </section>
+
+        <section id="chapter-additional-topics-wc-attributes">
+            <title>XForms namespace attributes</title>
+            <para>The following attributes in the XForms namespace (<literal>http://www.w3.org/2002/xforms</literal>) are recognized on web component elements:</para>
+            <variablelist>
+                <varlistentry>
+                    <term><literal>xf:ref</literal></term>
+                    <listitem><para>XPath binding expression pointing to the instance node whose value the component manages. Resolved using the same algorithm as native XForms controls (context model, parent nodeset, instance resolution).</para></listitem>
+                </varlistentry>
+                <varlistentry>
+                    <term><literal>xf:event</literal> (optional)</term>
+                    <listitem><para>Name of the DOM event that signals a value change. Defaults to <literal>"change"</literal>. If the web component dispatches a non-standard event (e.g. <literal>"input"</literal> or a custom event name), specify it here so the Saxon-Forms JavaScript bridge can translate it into a native <literal>change</literal> event for the XSLT event handler.</para></listitem>
+                </varlistentry>
+            </variablelist>
+        </section>
+
+        <section id="chapter-additional-topics-wc-rendering">
+            <title>Rendering (<literal>get-html</literal> mode)</title>
+            <para>The template at priority 10 matching <literal>*[not(self::xforms:*)][exists(@xforms:ref)]</literal> processes bound web components. During rendering:</para>
+            <orderedlist>
+                <listitem><para>All non-XForms attributes are copied to the output element unchanged.</para></listitem>
+                <listitem><para>Saxon-Forms binding attributes are injected: <literal>id</literal>, <literal>data-ref</literal>, <literal>instance-context</literal>, <literal>data-xf-component="true"</literal>, <literal>data-xf-change-event</literal>.</para></listitem>
+                <listitem><para>Constraint, relevant, and required MIP attributes are added when a matching <literal>xf:bind</literal> exists.</para></listitem>
+                <listitem><para>The initial value from the bound instance node is emitted as the element's text content (web components typically read <literal>textContent</literal> for initial value).</para></listitem>
+                <listitem><para>The element is registered via <literal>registerOutput</literal> so that <literal>refreshOutputs-JS</literal> can update its value during the refresh phase.</para></listitem>
+            </orderedlist>
+        </section>
+
+        <section id="chapter-additional-topics-wc-value-sync">
+            <title>Value synchronisation</title>
+            <para>Two mode templates provide the DOM ↔ model interface for web components:</para>
+            <itemizedlist>
+                <listitem><para><literal>get-field</literal> matching <literal>*[@data-xf-component]</literal> — reads the element's <literal>.value</literal> property via <literal>ixsl:get(., 'value')</literal>.</para></listitem>
+                <listitem><para><literal>set-field</literal> matching <literal>*[@data-xf-component]</literal> — writes to the element's <literal>.value</literal> property via <literal>ixsl:set-property</literal>.</para></listitem>
+            </itemizedlist>
+            <para>These templates rely on the web component implementing the standard <literal>value</literal> property getter/setter contract (the same contract used by form-associated custom elements).</para>
+        </section>
+
+        <section id="chapter-additional-topics-wc-events">
+            <title>Event handling</title>
+            <para>When the web component dispatches a native <literal>change</literal> event on the host element, SaxonJS matches it with the <literal>ixsl:onchange</literal> mode template for <literal>*[@data-xf-component]</literal>. This template invokes <literal>action-setvalue-form-control</literal> followed by <literal>outermost-action-handler</literal>, triggering the standard XForms processing cycle (recalculate → revalidate → refresh).</para>
+        </section>
+
+        <section id="chapter-additional-topics-wc-js-bridge">
+            <title>JavaScript bridge (<literal>xforms-javascript-library.xsl</literal>)</title>
+            <para>The JavaScript library provides runtime support for web components that do not natively dispatch DOM <literal>change</literal> events:</para>
+            <variablelist>
+                <varlistentry>
+                    <term><literal>xfComponentObserver</literal></term>
+                    <listitem><para>A <literal>MutationObserver</literal> that watches for elements with <literal>data-xf-component</literal> being added to the DOM. For each new element, if <literal>data-xf-change-event</literal> names an event other than <literal>"change"</literal>, the observer registers a listener that translates that event into a native <literal>change</literal> event dispatch on the host element.</para></listitem>
+                </varlistentry>
+                <varlistentry>
+                    <term><literal>xfComponentChanged(evt)</literal></term>
+                    <listitem><para>A global bridge function intended for use with web components that expose attribute-based event callbacks (e.g. TinyMCE's <literal>on-Change</literal> attribute). When called, it locates the host custom element via the shadow DOM (<literal>evt.target.getContainer().getRootNode().host</literal>) and dispatches a native <literal>change</literal> event on it.</para></listitem>
+                </varlistentry>
+            </variablelist>
+        </section>
+
+        <section id="chapter-additional-topics-wc-example">
+            <title>Complete example: TinyMCE rich text editor</title>
+            <para>The following demonstrates binding the TinyMCE web component to an OSCAL part element in an XForm:</para>
+            <programlisting language="xml"><![CDATA[<xf:xform xmlns:xf="http://www.w3.org/2002/xforms"
+          xmlns:o="http://csrc.nist.gov/ns/oscal/1.0">
+
+  <xf:model>
+    <xf:instance id="data">
+      <catalog xmlns="http://csrc.nist.gov/ns/oscal/1.0">
+        <control id="ac-1">
+          <part name="statement"><p>Account lockout...</p></part>
+        </control>
+      </catalog>
+    </xf:instance>
+  </xf:model>
+
+  <!-- Rich text editing of the part content -->
+  <tinymce-editor
+      xf:ref="o:p"
+      on-Change="xfComponentChanged"
+      height="200"
+      menubar="false"
+      toolbar="undo redo | bold italic underline | bullist numlist"
+      license-key="gpl"
+      skin="oxide"
+  />
+</xf:xform>]]></programlisting>
+            <para>Host page requirements:</para>
+            <orderedlist>
+                <listitem><para>Import <literal>tinymce</literal> and expose it globally (<literal>window.tinymce</literal>) so the web component can find the editor core without loading from CDN.</para></listitem>
+                <listitem><para>Import <literal>@tinymce/tinymce-webcomponent</literal> to register the <literal>&lt;tinymce-editor&gt;</literal> custom element.</para></listitem>
+                <listitem><para>Set <literal>tinymce.baseURL</literal> to point to the directory containing TinyMCE skins, themes, and icons.</para></listitem>
+            </orderedlist>
+        </section>
+
+        <section id="chapter-additional-topics-wc-requirements">
+            <title>Web component requirements</title>
+            <para>For a web component to work with this binding mechanism, it must satisfy:</para>
+            <orderedlist>
+                <listitem><para>Expose a <literal>.value</literal> property (getter returns current content, setter updates content).</para></listitem>
+                <listitem><para>Read initial content from the element's <literal>textContent</literal> when connected to the DOM.</para></listitem>
+                <listitem><para>Either dispatch a native <literal>change</literal> event on the host element when content changes, OR provide an attribute-based callback mechanism (like <literal>on-Change</literal>) that can invoke the <literal>xfComponentChanged</literal> global bridge function.</para></listitem>
+            </orderedlist>
         </section>
     </section>
 
