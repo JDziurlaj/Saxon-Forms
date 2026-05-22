@@ -45,7 +45,7 @@
             <title>Refresh subsystem</title>
             <para>The refresh phase uses four named templates that update different categories of DOM elements:</para>
             <itemizedlist>
-                <listitem><para><literal>refreshOutputs-JS</literal> (<literal>L4345</literal>) — Re-evaluates and updates all registered <literal>xforms:output</literal> elements.</para></listitem>
+                <listitem><para><literal>refreshOutputs-JS</literal> (<literal>L4345</literal>) — Re-evaluates and updates all registered <literal>xforms:output</literal> elements, and projects validation MIP classes (<literal>xforms-valid</literal>/<literal>xforms-invalid</literal>, <literal>xforms-required</literal>/<literal>xforms-optional</literal>) from the revalidate registry onto controls (including parent wrappers for <literal>input</literal>/<literal>select</literal>/<literal>textarea</literal>).</para></listitem>
                 <listitem><para><literal>refreshRepeats-JS</literal> (<literal>L4462</literal>) — Regenerates repeat item content when instance data changes.</para></listitem>
                 <listitem><para><literal>refreshRelevantFields-JS</literal> (<literal>L4550</literal>) — Shows/hides controls based on the <literal>relevant</literal> MIP.</para></listitem>
                 <listitem><para><literal>refreshElementsUsingIndexFunction-JS</literal> (<literal>L4629</literal>) — Updates elements whose values depend on <literal>index()</literal> function results.</para></listitem>
@@ -227,7 +227,7 @@
             <title>Action templates (saxon-xforms.xsl)</title>
             <itemizedlist>
                 <listitem><para><literal>applyActions</literal> (L4666) — Main action dispatch entry point.</para></listitem>
-                <listitem><para><literal>action-setvalue</literal> (L6782), <literal>action-insert</literal> (L7152), <literal>action-delete</literal> (L7388), <literal>action-toggle</literal> (L8005), <literal>action-dispatch</literal> (L7530), <literal>action-message</literal> (L7631), <literal>action-send</literal> (L7825), <literal>action-setindex</literal> (L7845), <literal>action-setfocus</literal> (L7804), <literal>action-reset</literal> (L7948), <literal>action-recalculate</literal> (L7913), <literal>action-refresh</literal> (L7927), <literal>action-script</literal> (L7741), <literal>action-load</literal> (L7764).</para></listitem>
+                <listitem><para><literal>action-setvalue</literal> (L6782), <literal>action-insert</literal> (L7152), <literal>action-delete</literal> (L7388), <literal>action-toggle</literal> (L8005), <literal>action-dispatch</literal> (L7530), <literal>action-message</literal> (L7631), <literal>action-send</literal> (L7825), <literal>action-setindex</literal> (L7845), <literal>action-setfocus</literal> (L7804), <literal>action-reset</literal> (L7948), <literal>action-recalculate</literal> (L7913), <literal>action-revalidate</literal>, <literal>action-refresh</literal> (L7927), <literal>action-script</literal> (L7741), <literal>action-load</literal> (L7764).</para></listitem>
             </itemizedlist>
         </section>
 

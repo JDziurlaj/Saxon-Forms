@@ -38,7 +38,7 @@
                 <varlistentry><term>action-setindex (L7845)</term><listitem><para>Sets the repeat index for a given repeat ID.</para></listitem></varlistentry>
                 <varlistentry><term>action-setfocus (L7804)</term><listitem><para>Sets focus to a control. Enhanced with suffixed-ID fallback and group→first-child focus (resolved: 9.1.1.c, 10.7.a).</para></listitem></varlistentry>
                 <varlistentry><term>action-reset (L7948)</term><listitem><para>Restores instance data from initial snapshots saved during model construction (resolved: 10.a).</para></listitem></varlistentry>
-                <varlistentry><term>action-recalculate (L7913) / action-refresh (L7927)</term><listitem><para>Explicitly trigger the corresponding lifecycle phase.</para></listitem></varlistentry>
+                <varlistentry><term>action-recalculate (L7913) / action-revalidate / action-refresh (L7927)</term><listitem><para>Explicitly trigger the corresponding lifecycle phase. <literal>action-revalidate</literal> invokes <literal>xforms-revalidate</literal> (including validation MIP registry rebuild used by refresh class projection) and clears the deferred revalidate flag.</para></listitem></varlistentry>
                 <varlistentry><term>action-script (L7741)</term><listitem><para>Fork enhancement: XForms 2.0 script execution via <literal>ixsl:call(window, 'eval', ...)</literal>.</para></listitem></varlistentry>
                 <varlistentry><term>action-load (L7764)</term><listitem><para>Fork enhancement: Supports <literal>show="new"</literal> (window.open), <literal>show="replace"</literal> (location.href), and <literal>javascript:</literal> URI scheme.</para></listitem></varlistentry>
             </variablelist>
