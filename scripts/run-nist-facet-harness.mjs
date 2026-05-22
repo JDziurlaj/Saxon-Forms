@@ -2,7 +2,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
+import os from "node:os";
+import { spawn } from "node:child_process";
 
 function parseArgs(argv) {
   const args = {
@@ -12,6 +13,7 @@ function parseArgs(argv) {
     engine: "saxonforms",
     facets: [],
     maxGroups: 0,
+    jobs: 0,
     listOnly: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -22,6 +24,7 @@ function parseArgs(argv) {
     else if (arg === "--engine") args.engine = argv[++i];
     else if (arg === "--facet") args.facets.push(argv[++i]);
     else if (arg === "--max-groups") args.maxGroups = Number(argv[++i] || "0");
+    else if (arg === "--jobs") args.jobs = Number(argv[++i] || "0");
     else if (arg === "--list-only") args.listOnly = true;
     else if (arg === "--help" || arg === "-h") {
       printHelp();
@@ -42,6 +45,7 @@ Options:
   --engine <saxonforms|xmllint>  Validation engine for instance tests (default: saxonforms)
   --facet <name>                 Restrict to facet (repeatable)
   --max-groups <n>               Limit selected groups
+  --jobs <n>                     Number of groups to process concurrently (default: auto)
   --list-only                    Select and list tests without executing validators`);
 }
 
@@ -135,23 +139,50 @@ function extractInstanceTests(groupBody, testsetDir) {
   return tests;
 }
 
-function runTemplate(template, replacements) {
+function resolveJobCount(rawJobs) {
+  if (Number.isInteger(rawJobs) && rawJobs > 0) return rawJobs;
+  return Math.max(1, Math.min(8, os.cpus().length || 1));
+}
+
+function spawnAndCollect(command, args = [], options = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, options);
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", (error) => {
+      resolve({ status: 1, stdout, stderr: `${stderr}${error instanceof Error ? error.message : String(error)}` });
+    });
+    child.on("close", (status) => {
+      resolve({ status: status ?? 1, stdout, stderr });
+    });
+  });
+}
+
+async function runTemplate(template, replacements) {
   let cmd = template;
   for (const [key, value] of Object.entries(replacements)) {
     cmd = cmd.replaceAll(`{${key}}`, value);
   }
-  const proc = spawnSync(cmd, { shell: true, encoding: "utf8" });
+  const proc = await spawnAndCollect(cmd, [], { shell: true });
   const output = `${proc.stdout ?? ""}${proc.stderr ?? ""}`.trim();
   return { ok: proc.status === 0, detail: output };
 }
-function runSaxonFormsInstanceCheck(checkerPath, schemaPath, instancePath) {
-  const proc = spawnSync("npx", [
+async function runSaxonFormsInstanceCheck(checkerPath, schemaPath, instancePath) {
+  const isWindows = process.platform === "win32";
+  const npxCommand = isWindows ? "npx.cmd" : "npx";
+  const proc = await spawnAndCollect(npxCommand, [
     "xslt3",
     `-xsl:${checkerPath}`,
     "-it:main",
     `schema-uri=${schemaPath}`,
     `instance-uri=${instancePath}`,
-  ], { encoding: "utf8" });
+  ], isWindows ? { shell: true } : {});
   const output = `${proc.stdout ?? ""}${proc.stderr ?? ""}`.trim();
   const m = output.match(/<result\b[^>]*\bvalid="(true|false)"/);
   if (proc.status !== 0 || !m) {
@@ -159,9 +190,28 @@ function runSaxonFormsInstanceCheck(checkerPath, schemaPath, instancePath) {
   }
   return { ok: true, actualValid: m[1] === "true", detail: output };
 }
+async function mapWithConcurrency(items, maxConcurrency, worker, onItemComplete) {
+  if (!items.length) return [];
+  const concurrency = Math.max(1, Math.min(maxConcurrency, items.length));
+  const out = new Array(items.length);
+  let nextIndex = 0;
+  async function runWorker() {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) break;
+      out[index] = await worker(items[index], index);
+      if (typeof onItemComplete === "function") {
+        onItemComplete(out[index], index);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: concurrency }, () => runWorker()));
+  return out;
+}
 
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2));
   const repoRoot = getRepoRoot();
   const manifestPath = path.resolve(repoRoot, args.manifest);
@@ -178,6 +228,8 @@ function main() {
   console.log(`manifest=${manifestPath}`);
   console.log(`testset=${testsetPath}`);
   console.log(`selected_groups=${selected.length}`);
+  const jobs = resolveJobCount(args.jobs);
+  console.log(`jobs=${jobs}`);
 
   const missing = selected.filter((row) => !groupsIndex.has(row.group));
   if (missing.length) {
@@ -188,21 +240,23 @@ function main() {
 
   const allResults = [];
   if (!["saxonforms", "xmllint"].includes(args.engine)) throw new Error(`Unsupported --engine value: ${args.engine}`);
-  for (const row of selected) {
+  let processedGroups = 0;
+  const groupOutcomes = await mapWithConcurrency(selected, jobs, async (row) => {
     const groupBody = groupsIndex.get(row.group);
     const schemaCases = extractSchemaTests(groupBody, path.dirname(testsetPath));
     const instanceCases = extractInstanceTests(groupBody, path.dirname(testsetPath));
     const schemaCase = schemaCases[0] ?? null;
     const groupCases = [...schemaCases, ...instanceCases];
+    const groupResults = [];
 
     for (const c of groupCases) {
       if (args.listOnly) {
-        allResults.push({ ...c, passed: true, skipped: true, actualValid: null, detail: "list-only" });
+        groupResults.push({ ...c, passed: true, skipped: true, actualValid: null, detail: "list-only" });
         continue;
       }
       if (c.kind === "schema") {
         if (args.engine === "saxonforms") {
-          allResults.push({
+          groupResults.push({
             ...c,
             passed: true,
             skipped: true,
@@ -212,7 +266,7 @@ function main() {
           continue;
         }
         if (!args.schemaValidatorCmd) {
-          allResults.push({
+          groupResults.push({
             ...c,
             passed: true,
             skipped: true,
@@ -221,33 +275,40 @@ function main() {
           });
           continue;
         }
-        const result = runTemplate(args.schemaValidatorCmd, { schema: c.schema });
+        const result = await runTemplate(args.schemaValidatorCmd, { schema: c.schema });
         const actualValid = result.ok;
-        allResults.push({ ...c, actualValid, passed: actualValid === c.expectedValid, skipped: false, detail: result.detail });
+        groupResults.push({ ...c, actualValid, passed: actualValid === c.expectedValid, skipped: false, detail: result.detail });
         continue;
       }
       if (!schemaCase?.schema) {
-        allResults.push({ ...c, passed: false, skipped: true, actualValid: null, detail: `missing schemaTest in group ${row.group}` });
+        groupResults.push({ ...c, passed: false, skipped: true, actualValid: null, detail: `missing schemaTest in group ${row.group}` });
         continue;
       }
       if (args.engine === "saxonforms") {
         // TEST-TRACE: run instance checks through Saxon-Forms xsd-helpers facet logic; helps NIST facet manifest execution.
-        const result = runSaxonFormsInstanceCheck(checkerPath, schemaCase.schema, c.instance);
+        const result = await runSaxonFormsInstanceCheck(checkerPath, schemaCase.schema, c.instance);
         const actualValid = result.actualValid;
-        allResults.push({ ...c, actualValid, passed: result.ok && actualValid === c.expectedValid, skipped: false, detail: result.detail });
+        groupResults.push({ ...c, actualValid, passed: result.ok && actualValid === c.expectedValid, skipped: false, detail: result.detail });
         continue;
       }
-      const result = runTemplate(args.validatorCmd, { schema: schemaCase.schema, instance: c.instance });
+      const result = await runTemplate(args.validatorCmd, { schema: schemaCase.schema, instance: c.instance });
       const actualValid = result.ok;
-      allResults.push({ ...c, actualValid, passed: actualValid === c.expectedValid, skipped: false, detail: result.detail });
+      groupResults.push({ ...c, actualValid, passed: actualValid === c.expectedValid, skipped: false, detail: result.detail });
     }
 
-    const own = allResults.slice(allResults.length - groupCases.length);
-    const passed = own.filter((r) => r.passed).length;
-    const skipped = own.filter((r) => r.skipped).length;
-    console.log(
-      `[group] facet=${row.facet} origin=${row.origin} name=${row.group} cases=${groupCases.length} passed=${passed} skipped=${skipped}`,
-    );
+    return { row, groupCases, groupResults };
+  }, (outcome) => {
+    processedGroups += 1;
+    const { row, groupCases, groupResults } = outcome;
+    const passed = groupResults.filter((r) => r.passed).length;
+    const skipped = groupResults.filter((r) => r.skipped).length;
+    console.log(`[progress] groups=${processedGroups}/${selected.length}`);
+    console.log(`[group] facet=${row.facet} origin=${row.origin} name=${row.group} cases=${groupCases.length} passed=${passed} skipped=${skipped}`);
+  });
+
+  for (const outcome of groupOutcomes) {
+    const { groupResults } = outcome;
+    allResults.push(...groupResults);
   }
 
   const total = allResults.length;
@@ -265,7 +326,7 @@ function main() {
 }
 
 try {
-  main();
+  await main();
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(2);

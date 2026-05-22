@@ -45,6 +45,15 @@
         <xsl:variable name="is-xforms-type" as="xs:boolean" select="starts-with($raw-type,'xforms:')"/>
         <xsl:variable name="type" as="xs:string" select="xsdh:canonical-type($binding-type)"/>
         <xsl:variable name="value" as="xs:string" select="normalize-space(string($raw-value))"/>
+        <!--
+            High-level lexical validation model:
+            - canonical-type() normalizes prefix variants into a single internal token.
+            - Most branches use XPath castability checks to enforce datatype lexical space.
+            - For xforms:* custom types, empty lexical values are accepted here so requiredness
+              remains controlled by @required/relevant logic in the runtime.
+            - Unknown/non-mapped types intentionally default to true() so schema-aware validation
+              (when available) can make the final decision based on restriction facets.
+        -->
         <xsl:sequence select="
             if ($type = '')
             then true()
@@ -101,7 +110,7 @@
             else if ($type = 'anyuri')
             then (not(matches($value,'\s')) and ($value castable as xs:anyURI))
             else if ($type = 'qname')
-            then matches($value,'^[A-Za-z_][A-Za-z0-9._-]*(:[A-Za-z_][A-Za-z0-9._-]*)?$')
+            then matches($value,'^\i\c*(:\i\c*)?$')
             else if ($type = 'integer')
             then ($value castable as xs:integer)
             else if ($type = 'nonpositiveinteger')
@@ -142,6 +151,15 @@
             then matches($value,'^\d{12,19}$')
             else if ($type = 'ccnumber-strict')
             then matches($value,'^\d{14,18}$')
+            else if (starts-with($type,'list:'))
+            then (
+                let $item-type := substring-after($type,'list:'),
+                    $items := tokenize(normalize-space($value),'\s+')
+                return
+                    if (normalize-space($value) = '')
+                    then true()
+                    else every $item in $items satisfies xsdh:is-type-valid($item-type,$item)
+            )
             else true()"/>
     </xsl:function>
 
@@ -161,10 +179,25 @@
         <xsl:param name="schema-doc" as="document-node()?"/>
         <xsl:variable name="type-name" as="xs:string" select="normalize-space(string($binding-type))"/>
         <xsl:variable name="type-local" as="xs:string" select="xsdh:local-type-name($type-name)"/>
+        <!--
+            restriction-chain() returns inherited restrictions followed by local restriction,
+            so downstream checks evaluate the complete effective facet set.
+        -->
         <xsl:variable name="restrictions" as="element(xs:restriction)*" select="xsdh:restriction-chain($schema-doc,$type-local,())"/>
+        <!--
+            resolved-base-type() walks named simpleType inheritance until it reaches an xs:*
+            built-in base type (or exits safely if unresolved/cyclic).
+        -->
         <xsl:variable name="base-type" as="xs:string" select="xsdh:resolved-base-type($schema-doc,$type-local,())"/>
         <!-- TEST-TRACE: apply whiteSpace facet normalization before facet checks; helps scripts/run-nist-facet-harness.mjs whiteSpace groups. -->
         <xsl:variable name="normalized-value" as="xs:string" select="xsdh:apply-white-space(string($raw-value),$restrictions)"/>
+        <!--
+            Evaluation order:
+            1) If there is no schema context, fall back to lexical validator only.
+            2) If type has no restrictions in this schema, fall back to lexical validator.
+            3) Validate against the resolved built-in base type first.
+            4) Apply effective facet set via facet-valid().
+        -->
         <xsl:sequence select="
             if ($type-name = '' or empty($schema-doc))
             then xsdh:is-type-valid($type-name,$raw-value)
@@ -179,6 +212,7 @@
         <xsl:param name="value" as="xs:string"/>
         <xsl:param name="base-type" as="xs:string"/>
         <xsl:param name="restrictions" as="element(xs:restriction)*"/>
+        <xsl:variable name="canonical" as="xs:string" select="xsdh:canonical-type($base-type)"/>
         <xsl:variable name="length-facets" as="xs:integer*" select="$restrictions/xs:length/@value ! xs:integer(.)"/>
         <xsl:variable name="min-length-facets" as="xs:integer*" select="$restrictions/xs:minLength/@value ! xs:integer(.)"/>
         <xsl:variable name="max-length-facets" as="xs:integer*" select="$restrictions/xs:maxLength/@value ! xs:integer(.)"/>
@@ -205,23 +239,42 @@
             if (exists($decimal-lex))
             then (if (contains($decimal-lex,'.')) then string-length(substring-after($decimal-lex,'.')) else 0)
             else ()"/>
+        <!--
+            Conjunctive facet policy:
+            - Every present facet category must hold.
+            - Missing facet category => neutral true().
+            - enumeration and bound comparisons delegate to type-aware helpers.
+            This keeps the main boolean expression readable while preserving explicit semantics.
+        -->
         <xsl:sequence select="
             (
                 if (exists($length-facets))
-                then exists($length) and (every $l in $length-facets satisfies $length = $l)
+                then (
+                    if ($canonical = 'qname')
+                    then true()
+                    else exists($length) and (every $l in $length-facets satisfies $length = $l)
+                )
                 else true()
             )
             and (
                 if (exists($min-length-facets))
-                then exists($length) and (every $l in $min-length-facets satisfies $length ge $l)
+                then (
+                    if ($canonical = 'qname')
+                    then true()
+                    else exists($length) and (every $l in $min-length-facets satisfies $length ge $l)
+                )
                 else true()
             )
             and (
                 if (exists($max-length-facets))
-                then exists($length) and (every $l in $max-length-facets satisfies $length le $l)
+                then (
+                    if ($canonical = 'qname')
+                    then true()
+                    else exists($length) and (every $l in $max-length-facets satisfies $length le $l)
+                )
                 else true()
             )
-            and (every $p in $pattern-facets satisfies matches($value,$p))
+            and (every $p in $pattern-facets satisfies xsdh:facet-pattern-match($value,$p))
             and (
                 if (exists($enum-facets))
                 then some $enum in $enum-facets satisfies xsdh:facet-value-eq($value,$enum,$base-type)
@@ -255,22 +308,60 @@
         <xsl:param name="value" as="xs:string"/>
         <xsl:param name="base-type" as="xs:string"/>
         <xsl:variable name="canonical" as="xs:string" select="xsdh:canonical-type($base-type)"/>
+        <!--
+            Length semantics notes:
+            - base64Binary and hexBinary length/minLength/maxLength are byte-count based.
+            - We convert through canonical hex representation and divide by 2 to get octets.
+            - Other datatypes currently use lexical string-length fallback.
+        -->
         <xsl:sequence select="
             if ($canonical = 'base64binary' and ($value castable as xs:base64Binary))
             then string-length(string(xs:hexBinary(xs:base64Binary($value)))) idiv 2
             else if ($canonical = 'hexbinary' and ($value castable as xs:hexBinary))
             then string-length(string(xs:hexBinary($value))) idiv 2
+            else if (starts-with($canonical,'list:'))
+            then (if (normalize-space($value) = '') then 0 else count(tokenize(normalize-space($value),'\s+')))
             else string-length($value)"/>
+    </xsl:function>
+    <xsl:function name="xsdh:facet-pattern-match" as="xs:boolean">
+        <xsl:param name="value" as="xs:string"/>
+        <xsl:param name="pattern" as="xs:string"/>
+        <!-- XSD pattern facets are whole-value matches, not substring matches. -->
+        <xsl:variable name="normalized-pattern" as="xs:string" select="
+            xsdh:replace-literal(
+                xsdh:replace-literal($pattern,'[\i-[:]]','\i'),
+                '[\c-[:]]','\c'
+            )"/>
+        <xsl:sequence select="matches($value,concat('^(',$normalized-pattern,')$'))"/>
+    </xsl:function>
+    <xsl:function name="xsdh:replace-literal" as="xs:string">
+        <xsl:param name="input" as="xs:string"/>
+        <xsl:param name="search" as="xs:string"/>
+        <xsl:param name="replacement" as="xs:string"/>
+        <xsl:sequence select="
+            if ($search = '' or not(contains($input,$search)))
+            then $input
+            else concat(
+                substring-before($input,$search),
+                $replacement,
+                xsdh:replace-literal(substring-after($input,$search),$search,$replacement)
+            )"/>
     </xsl:function>
 
     <xsl:function name="xsdh:facet-value-eq" as="xs:boolean">
         <xsl:param name="left" as="xs:string"/>
         <xsl:param name="right" as="xs:string"/>
         <xsl:param name="base-type" as="xs:string"/>
+        <!--
+            Equality strategy for enumeration facets:
+            - decimal-family values compare in numeric value-space
+            - float/double values compare in floating numeric value-space
+            - otherwise lexical equality fallback
+        -->
         <xsl:sequence select="
             if (xsdh:is-decimal-family($base-type) and ($left castable as xs:decimal) and ($right castable as xs:decimal))
             then xs:decimal($left) = xs:decimal($right)
-            else if ($base-type = ('float','double') and ($left castable as xs:double) and ($right castable as xs:double))
+            else if (xsdh:canonical-type($base-type) = ('float','double') and ($left castable as xs:double) and ($right castable as xs:double))
             then xs:double($left) = xs:double($right)
             else $left = $right"/>
     </xsl:function>
@@ -282,6 +373,13 @@
         <xsl:param name="op" as="xs:string"/>
         <!-- TEST-TRACE: add ordered facet comparisons for date/time families; helps scripts/run-nist-facet-harness.mjs date/dateTime/gDay boundary groups. -->
         <xsl:variable name="canonical" as="xs:string" select="xsdh:canonical-type($base-type)"/>
+        <!--
+            Ordered comparison strategy:
+            - Use native typed comparisons where XPath defines ordering.
+            - For gDay/gMonth/gMonthDay, dispatch to lexical-component helpers to avoid
+              processor errors on direct ordered comparisons of partial-date primitives.
+            - Unsupported type/op combinations fail closed as false().
+        -->
         <xsl:sequence select="
             if (xsdh:is-decimal-family($base-type) and ($left castable as xs:decimal) and ($right castable as xs:decimal))
             then (
@@ -324,27 +422,17 @@
                 else false()
             )
             else if ($canonical = 'gyearmonth' and ($left castable as xs:gYearMonth) and ($right castable as xs:gYearMonth))
-            then (
-                if ($op = 'ge') then xs:gYearMonth($left) ge xs:gYearMonth($right)
-                else if ($op = 'le') then xs:gYearMonth($left) le xs:gYearMonth($right)
-                else if ($op = 'gt') then xs:gYearMonth($left) gt xs:gYearMonth($right)
-                else if ($op = 'lt') then xs:gYearMonth($left) lt xs:gYearMonth($right)
-                else false()
-            )
+            then xsdh:facet-compare-gyearmonth($left,$right,$op)
             else if ($canonical = 'gyear' and ($left castable as xs:gYear) and ($right castable as xs:gYear))
-            then (
-                if ($op = 'ge') then xs:gYear($left) ge xs:gYear($right)
-                else if ($op = 'le') then xs:gYear($left) le xs:gYear($right)
-                else if ($op = 'gt') then xs:gYear($left) gt xs:gYear($right)
-                else if ($op = 'lt') then xs:gYear($left) lt xs:gYear($right)
-                else false()
-            )
+            then xsdh:facet-compare-gyear($left,$right,$op)
             else if ($canonical = 'gmonthday' and ($left castable as xs:gMonthDay) and ($right castable as xs:gMonthDay))
             then xsdh:facet-compare-gmonthday($left,$right,$op)
             else if ($canonical = 'gday' and ($left castable as xs:gDay) and ($right castable as xs:gDay))
             then xsdh:facet-compare-gday($left,$right,$op)
             else if ($canonical = 'gmonth' and ($left castable as xs:gMonth) and ($right castable as xs:gMonth))
             then xsdh:facet-compare-gmonth($left,$right,$op)
+            else if ($canonical = 'duration' and ($left castable as xs:duration) and ($right castable as xs:duration))
+            then xsdh:facet-compare-duration($left,$right,$op)
             else if ($canonical = 'daytimeduration' and ($left castable as xs:dayTimeDuration) and ($right castable as xs:dayTimeDuration))
             then (
                 if ($op = 'ge') then xs:dayTimeDuration($left) ge xs:dayTimeDuration($right)
@@ -361,6 +449,84 @@
                 else if ($op = 'lt') then xs:yearMonthDuration($left) lt xs:yearMonthDuration($right)
                 else false()
             )
+            else false()"/>
+    </xsl:function>
+    <xsl:function name="xsdh:facet-compare-gyear" as="xs:boolean">
+        <xsl:param name="left" as="xs:string"/>
+        <xsl:param name="right" as="xs:string"/>
+        <xsl:param name="op" as="xs:string"/>
+        <xsl:variable name="left-year" as="xs:integer?" select="
+            if (matches($left,'^-?[0-9]{4,}'))
+            then xs:integer(replace($left,'^(-?[0-9]{4,}).*$','$1'))
+            else ()"/>
+        <xsl:variable name="right-year" as="xs:integer?" select="
+            if (matches($right,'^-?[0-9]{4,}'))
+            then xs:integer(replace($right,'^(-?[0-9]{4,}).*$','$1'))
+            else ()"/>
+        <xsl:sequence select="
+            if (exists($left-year) and exists($right-year))
+            then xsdh:facet-compare-integer($left-year,$right-year,$op)
+            else false()"/>
+    </xsl:function>
+    <xsl:function name="xsdh:facet-compare-gyearmonth" as="xs:boolean">
+        <xsl:param name="left" as="xs:string"/>
+        <xsl:param name="right" as="xs:string"/>
+        <xsl:param name="op" as="xs:string"/>
+        <xsl:variable name="left-year" as="xs:integer?" select="
+            if (matches($left,'^-?[0-9]{4,}-[0-9]{2}'))
+            then xs:integer(replace($left,'^(-?[0-9]{4,})-[0-9]{2}.*$','$1'))
+            else ()"/>
+        <xsl:variable name="left-month" as="xs:integer?" select="
+            if (matches($left,'^-?[0-9]{4,}-[0-9]{2}'))
+            then xs:integer(replace($left,'^-?[0-9]{4,}-([0-9]{2}).*$','$1'))
+            else ()"/>
+        <xsl:variable name="right-year" as="xs:integer?" select="
+            if (matches($right,'^-?[0-9]{4,}-[0-9]{2}'))
+            then xs:integer(replace($right,'^(-?[0-9]{4,})-[0-9]{2}.*$','$1'))
+            else ()"/>
+        <xsl:variable name="right-month" as="xs:integer?" select="
+            if (matches($right,'^-?[0-9]{4,}-[0-9]{2}'))
+            then xs:integer(replace($right,'^-?[0-9]{4,}-([0-9]{2}).*$','$1'))
+            else ()"/>
+        <xsl:variable name="left-key" as="xs:integer?" select="if (exists($left-year) and exists($left-month)) then ($left-year * 100 + $left-month) else ()"/>
+        <xsl:variable name="right-key" as="xs:integer?" select="if (exists($right-year) and exists($right-month)) then ($right-year * 100 + $right-month) else ()"/>
+        <xsl:sequence select="
+            if (exists($left-key) and exists($right-key))
+            then xsdh:facet-compare-integer($left-key,$right-key,$op)
+            else false()"/>
+    </xsl:function>
+    <xsl:function name="xsdh:facet-compare-duration" as="xs:boolean">
+        <xsl:param name="left" as="xs:string"/>
+        <xsl:param name="right" as="xs:string"/>
+        <xsl:param name="op" as="xs:string"/>
+        <xsl:variable name="left-duration" as="xs:duration" select="xs:duration($left)"/>
+        <xsl:variable name="right-duration" as="xs:duration" select="xs:duration($right)"/>
+        <xsl:variable name="left-ym" as="xs:yearMonthDuration" select="xs:yearMonthDuration($left-duration)"/>
+        <xsl:variable name="left-dt" as="xs:dayTimeDuration" select="xs:dayTimeDuration($left-duration)"/>
+        <xsl:variable name="right-ym" as="xs:yearMonthDuration" select="xs:yearMonthDuration($right-duration)"/>
+        <xsl:variable name="right-dt" as="xs:dayTimeDuration" select="xs:dayTimeDuration($right-duration)"/>
+        <!--
+            xs:duration ordering is partial in XML Schema.
+            Compare via the four reference dateTimes from Appendix E to determine
+            strict ordering only when all anchors agree.
+        -->
+        <xsl:variable name="anchors" as="xs:dateTime+" select="
+            (
+                xs:dateTime('1696-09-01T00:00:00Z'),
+                xs:dateTime('1697-02-01T00:00:00Z'),
+                xs:dateTime('1903-03-01T00:00:00Z'),
+                xs:dateTime('1903-07-01T00:00:00Z')
+            )"/>
+        <xsl:variable name="left-shifts" as="xs:dateTime*" select="for $a in $anchors return (($a + $left-ym) + $left-dt)"/>
+        <xsl:variable name="right-shifts" as="xs:dateTime*" select="for $a in $anchors return (($a + $right-ym) + $right-dt)"/>
+        <xsl:variable name="all-lt" as="xs:boolean" select="every $i in 1 to count($anchors) satisfies $left-shifts[$i] lt $right-shifts[$i]"/>
+        <xsl:variable name="all-gt" as="xs:boolean" select="every $i in 1 to count($anchors) satisfies $left-shifts[$i] gt $right-shifts[$i]"/>
+        <xsl:variable name="all-eq" as="xs:boolean" select="every $i in 1 to count($anchors) satisfies $left-shifts[$i] eq $right-shifts[$i]"/>
+        <xsl:sequence select="
+            if ($op = 'lt') then $all-lt
+            else if ($op = 'gt') then $all-gt
+            else if ($op = 'le') then ($all-lt or $all-eq)
+            else if ($op = 'ge') then ($all-gt or $all-eq)
             else false()"/>
     </xsl:function>
 
@@ -444,6 +610,7 @@
     <xsl:function name="xsdh:is-decimal-family" as="xs:boolean">
         <xsl:param name="base-type" as="xs:string"/>
         <xsl:variable name="canonical" as="xs:string" select="xsdh:canonical-type($base-type)"/>
+        <!-- Centralized membership check for decimal + all integer-derived built-ins. -->
         <xsl:sequence select="$canonical = (
             'decimal','integer','nonpositiveinteger','negativeinteger',
             'long','int','short','byte','nonnegativeinteger',
@@ -455,6 +622,13 @@
         <xsl:param name="value" as="xs:string"/>
         <xsl:param name="restrictions" as="element(xs:restriction)*"/>
         <xsl:variable name="mode" as="xs:string?" select="($restrictions/xs:whiteSpace/@value ! lower-case(normalize-space(string(.))))[last()]"/>
+        <!--
+            whiteSpace facet behavior:
+            - replace: normalize tabs/newlines to spaces
+            - collapse: replace + trim + collapse internal runs
+            - preserve/default: leave input unchanged
+            Last-declared facet wins across derivation chain.
+        -->
         <xsl:sequence select="
             if ($mode = 'replace')
             then replace($value,'[	
@@ -469,10 +643,14 @@
         <xsl:param name="schema-doc" as="document-node()?"/>
         <xsl:param name="type-local" as="xs:string"/>
         <xsl:param name="visited" as="xs:string*"/>
+        <!-- Guard recursion with visited to prevent infinite loops on malformed cycles. -->
         <xsl:variable name="simple-type" as="element(xs:simpleType)?" select="$schema-doc/xs:schema/xs:simpleType[@name = $type-local][1]"/>
+        <xsl:variable name="list-item-lexical" as="xs:string" select="normalize-space(string($simple-type/xs:list[1]/@itemType))"/>
         <xsl:sequence select="
             if (empty($simple-type) or $type-local = '' or $type-local = $visited)
             then $type-local
+            else if ($list-item-lexical != '')
+            then concat('list:',xsdh:local-type-name($list-item-lexical))
             else
                 let $base-lexical := normalize-space(string($simple-type/xs:restriction[1]/@base)),
                     $base-local := xsdh:local-type-name($base-lexical)
@@ -486,6 +664,7 @@
         <xsl:param name="schema-doc" as="document-node()?"/>
         <xsl:param name="type-local" as="xs:string"/>
         <xsl:param name="visited" as="xs:string*"/>
+        <!-- Returns restrictions in ancestor->descendant order for effective facet evaluation. -->
         <xsl:variable name="simple-type" as="element(xs:simpleType)?" select="$schema-doc/xs:schema/xs:simpleType[@name = $type-local][1]"/>
         <xsl:variable name="restriction" as="element(xs:restriction)?" select="$simple-type/xs:restriction[1]"/>
         <xsl:variable name="base-lexical" as="xs:string" select="normalize-space(string($restriction/@base))"/>
@@ -501,6 +680,7 @@
     <xsl:function name="xsdh:local-type-name" as="xs:string">
         <xsl:param name="qname-lexical" as="xs:string?"/>
         <xsl:variable name="raw" as="xs:string" select="normalize-space(string($qname-lexical))"/>
+        <!-- Lightweight lexical split only; namespace resolution is context-dependent upstream. -->
         <xsl:sequence select="if (contains($raw,':')) then substring-after($raw,':') else $raw"/>
     </xsl:function>
 
