@@ -97,3 +97,18 @@ Affected smoke-gap tests (currently render-only `fixme`):
 - `8.2.3.c — hint message (instance)`
 Needed fix later:
 - Implement `xforms-help` / `xforms-hint` dispatch behavior so messages are emitted via a test-observable path.
+## XHTML+XForms direct input handling is inconsistent
+Affected coverage:
+- `tests/supplemental/xhtml-source-node.spec.ts` (`direct .xhtml sourceNode renders XForms controls`)
+- Related harness path currently relies on pre-normalization: `test-app/w3c-runner.html`
+Observed behavior:
+- Direct XHTML `sourceNode` forms do not render expected XForms controls (e.g. `#xhtml-direct-root` never appears).
+- Engine accepts XHTML roots, but in `xformsjs-main` the XHTML global document path is redirected to `ixsl:page()`, so provided XHTML input is not used as canonical source.
+- W3C runner currently works around this by rewriting XHTML into a synthetic `xf:xform` before calling the transform.
+Current blocker:
+- Input handling is split across engine/runtime and harness-specific rewrite logic, so behavior differs between direct XHTML callers and runner-mediated flows.
+Needed fix later:
+- Add engine-level canonical normalization so both `xf:xform` and XHTML+XForms inputs converge to one internal processing path.
+- Remove/replace XHTML `xforms-doc-global` → `ixsl:page()` substitution in source selection precedence so explicit input documents are honored.
+- Keep relative URI/base-URI semantics stable for instance/submission resolution while normalizing input.
+- After parity is proven, retire runner-only XHTML rewrite as default behavior.

@@ -1691,9 +1691,14 @@
         -->
 
         <xsl:for-each select="$required-fieldsi">
+            <xsl:variable name="control-instance-id" as="xs:string?" select="normalize-space(string(@instance-context))"/>
             <xsl:variable name="contexti" as="node()?" select="
                 if (exists(@data-ref))
-                then (xforms:evaluate-xpath-with-context-node(string(@data-ref),$instanceXML,()))[1]
+                then (
+                    if ($control-instance-id != '')
+                    then (xforms:evaluate-xpath-with-instance-id(string(@data-ref),$control-instance-id,()))[1]
+                    else (xforms:evaluate-xpath-with-context-node(string(@data-ref),$instanceXML,()))[1]
+                )
                 else ()"/>
             <xsl:variable name="relevanti" as="xs:boolean" select="
                 if (exists(@data-relevant))
@@ -1739,9 +1744,14 @@
         <xsl:variable name="constraint-fieldsi" select="ixsl:page()//*[@data-constraint or @data-binding-type]" as="element()*"/>
 
         <xsl:for-each select="$constraint-fieldsi">
+            <xsl:variable name="control-instance-id" as="xs:string?" select="normalize-space(string(@instance-context))"/>
             <xsl:variable name="contexti" as="node()?" select="
                 if (exists(@data-ref))
-                then (xforms:evaluate-xpath-with-context-node(string(@data-ref),$instanceXML,()))[1]
+                then (
+                    if ($control-instance-id != '')
+                    then (xforms:evaluate-xpath-with-instance-id(string(@data-ref),$control-instance-id,()))[1]
+                    else (xforms:evaluate-xpath-with-context-node(string(@data-ref),$instanceXML,()))[1]
+                )
                 else ()"/>
             <xsl:variable name="relevanti" as="xs:boolean" select="
                 if (exists(@data-relevant))
@@ -1793,7 +1803,7 @@
         <xsl:variable name="required-bindings" as="element(xforms:bind)*" select="js:getBindings()[@instance-context = $instance-id][exists(@required)]"/>
         <xsl:for-each select="$required-bindings">
             <xsl:variable name="binding" as="element(xforms:bind)" select="."/>
-            <xsl:variable name="bound-nodes" as="item()*" select="xforms:evaluate-xpath-with-context-node(string($binding/@nodeset),$instanceXML,())"/>
+            <xsl:variable name="bound-nodes" as="item()*" select="xforms:evaluate-xpath-with-instance-id(string($binding/@nodeset),$instance-id,())"/>
             <xsl:for-each select="$bound-nodes[. instance of node()]">
                 <xsl:variable name="bound-node" as="node()" select="."/>
                 <xsl:variable name="in-submission-scope" as="xs:boolean" select="xforms:is-node-in-submission-scope($bound-node,$submission-context-nodes)"/>
@@ -1841,7 +1851,7 @@
         <xsl:variable name="constraint-bindings" as="element(xforms:bind)*" select="js:getBindings()[@instance-context = $instance-id][exists(@constraint) or exists(@type)]"/>
         <xsl:for-each select="$constraint-bindings">
             <xsl:variable name="binding" as="element(xforms:bind)" select="."/>
-            <xsl:variable name="bound-nodes" as="item()*" select="xforms:evaluate-xpath-with-context-node(string($binding/@nodeset),$instanceXML,())"/>
+            <xsl:variable name="bound-nodes" as="item()*" select="xforms:evaluate-xpath-with-instance-id(string($binding/@nodeset),$instance-id,())"/>
             <xsl:for-each select="$bound-nodes[. instance of node()]">
                 <xsl:variable name="bound-node" as="node()" select="."/>
                 <xsl:variable name="in-submission-scope" as="xs:boolean" select="xforms:is-node-in-submission-scope($bound-node,$submission-context-nodes)"/>
@@ -4555,19 +4565,37 @@
             <xsl:variable name="context-nodeset" as="xs:string?" select="map:get($this-output,'@context-nodeset')"/>
             <xsl:variable name="additional-class-values" as="xs:string*" select="map:get($this-output,'@additional-class-values')"/>
             <xsl:variable name="incremental" as="xs:string?" select="map:get($this-output,'@incremental')"/>  
+            <xsl:variable name="ref-for-mips" as="xs:string?" select="map:get($this-output,'@ref')"/>
+            <xsl:variable name="mip-valid" as="xs:boolean?" select="
+                if (exists($ref-for-mips) and normalize-space($ref-for-mips) ne '')
+                then js:getValidationMIPValid($this-instance-id,normalize-space($ref-for-mips))
+                else ()"/>
+            <xsl:variable name="mip-required" as="xs:boolean?" select="
+                if (exists($ref-for-mips) and normalize-space($ref-for-mips) ne '')
+                then js:getValidationMIPRequired($this-instance-id,normalize-space($ref-for-mips))
+                else ()"/>
+            <xsl:variable name="validation-class-values" as="xs:string*" select="
+                (
+                    if (exists($mip-valid)) then (if ($mip-valid) then 'xforms-valid' else 'xforms-invalid') else (),
+                    if (exists($mip-required)) then (if ($mip-required) then 'xforms-required' else 'xforms-optional') else ()
+                )"/>
+            <xsl:variable name="effective-additional-class-values" as="xs:string*" select="distinct-values(($additional-class-values,$validation-class-values))"/>
             
             <xsl:variable name="htmlClass" as="xs:string?">
                 <xsl:call-template name="getHtmlClass">
                     <xsl:with-param name="context-nodeset" select="$context-nodeset" tunnel="yes"/>
                     <xsl:with-param name="instance-context" select="$this-instance-id" tunnel="yes"/>
                     <xsl:with-param name="source-class" select="$xforms-class"/>
-                    <xsl:with-param name="additional-values" select="$additional-class-values"/>
+                    <xsl:with-param name="additional-values" select="$effective-additional-class-values"/>
                     <xsl:with-param name="incremental" select="$incremental"/>
                 </xsl:call-template>
             </xsl:variable>
             
             <xsl:if test="exists($associated-form-control)">
                 <ixsl:set-attribute name="class" select="$htmlClass" object="$associated-form-control"/>
+                <xsl:if test="exists($associated-form-control/parent::*) and matches(local-name($associated-form-control), '^(input|select|textarea)$')">
+                    <ixsl:set-attribute name="class" select="$htmlClass" object="$associated-form-control/parent::*"/>
+                </xsl:if>
             </xsl:if>
             
         </xsl:for-each>
@@ -4918,9 +4946,9 @@
                 <xsl:when test="$action-name = 'recalculate'">
                     <xsl:call-template name="xforms-recalculate"/>
                 </xsl:when>
-                <!--<xsl:when test="$action-name = 'revalidate'">
-                    <xsl:call-template name="xforms-revalidate"/>
-                </xsl:when>-->
+                <xsl:when test="$action-name = 'revalidate'">
+                    <xsl:call-template name="action-revalidate"/>
+                </xsl:when>
                 <xsl:when test="$action-name = 'refresh'">
                     <xsl:call-template name="action-refresh"/>
                 </xsl:when>
@@ -5664,10 +5692,59 @@
         <xsl:if test="$sequence-template-trace-enabled">
             <xsl:message>[SEQTRACE] template=xforms-revalidate</xsl:message>
         </xsl:if>
+        <!-- TEST-TRACE: clear+rebuild validation MIP registry each revalidate cycle;
+             helps tests/supplemental/saxon-forms-validation.spec.ts. -->
+        <xsl:sequence select="js:clearValidationMIPs()"/>
 
         <xsl:variable name="valid-actions" as="map(*)*" select="js:getEventAction('xforms-valid')"/>
         <xsl:variable name="invalid-actions" as="map(*)*" select="js:getEventAction('xforms-invalid')"/>
         <xsl:variable name="bindings" as="element(xforms:bind)*" select="js:getBindings()"/>
+        <xsl:variable name="validation-controls" as="element()*" select="ixsl:page()//*[@data-ref and @instance-context]"/>
+
+        <xsl:for-each select="$validation-controls">
+            <xsl:variable name="control-ref" as="xs:string" select="normalize-space(string(@data-ref))"/>
+            <xsl:variable name="control-instance-id" as="xs:string" select="normalize-space(string(@instance-context))"/>
+            <xsl:variable name="context-item" as="node()?" select="(xforms:evaluate-xpath-with-instance-id($control-ref,$control-instance-id,()))[1]"/>
+            <xsl:variable name="context-node" as="node()?" select="
+                if (exists($context-item))
+                then (if ($context-item[self::attribute()]) then $context-item/parent::* else $context-item)
+                else ()"/>
+            <xsl:variable name="typed-value" as="xs:string" select="if (exists($context-item)) then normalize-space(string($context-item)) else ''"/>
+            <xsl:variable name="binding-type-attr" as="xs:string?" select="normalize-space(string(@data-binding-type))"/>
+            <xsl:variable name="binding-type-from-instance" as="xs:string?" select="
+                if (exists($context-item))
+                then string(($context-item/@*[local-name() = 'type' and namespace-uri() = 'http://www.w3.org/2001/XMLSchema-instance'])[1])
+                else ()"/>
+            <xsl:variable name="binding-type-from-bind" as="xs:string?" select="string(($bindings[@instance-context = $control-instance-id][@nodeset = $control-ref][1]/@type)[1])"/>
+            <xsl:variable name="binding-type" as="xs:string" select="(($binding-type-attr,$binding-type-from-bind,$binding-type-from-instance)[. ne ''],'')[1]"/>
+            <xsl:variable name="is-type-valid" as="xs:boolean" select="if (exists($context-item)) then xforms:is-type-valid-with-schema($binding-type,$typed-value,$context-item) else false()"/>
+            <xsl:variable name="is-constraint-valid" as="xs:boolean">
+                <xsl:choose>
+                    <xsl:when test="exists(@data-constraint) and exists($context-node)">
+                        <xsl:try>
+                            <xsl:sequence select="boolean(xforms:evaluate-xpath-with-context-node(string(@data-constraint),$context-node,()))"/>
+                            <xsl:catch><xsl:sequence select="false()"/></xsl:catch>
+                        </xsl:try>
+                    </xsl:when>
+                    <xsl:otherwise><xsl:sequence select="true()"/></xsl:otherwise>
+                </xsl:choose>
+            </xsl:variable>
+            <xsl:variable name="is-required" as="xs:boolean">
+                <xsl:choose>
+                    <xsl:when test="exists(@data-required) and exists($context-node)">
+                        <xsl:try>
+                            <xsl:sequence select="boolean(xforms:evaluate-xpath-with-context-node(string(@data-required),$context-node,()))"/>
+                            <xsl:catch><xsl:sequence select="false()"/></xsl:catch>
+                        </xsl:try>
+                    </xsl:when>
+                    <xsl:otherwise><xsl:sequence select="false()"/></xsl:otherwise>
+                </xsl:choose>
+            </xsl:variable>
+            <xsl:variable name="has-value" as="xs:boolean" select="exists($context-item/*) or string-length($typed-value) gt 0"/>
+            <xsl:variable name="required-valid" as="xs:boolean" select="not($is-required) or $has-value"/>
+            <xsl:variable name="is-valid" as="xs:boolean" select="$required-valid and $is-type-valid and $is-constraint-valid"/>
+            <xsl:sequence select="js:setValidationMIP($control-instance-id,$control-ref,$is-valid,$is-required)"/>
+        </xsl:for-each>
 
         <xsl:variable name="context-refs" as="xs:string*">
             <xsl:for-each select="($valid-actions,$invalid-actions)">
@@ -6877,7 +6954,14 @@
                 <!-- TEST-TRACE: avoid cardinality errors when DOMActivate source controls
                      have no data-ref (e.g. action-only buttons in xforms-fiddle). -->
                 <xsl:when test="$refi ne ''">
-                    <xsl:variable name="updatedNode" as="node()?" select="(xforms:evaluate-xpath-with-context-node($refi,$instanceXML,()))[1]"/>
+                    <xsl:variable name="ref-local" as="xs:string" select="
+                        if (matches(normalize-space($refi), '^instance\s*\(\s*(''[^'']+''|&quot;[^&quot;]+&quot;)\s*\)\s*/?\s*'))
+                        then replace(normalize-space($refi), '^instance\s*\(\s*(''[^'']+''|&quot;[^&quot;]+&quot;)\s*\)\s*/?\s*', '')
+                        else normalize-space($refi)"/>
+                    <xsl:variable name="updatedNode" as="node()?" select="
+                        if ($ref-local = '')
+                        then $instanceXML
+                        else (xforms:evaluate-xpath-with-context-node($ref-local,$instanceXML,()))[1]"/>
                     <xsl:variable name="new-value" as="xs:string">
                         <xsl:apply-templates select="$form-control" mode="get-field"/>
                     </xsl:variable>
@@ -7180,7 +7264,14 @@
         <xsl:if test="$form-control/@data-readonly = 'true'">
             <xsl:variable name="ro-instance-id" as="xs:string" select="xforms:getInstanceId($form-control/@data-ref)"/>
             <xsl:variable name="ro-instanceXML" as="element()" select="xforms:instance($ro-instance-id)"/>
-            <xsl:variable name="ro-current" as="node()?" select="xforms:evaluate-xpath-with-context-node(string($form-control/@data-ref),$ro-instanceXML,())"/>
+            <xsl:variable name="ro-ref-local" as="xs:string" select="
+                if (matches(normalize-space(string($form-control/@data-ref)), '^instance\s*\(\s*(''[^'']+''|&quot;[^&quot;]+&quot;)\s*\)\s*/?\s*'))
+                then replace(normalize-space(string($form-control/@data-ref)), '^instance\s*\(\s*(''[^'']+''|&quot;[^&quot;]+&quot;)\s*\)\s*/?\s*', '')
+                else normalize-space(string($form-control/@data-ref))"/>
+            <xsl:variable name="ro-current" as="node()?" select="
+                if ($ro-ref-local = '')
+                then $ro-instanceXML
+                else (xforms:evaluate-xpath-with-context-node($ro-ref-local,$ro-instanceXML,()))[1]"/>
             <ixsl:set-property name="value" select="string($ro-current)" object="$form-control"/>
         </xsl:if>
         <xsl:if test="not($form-control/@data-readonly = 'true')">
@@ -7204,7 +7295,14 @@
         <!-- TEST-TRACE: tolerate empty @data-ref lookups during control updates so
              refresh/event sequencing does not raise cardinality errors on empty matches;
              helps tests/supplemental/xforms-fiddle.spec.ts "refreshing same bind-heavy source twice does not fail". -->
-        <xsl:variable name="updatedNode" as="node()?" select="(xforms:evaluate-xpath-with-context-node($refi,$instanceXML,()))[1]"/>
+        <xsl:variable name="ref-local" as="xs:string" select="
+            if (matches(normalize-space(string($refi)), '^instance\s*\(\s*(''[^'']+''|&quot;[^&quot;]+&quot;)\s*\)\s*/?\s*'))
+            then replace(normalize-space(string($refi)), '^instance\s*\(\s*(''[^'']+''|&quot;[^&quot;]+&quot;)\s*\)\s*/?\s*', '')
+            else normalize-space(string($refi))"/>
+        <xsl:variable name="updatedNode" as="node()?" select="
+            if ($ref-local = '')
+            then $instanceXML
+            else (xforms:evaluate-xpath-with-context-node($ref-local,$instanceXML,()))[1]"/>
         <xsl:variable name="old-value" as="xs:string" select="string($updatedNode)"/>
         <xsl:variable name="new-value" as="xs:string">
             <xsl:apply-templates select="$form-control" mode="get-field"/>
@@ -8123,6 +8221,22 @@
         <xsl:sequence select="js:clearDeferredUpdateFlag('recalculate')"/>
         
         <xsl:message use-when="$debugMode">[action-recalculate] END</xsl:message>
+    </xsl:template>
+
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Template for applying revalidate action</xd:p>
+        </xd:desc>
+    </xd:doc>
+    <xsl:template name="action-revalidate">
+        <!-- TEST-TRACE: ensure explicit xf:revalidate executes the same validation pipeline as deferred updates;
+             helps tests/supplemental/saxon-forms-validation.spec.ts. -->
+        <xsl:message use-when="$debugMode">[action-revalidate] START</xsl:message>
+        
+        <xsl:call-template name="xforms-revalidate"/>
+        <xsl:sequence select="js:clearDeferredUpdateFlag('revalidate')"/>
+        
+        <xsl:message use-when="$debugMode">[action-revalidate] END</xsl:message>
     </xsl:template>
 
     <xd:doc scope="component">

@@ -44,6 +44,9 @@
         /* PERF-6a: track which instance IDs were mutated so refreshRepeats-JS
            can skip repeats bound to unaffected instances. */
         var dirtyInstances = {};
+        /* TEST-TRACE: persist validity/required MIP state between revalidate and refresh;
+           helps tests/supplemental/saxon-forms-validation.spec.ts. */
+        var validationMIPs = {};
                 
         var getCurrentDate = function(){
             var today = new Date();
@@ -87,6 +90,7 @@
             elementsUsingIndexFunction = {};
             elementsContextUsingIndexFunction = {};
             dirtyInstances = {};
+            validationMIPs = {};
             /* TEST-TRACE: preserve initial snapshots across reset */
         }
         
@@ -246,6 +250,33 @@
         }
         var clearDirtyInstances = function() {
             dirtyInstances = {};
+        }
+        /* TEST-TRACE: validation MIP registry helpers for refresh-time CSS class projection;
+           helps tests/supplemental/saxon-forms-validation.spec.ts. */
+        var _validationMipKey = function(instanceId, ref) {
+            return String(instanceId || '') + '|' + String(ref || '');
+        }
+        var setValidationMIP = function(instanceId, ref, valid, required) {
+            var key = _validationMipKey(instanceId, ref);
+            validationMIPs[key] = {
+                valid: String(valid) === 'true',
+                required: String(required) === 'true'
+            };
+            return true;
+        }
+        var getValidationMIPValid = function(instanceId, ref) {
+            var key = _validationMipKey(instanceId, ref);
+            if (!(key in validationMIPs)) return '';
+            return validationMIPs[key].valid ? 'true' : 'false';
+        }
+        var getValidationMIPRequired = function(instanceId, ref) {
+            var key = _validationMipKey(instanceId, ref);
+            if (!(key in validationMIPs)) return '';
+            return validationMIPs[key].required ? 'true' : 'false';
+        }
+        var clearValidationMIPs = function() {
+            validationMIPs = {};
+            return true;
         }
                 
         var getDeferredUpdateFlag = function(name) {
