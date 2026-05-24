@@ -346,16 +346,19 @@ async function ensureCleanOutput(outDir, clean) {
   await fsp.mkdir(outDir, { recursive: true });
 }
 
-async function writeIndexFile(outDir, buildEntries) {
+async function writeIndexFile(outDir, buildEntries, renderPdf) {
   const listItems = buildEntries
     .map((entry) => {
       const htmlHref = toPosixPath(path.relative(outDir, entry.htmlPath));
-      const pdfHref = toPosixPath(path.relative(outDir, entry.pdfPath));
+      const links = [`  — <a href="${escapeHtml(htmlHref)}">HTML</a>`];
+      if (renderPdf) {
+        const pdfHref = toPosixPath(path.relative(outDir, entry.pdfPath));
+        links.push(`  — <a href="${escapeHtml(pdfHref)}">PDF</a>`);
+      }
       return [
         "<li>",
         `  <code>${escapeHtml(entry.relativeSourcePath)}</code>`,
-        `  — <a href="${escapeHtml(htmlHref)}">HTML</a>`,
-        `  — <a href="${escapeHtml(pdfHref)}">PDF</a>`,
+        ...links,
         "</li>"
       ].join("\n");
     })
@@ -510,7 +513,9 @@ async function main() {
           kind: entry.kind,
           source: entry.relativeSourcePath,
           html: toPosixPath(path.relative(rootDir, entry.htmlPath)),
-          pdf: toPosixPath(path.relative(rootDir, entry.pdfPath))
+          ...(config.renderPdf
+            ? { pdf: toPosixPath(path.relative(rootDir, entry.pdfPath)) }
+            : {})
         })
       );
     }
@@ -519,7 +524,7 @@ async function main() {
     if (browser) await browser.close();
   }
 
-  await writeIndexFile(outDir, buildEntries);
+  await writeIndexFile(outDir, buildEntries, config.renderPdf);
 
   console.log(
     JSON.stringify({

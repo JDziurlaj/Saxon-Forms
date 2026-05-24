@@ -163,13 +163,63 @@ function spawnAndCollect(command, args = [], options = {}) {
     });
   });
 }
+function applyTemplateReplacements(templateValue, replacements) {
+  let output = templateValue;
+  for (const [key, value] of Object.entries(replacements)) {
+    output = output.replaceAll(`{${key}}`, value);
+  }
+  return output;
+}
+
+function splitCommandTemplate(template) {
+  const tokens = [];
+  let current = "";
+  let quote = "";
+  for (let i = 0; i < template.length; i++) {
+    const ch = template[i];
+    if (quote) {
+      if (ch === quote) {
+        quote = "";
+        continue;
+      }
+      if (ch === "\\" && quote === "\"" && i + 1 < template.length) {
+        current += template[i + 1];
+        i += 1;
+        continue;
+      }
+      current += ch;
+      continue;
+    }
+    if (ch === "\"" || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      if (current !== "") {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += ch;
+  }
+  if (quote) {
+    throw new Error(`Unterminated quote in command template: ${template}`);
+  }
+  if (current !== "") {
+    tokens.push(current);
+  }
+  return tokens;
+}
 
 async function runTemplate(template, replacements) {
-  let cmd = template;
-  for (const [key, value] of Object.entries(replacements)) {
-    cmd = cmd.replaceAll(`{${key}}`, value);
+  const resolvedTemplate = applyTemplateReplacements(template, replacements);
+  const tokens = splitCommandTemplate(resolvedTemplate);
+  if (!tokens.length) {
+    return { ok: false, detail: "validator command template resolved to an empty command" };
   }
-  const proc = await spawnAndCollect(cmd, [], { shell: true });
+  const [command, ...args] = tokens;
+  const proc = await spawnAndCollect(command, args);
   const output = `${proc.stdout ?? ""}${proc.stderr ?? ""}`.trim();
   return { ok: proc.status === 0, detail: output };
 }

@@ -113,11 +113,9 @@
         <xsl:variable name="change-event" as="xs:string" select="
             if (exists(@xforms:event)) then string(@xforms:event) else 'change'"/>
         
-        <xsl:element name="{local-name()}">
+        <xsl:copy>
             <!-- Copy all non-XForms attributes from the source element -->
-            <xsl:for-each select="@*[not(namespace-uri() = 'http://www.w3.org/2002/xforms')]">
-                <xsl:attribute name="{local-name()}" select="."/>
-            </xsl:for-each>
+            <xsl:copy-of select="@*[not(namespace-uri() = 'http://www.w3.org/2002/xforms')]"/>
             
             <!-- Inject Saxon-Forms binding attributes -->
             <xsl:attribute name="id" select="$id"/>
@@ -146,7 +144,7 @@
                 <xsl:attribute name="value" select="string($instanceField)"/>
                 <xsl:value-of select="$instanceField"/>
             </xsl:if>
-        </xsl:element>
+        </xsl:copy>
         
         <!-- Register for refresh so xforms-refresh can update the value -->
         <xsl:call-template name="registerOutput">

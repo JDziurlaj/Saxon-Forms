@@ -19,7 +19,7 @@
     extension-element-prefixes="ixsl" version="3.0">
     
     <!-- TEST-TRACE: register XForms function names for impose() rewriting; helps ch07 -->
-    <xsl:variable name="xform-functions" select="'if','instance', 'index', 'avg', 'foo', 'context', 'id', 'current-date', 'random', 'property', 'boolean-from-string', 'count-non-empty', 'power', 'choose', 'event', 'is-card-number', 'now', 'local-date', 'local-dateTime', 'days-from-date', 'days-to-date', 'seconds-from-dateTime', 'seconds-to-dateTime', 'seconds', 'months', 'adjust-dateTime-to-timezone', 'digest', 'hmac', 'min', 'max'"/>
+    <xsl:variable name="xform-functions" select="'if','instance', 'index', 'avg', 'context', 'id', 'current-date', 'random', 'property', 'boolean-from-string', 'count-non-empty', 'power', 'choose', 'event', 'is-card-number', 'now', 'local-date', 'local-dateTime', 'days-from-date', 'days-to-date', 'seconds-from-dateTime', 'seconds-to-dateTime', 'seconds', 'months', 'adjust-dateTime-to-timezone', 'digest', 'hmac', 'min', 'max'"/>
     
     <xsl:function name="xforms:impose" as="xs:string" visibility="public">
         <xsl:param name="input" as="xs:string" />
@@ -108,13 +108,6 @@
 <!--        <xsl:message>[xforms:resolve-index] XPath '<xsl:value-of select="$input"/>' resolves to '<xsl:value-of select="string-join($parts)"/>'</xsl:message>-->
         
         <xsl:sequence select="string-join($parts)" />
-    </xsl:function>
-    
-    <xsl:function name="xforms:foo" as="xs:boolean" visibility="public">
-        <xsl:param name="num" as="xs:integer" />
-        
-        <xsl:sequence select="$num lt 5" />
-        
     </xsl:function>
     
     <!-- TEST-TRACE: return xs:integer for registered repeats (preserves XPath predicate

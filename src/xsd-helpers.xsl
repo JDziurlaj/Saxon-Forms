@@ -631,11 +631,9 @@
         -->
         <xsl:sequence select="
             if ($mode = 'replace')
-            then replace($value,'[	
-]',' ')
+            then replace($value,'[\t\r\n]',' ')
             else if ($mode = 'collapse')
-            then normalize-space(replace($value,'[	
-]',' '))
+            then normalize-space(replace($value,'[\t\r\n]',' '))
             else $value"/>
     </xsl:function>
 

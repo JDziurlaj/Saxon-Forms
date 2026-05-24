@@ -1021,6 +1021,9 @@
                 </xsl:if>
                 
                 <xsl:map-entry key="'@context'" select="if (exists(@context)) then xforms:resolveXPathStrings($nodeset,@context) else $nodeset" />   
+                <xsl:if test="exists(@context)">
+                    <xsl:map-entry key="'@context-explicit'" select="true()"/>
+                </xsl:if>
                 
                 <!--<xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> @context = <xsl:sequence select="xforms:resolveXPathStrings($nodeset,@context)"/></xsl:message>-->
                 
@@ -7417,6 +7420,11 @@
         <xsl:variable name="position" select="(map:get($action-map, '@position'),'after')[1]" as="xs:string?"/>
         <xsl:variable name="origin-ref" select="map:get($action-map, '@origin')" as="xs:string?"/>
         <xsl:variable name="context" select="map:get($action-map, '@context')" as="xs:string?"/>
+        <xsl:variable name="context-explicit" as="xs:boolean" select="boolean(map:get($action-map, '@context-explicit'))"/>
+        <xsl:variable name="effective-instance-context" as="xs:string" select="
+            if ($context-explicit and exists($context) and matches(normalize-space($context), '^instance\s*\('))
+            then xforms:getInstanceId($context)
+            else $instance-context"/>
         <xsl:variable name="context-local" as="xs:string?" select="
             if (exists($context))
             then
@@ -7446,7 +7454,7 @@
             else ()
             "/>
         
-        <xsl:variable name="instanceXML" as="element()" select="xforms:instance($instance-context)"/>
+        <xsl:variable name="instanceXML" as="element()" select="xforms:instance($effective-instance-context)"/>
         <xsl:variable name="binding-context-node" as="node()?" select="
             if (exists($context-local) and $context-local ne '')
             then (xforms:evaluate-xpath-with-context-node($context-local,$instanceXML,()))[1]
@@ -7570,7 +7578,7 @@
             
             <!--                <xsl:message use-when="$debugMode">[action-insert] Updated instance: <xsl:sequence select="fn:serialize($instance-with-insert)"/></xsl:message>-->
             
-            <xsl:sequence select="js:setInstance($instance-context,$instance-with-insert)"/>
+            <xsl:sequence select="js:setInstance($effective-instance-context,$instance-with-insert)"/>
             
             
             <!-- update repeat index to that of inserted node -->
@@ -7596,7 +7604,7 @@
             </xsl:if>
             
             <!-- TEST-TRACE: PERF-6a – mark mutated instance so refreshRepeats-JS can skip unaffected repeats -->
-            <xsl:sequence select="js:addDirtyInstance($instance-context)"/>
+            <xsl:sequence select="js:addDirtyInstance($effective-instance-context)"/>
             <!-- TEST-TRACE: PERF-6b – record pending append so refreshRepeats-JS can use
                  the splice fast-path instead of full re-render.
                  Guard against predicate-filtered refs (e.g. paragraph[2]) where count($ref)
@@ -7611,8 +7619,8 @@
                      post-insert instance to get the true new item count. $binding-nodeset
                      may be filtered by @at (e.g. [last()]) so its count is unreliable. -->
                 <xsl:variable name="post-insert-items" as="node()*"
-                    select="xforms:evaluate-xpath-with-context-node($ref, xforms:instance($instance-context), ())"/>
-                <xsl:sequence select="js:addPendingMutation('append', $instance-context, count($post-insert-items))"/>
+                    select="xforms:evaluate-xpath-with-context-node($ref, xforms:instance($effective-instance-context), ())"/>
+                <xsl:sequence select="js:addPendingMutation('append', $effective-instance-context, count($post-insert-items))"/>
             </xsl:if>
             <xsl:sequence select="js:setDeferredUpdateFlags(('rebuild','recalculate','revalidate','refresh'))"/>
             <xsl:variable name="insert-event-context" as="map(*)">
@@ -7651,6 +7659,11 @@
         <xsl:variable name="ref-local" select="map:get($action-map,'@ref-local')" as="xs:string?"/>
         <xsl:variable name="at" select="map:get($action-map, '@at')" as="xs:string?"/>
         <xsl:variable name="context" select="map:get($action-map, '@context')" as="xs:string?"/>
+        <xsl:variable name="context-explicit" as="xs:boolean" select="boolean(map:get($action-map, '@context-explicit'))"/>
+        <xsl:variable name="effective-instance-context" as="xs:string" select="
+            if ($context-explicit and exists($context) and matches(normalize-space($context), '^instance\s*\('))
+            then xforms:getInstanceId($context)
+            else $instance-context"/>
         <xsl:variable name="context-local" as="xs:string?" select="
             if (exists($context))
             then
@@ -7679,7 +7692,7 @@
             else ()
             "/>
         
-        <xsl:variable name="instanceXML" as="element()" select="xforms:instance($instance-context)"/>
+        <xsl:variable name="instanceXML" as="element()" select="xforms:instance($effective-instance-context)"/>
         <xsl:variable name="context-node-local" as="node()?" select="
             if (exists($context-local) and $context-local ne '')
             then (xforms:evaluate-xpath-with-context-node($context-local,$instanceXML,()))[1]
@@ -7731,7 +7744,7 @@
             
         <!--            <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> Updated instance: <xsl:sequence select="fn:serialize($instance-with-delete)"/></xsl:message>-->
             
-            <xsl:sequence select="js:setInstance($instance-context,$instance-with-delete)"/>    
+            <xsl:sequence select="js:setInstance($effective-instance-context,$instance-with-delete)"/>    
             
             <!-- set index -->
             <xsl:if test="matches($at,'index\s*\(')">
@@ -7760,7 +7773,7 @@
             </xsl:if>
             
             <!-- TEST-TRACE: PERF-6a – mark mutated instance so refreshRepeats-JS can skip unaffected repeats -->
-            <xsl:sequence select="js:addDirtyInstance($instance-context)"/>
+            <xsl:sequence select="js:addDirtyInstance($effective-instance-context)"/>
             <!-- PERF-6b: invalidate any pending insert splices — a delete in the same
                  action cycle makes the splice position unreliable -->
             <xsl:sequence select="js:clearPendingMutations()"/>
