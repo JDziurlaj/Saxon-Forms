@@ -7421,8 +7421,10 @@
         <xsl:variable name="origin-ref" select="map:get($action-map, '@origin')" as="xs:string?"/>
         <xsl:variable name="context" select="map:get($action-map, '@context')" as="xs:string?"/>
         <xsl:variable name="context-explicit" as="xs:boolean" select="boolean(map:get($action-map, '@context-explicit'))"/>
+        <!-- TEST-TRACE: keep bind-driven insert instance resolution anchored to bind/model context (ignore @context override); helps tests/w3c/ch10.spec.ts "10.3.b". -->
+        <xsl:variable name="has-bind" as="xs:boolean" select="exists(map:get($action-map, '@bind'))"/>
         <xsl:variable name="effective-instance-context" as="xs:string" select="
-            if ($context-explicit and exists($context) and matches(normalize-space($context), '^instance\s*\('))
+            if (not($has-bind) and $context-explicit and exists($context) and matches(normalize-space($context), '^instance\s*\('))
             then xforms:getInstanceId($context)
             else $instance-context"/>
         <xsl:variable name="context-local" as="xs:string?" select="
@@ -7660,8 +7662,10 @@
         <xsl:variable name="at" select="map:get($action-map, '@at')" as="xs:string?"/>
         <xsl:variable name="context" select="map:get($action-map, '@context')" as="xs:string?"/>
         <xsl:variable name="context-explicit" as="xs:boolean" select="boolean(map:get($action-map, '@context-explicit'))"/>
+        <!-- TEST-TRACE: keep bind-driven delete instance resolution anchored to bind/model context (ignore @context override); helps tests/w3c/ch10.spec.ts "10.4.b". -->
+        <xsl:variable name="has-bind" as="xs:boolean" select="exists(map:get($action-map, '@bind'))"/>
         <xsl:variable name="effective-instance-context" as="xs:string" select="
-            if ($context-explicit and exists($context) and matches(normalize-space($context), '^instance\s*\('))
+            if (not($has-bind) and $context-explicit and exists($context) and matches(normalize-space($context), '^instance\s*\('))
             then xforms:getInstanceId($context)
             else $instance-context"/>
         <xsl:variable name="context-local" as="xs:string?" select="
@@ -7697,23 +7701,29 @@
             if (exists($context-local) and $context-local ne '')
             then (xforms:evaluate-xpath-with-context-node($context-local,$instanceXML,()))[1]
             else $instanceXML"/>
-        <!-- TEST-TRACE: evaluate deletion target via @ref-local first so selected
-             nodes are in the same tree as $instanceXML after prior mutations
-             (startup insert+delete chains such as Appendix B.10), then fall back
-             to absolute @ref when local-context evaluation is empty.
-             Helps bind-based deletes where @context should not override the target
-             selection path (tests/w3c/ch10.spec.ts "10.4.b"). -->
-        <xsl:variable name="delete-node-local" as="node()*" select="
-            if (exists($ref-qualified-local) and $ref-qualified-local ne '')
+        <!-- TEST-TRACE: for bind-driven delete, ignore @context and target the
+             bind-resolved @ref directly against the bound instance; for non-bind
+             delete, evaluate @ref-local against context first, then fall back to
+             resolved @ref. Helps tests/w3c/ch10.spec.ts "10.4.b". -->
+        <xsl:variable name="delete-node-bind" as="node()*" select="
+            if ($has-bind and exists($ref-qualified) and $ref-qualified ne '')
+            then xforms:evaluate-xpath-with-context-node($ref-qualified,$instanceXML,())
+            else ()"/>
+        <xsl:variable name="delete-node-context" as="node()*" select="
+            if (not($has-bind) and exists($ref-qualified-local) and $ref-qualified-local ne '')
             then xforms:evaluate-xpath-with-context-node($ref-qualified-local,$context-node-local,())
             else ()"/>
+        <xsl:variable name="delete-node-ref" as="node()*" select="
+            if (not($has-bind) and exists($ref-qualified) and $ref-qualified ne '')
+            then xforms:evaluate-xpath-with-context-node($ref-qualified,$instanceXML,())
+            else ()"/>
         <xsl:variable name="delete-node" as="node()*" select="
-            if (exists($delete-node-local))
-            then $delete-node-local
+            if (exists($delete-node-bind))
+            then $delete-node-bind
             else (
-                if (exists($ref-qualified) and $ref-qualified ne '')
-                then xforms:evaluate-xpath-with-context-node($ref-qualified,$instanceXML,())
-                else ()
+                if (exists($delete-node-context))
+                then $delete-node-context
+                else $delete-node-ref
             )"/>
         <xsl:variable name="delete-location" as="xs:integer?" select="
             if (exists($delete-node))

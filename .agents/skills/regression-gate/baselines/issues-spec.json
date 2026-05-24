@@ -2,16 +2,13 @@
   "suite_id": "issues-spec",
   "test_path": "tests/supplemental/issues.spec.ts",
   "config_path": "playwright.config.ts",
-  "last_updated": "2026-05-17T13:53:18.253Z",
+  "last_updated": "2026-05-24T13:42:44.623Z",
   "stats": {
     "total": 18,
-    "passed": 16,
-    "failed": 2,
+    "passed": 18,
+    "failed": 0,
     "flaky": 0,
     "skipped": 0
   },
-  "allowed_failures": [
-    "Issue #21 — Prepend Element Copy (B.1) › clicking insert adds a person from prototype",
-    "Issue #22 — Set Attribute (B.4) › clicking insert copies @rating to item[2]"
-  ]
+  "allowed_failures": []
 }
