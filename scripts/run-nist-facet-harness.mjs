@@ -183,9 +183,12 @@ function splitCommandTemplate(template) {
         continue;
       }
       if (ch === "\\" && quote === "\"" && i + 1 < template.length) {
-        current += template[i + 1];
-        i += 1;
-        continue;
+        const next = template[i + 1];
+        if (next === "\"" || next === "\\") {
+          current += next;
+          i += 1;
+          continue;
+        }
       }
       current += ch;
       continue;
