@@ -1,6 +1,12 @@
 # Saxon-Forms Developer Setup Guide
 This guide documents external dependencies and non-repo assets needed to run Saxon-Forms reliably from a clean clone.
 
+## Recommended onboarding flow
+Run these commands in order from repo root:
+1. `npm run setup`
+2. `npm run doctor`
+3. `npm run verify:setup` (Docker-based validation)
+
 ## What is managed by the repo
 - JavaScript/TypeScript/XSLT source code
 - npm dependency manifests (`package.json`, `package-lock.json`)
@@ -27,9 +33,7 @@ The following are excluded by `.gitignore` and are expected to be generated, dow
   - `npx playwright install`
 
 ### 3) `xslt3` CLI availability
-The repo uses `npx xslt3` in build and validation scripts, but `xslt3` is not currently declared in `package.json`.
-- On first use, `npx` may fetch it from npm (network required), or
-- Install it globally/local-dev if your environment restricts dynamic package fetches.
+`xslt3` is managed as a pinned dev dependency in this repository and is expected to be installed via `npm install` / `npm run setup`.
 
 ## Optional/flow-specific tools
 ### DocBook build toolchain
@@ -44,6 +48,21 @@ These requirements are intentional and not committed to git.
 - `scripts/run-nist-facet-harness.mjs` supports an `xmllint` validation engine mode.
 - Install `xmllint` only if you plan to run that mode.
 
+## Setup commands and profiles
+### Primary commands
+- `npm run setup`  
+  Recommended default bootstrap (`core + conformance`).
+- `npm run doctor`  
+  Non-destructive preflight checks with fix suggestions.
+- `npm run verify:setup`  
+  Canonical Docker-based setup validation.
+
+### Setup profiles
+- `npm run setup:core` — dependencies + SEF build
+- `npm run setup:conformance` — Playwright browsers + W3C suite prep + SEF readiness
+- `npm run setup:docs` — DocBook prerequisite checks
+- `npm run setup:nist` — fetch + validate in-repo `xsdtests` dataset
+
 ## Non-repo datasets required for some tests
 ### W3C XForms 1.1 test suite
 W3C tests require a downloaded suite:
@@ -55,17 +74,20 @@ This downloads and extracts the suite into:
 
 ### NIST XSD dataset
 NIST-related manifests reference:
-- `tests/xsdtests/nistMeta/NISTXMLSchemaDatatypes.testSet`
+- `public-test/xsdtests/nistMeta/NISTXMLSchemaDatatypes.testSet`
 
-This file is not currently committed and must be provided locally before running NIST facet workflows.
+Fetch the dataset with:
+- `npm run fetch:nist`
+- `npm run fetch:nist:force` (refresh existing copy)
+
+This mirrors the W3C asset model by placing downloaded test assets under `public-test/` inside this repository (ignored in git).
 
 ## Clean-clone bootstrap checklist
-1. `npm install`
-2. `npx playwright install`
-3. `npm run build:sef`
-4. `npm run fetch:w3c` (if running W3C/conformance tests)
-5. Install Ant + `ant4docbook-0.10.0/` (if running DocBook build commands)
-6. Provide NIST test-set assets (if running NIST facet workflows)
+1. `npm run setup`
+2. `npm run doctor`
+3. `npm run verify:setup`
+4. Install Ant + `ant4docbook-0.10.0/` and run `npm run setup:docs` (if running DocBook build commands)
+5. Run `npm run fetch:nist` and `npm run setup:nist` (if running NIST facet workflows)
 
 ## Repository hygiene note
 `package-lock.json` currently contains an extraneous local path entry (`../rabet-v-oscal-ui/frontend`).  

@@ -53,6 +53,14 @@ function getRepoRoot() {
 function readManifest(manifestPath) {
   return JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 }
+function normalizeSourceTestSetForRepo(sourceTestSet) {
+  const sourceValue = String(sourceTestSet || "").trim().replaceAll("\\", "/");
+  const legacyPrefix = "../xsdtests/";
+  if (sourceValue.startsWith(legacyPrefix)) {
+    return `public-test/xsdtests/${sourceValue.slice(legacyPrefix.length)}`;
+  }
+  return sourceValue;
+}
 
 function dedupeGroups(manifest) {
   const rows = [];
@@ -141,6 +149,7 @@ function main() {
   fs.mkdirSync(outDir, { recursive: true });
 
   const sourceManifest = readManifest(sourceManifestPath);
+  const shardSourceTestSet = normalizeSourceTestSetForRepo(sourceManifest.source_test_set);
   const groups = dedupeGroups(sourceManifest);
   const families = buildFamilyMap(groups);
   let familyNames = [...families.keys()].sort((a, b) => a.localeCompare(b));
@@ -156,7 +165,7 @@ function main() {
   const failingFamilies = [];
   for (let i = 0; i < familyNames.length; i++) {
     const family = familyNames[i];
-    const shardManifest = writeShardManifest(outDir, family, sourceManifest.source_test_set, families.get(family));
+    const shardManifest = writeShardManifest(outDir, family, shardSourceTestSet, families.get(family));
     const result = runShard(repoRoot, args, shardManifest);
     console.log(`[family ${i + 1}/${familyNames.length}] ${family} ${result.summaryLine}`);
     if ((Number.isFinite(result.failedCount) && result.failedCount > 0) || result.exitCode !== 0) {

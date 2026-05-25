@@ -16,17 +16,17 @@ This repository contains:
 - Apache Ant (only required for DocBook build workflows)
 
 ## Local setup
-1. Install dependencies:
+1. Bootstrap environment:
    ```bash
-   npm install
+   npm run setup
    ```
-2. Build the SEF:
+2. Run preflight checks:
    ```bash
-   npm run build:sef
+   npm run doctor
    ```
-3. Ensure the W3C test suite is available when running conformance tests:
+3. Validate setup via Docker:
    ```bash
-   npm run fetch:w3c
+   npm run verify:setup
    ```
 
 ## Development workflow

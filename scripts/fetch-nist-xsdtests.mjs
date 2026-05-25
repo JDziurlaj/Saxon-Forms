@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Fetch the W3C XForms 1.1 Test Suite and extract into public-test/w3c-suite/
+ * Fetch W3C xsdtests archive and extract into public-test/xsdtests/
  *
  * Usage:
- *   node scripts/fetch-w3c-suite.mjs           # skips if already present
- *   node scripts/fetch-w3c-suite.mjs --force   # re-downloads and replaces
+ *   node scripts/fetch-nist-xsdtests.mjs           # skips if already present
+ *   node scripts/fetch-nist-xsdtests.mjs --force   # re-downloads and replaces
  */
 
 import fs from "node:fs";
@@ -13,13 +13,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { downloadArchive, extractZipArchive, stripExtractedPrefix } from "./lib/archive-utils.mjs";
 
-const ZIP_URL = "https://www.w3.org/MarkUp/Forms/Test/XForms1.1/Edition1/zip/TestCases11.zip";
-const STRIP_PREFIX = ["Test", "XForms1.1", "Edition1"];
+const ZIP_URL = "https://github.com/w3c/xsdtests/archive/refs/heads/master.zip";
+const STRIP_PREFIX = ["xsdtests-master"];
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
-const targetDir = path.join(projectRoot, "public-test", "w3c-suite");
+const targetDir = path.join(projectRoot, "public-test", "xsdtests");
+const requiredDatasetPath = path.join(targetDir, "nistMeta", "NISTXMLSchemaDatatypes.testSet");
 
 const force = process.argv.slice(2).includes("--force");
 
@@ -28,30 +29,29 @@ function fail(message) {
   process.exit(1);
 }
 
-function countXhtmlFiles(dirPath) {
+function countXsdFiles(dirPath) {
   if (!fs.existsSync(dirPath)) return 0;
 
   let count = 0;
   for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
     const fullPath = path.join(dirPath, entry.name);
     if (entry.isDirectory()) {
-      count += countXhtmlFiles(fullPath);
-    } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".xhtml")) {
+      count += countXsdFiles(fullPath);
+    } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".xsd")) {
       count += 1;
     }
   }
   return count;
 }
 
-
 async function main() {
-  if (fs.existsSync(path.join(targetDir, "Chapt02")) && !force) {
-    console.log(`W3C test suite already present in ${targetDir} (use --force to refresh)`);
+  if (fs.existsSync(requiredDatasetPath) && !force) {
+    console.log(`NIST xsdtests already present in ${targetDir} (use --force to refresh)`);
     return;
   }
 
-  console.log("Downloading W3C XForms 1.1 Test Suite...");
-  const tmpZip = path.join(os.tmpdir(), `TestCases11.${process.pid}.${Date.now()}.zip`);
+  console.log("Downloading W3C xsdtests archive...");
+  const tmpZip = path.join(os.tmpdir(), `xsdtests.${process.pid}.${Date.now()}.zip`);
 
   try {
     await downloadArchive(ZIP_URL, tmpZip);
@@ -66,8 +66,14 @@ async function main() {
     extractZipArchive(tmpZip, targetDir);
     stripExtractedPrefix(targetDir, STRIP_PREFIX);
 
-    const xhtmlCount = countXhtmlFiles(targetDir);
-    console.log(`W3C test suite extracted successfully (${xhtmlCount} xhtml files)`);
+    if (!fs.existsSync(requiredDatasetPath)) {
+      throw new Error(
+        `NIST dataset not found after extraction. Expected ${requiredDatasetPath}.`
+      );
+    }
+
+    const xsdCount = countXsdFiles(targetDir);
+    console.log(`NIST xsdtests extracted successfully (${xsdCount} .xsd files)`);
   } finally {
     fs.rmSync(tmpZip, { force: true });
   }

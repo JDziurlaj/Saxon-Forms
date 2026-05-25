@@ -10,6 +10,12 @@ See conference papers below:
 
 [Distributing XSLT Processing between Client and Server](http://xmllondon.com/2017/xmllondon-2017-proceedings.pdf). XML London 2017.
 ## Quickstart (5 minutes)
+For first-time contributor onboarding, run:
+```bash
+npm run setup
+npm run doctor
+npm run verify:setup
+```
 
 ### Prerequisites
 - Node.js + npm
@@ -17,9 +23,9 @@ See conference papers below:
 
 Saxon-JS can be downloaded at [Saxon-JS](http://www.saxonica.com/saxon-js/index.xml) (older versions available at the [archive](https://www.saxonica.com/saxon-js/archive.xml)).
 
-### 1) Install dependencies
+### 1) Bootstrap environment
 ```bash
-npm install
+npm run setup
 ```
 
 ### 2) Build Saxon-Forms SEF
@@ -57,17 +63,20 @@ npm run test:e2e:ui
 - Run all examples: `npm run examples`
 - Compile stylesheet-driven examples on demand: `npm run examples:compile`
 - Fetch W3C suite: `npm run fetch:w3c`
+- Fetch NIST xsdtests dataset: `npm run fetch:nist`
 - Run full e2e flow (prepare + build + test): `npm run test:e2e:full`
 - Run xsd helper tests: `npm run test:xsd-helpers`
 - Run diagnostics tests: `npm run test:e2e:diagnostics`
 
 ### Troubleshooting
 - If W3C tests are missing assets, run `npm run fetch:w3c`.
+- If NIST workflows are missing assets, run `npm run fetch:nist`.
 - If runtime output looks stale, rerun `npm run build:sef`.
 - If docs builds fail, ensure `ant` is on PATH (or use `--ant-bin` with `scripts/run-docbook-build.mjs`).
 
 ## Contributing
 See `CONTRIBUTING.md` for development workflow, validation expectations, and PR standards.
+For complete machine/bootstrap setup (including external datasets and tools), see `SETUP.md`.
 
 ## Support expectations
 Saxon-Forms support maturity is tracked by conformance behavior and implementation coverage.

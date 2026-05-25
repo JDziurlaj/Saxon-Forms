@@ -4,10 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "setup:core": "node scripts/setup.mjs --profile core",
+    "setup:conformance": "node scripts/setup.mjs --profile conformance",
+    "setup:docs": "node scripts/setup.mjs --profile docs",
+    "setup:nist": "node scripts/setup.mjs --profile nist",
+    "doctor": "node scripts/doctor.mjs",
+    "verify:setup": "npm run verify:setup:docker",
+    "verify:setup:local": "node scripts/verify-setup-local.mjs",
+    "verify:setup:docker": "node scripts/verify-setup-docker.mjs",
     "build:sef": "npx xslt3 -t -xsl:src/saxon-xforms.xsl -export:sef/saxon-xforms.sef.json -nogo \"-ns:##html5\" && node -e \"require('fs').cpSync('sef/saxon-xforms.sef.json','test-app/sef/saxon-xforms.sef.json')\"",
     "predev": "node scripts/fetch-w3c-suite.mjs && node -e \"const fs=require('fs');const t='test-app/w3c-suite';if(!fs.existsSync(t)){fs.symlinkSync(require('path').resolve('public-test/w3c-suite'),t,'junction')}\"",
     "fetch:w3c": "node scripts/fetch-w3c-suite.mjs",
     "fetch:w3c:force": "node scripts/fetch-w3c-suite.mjs --force",
+    "fetch:nist": "node scripts/fetch-nist-xsdtests.mjs",
+    "fetch:nist:force": "node scripts/fetch-nist-xsdtests.mjs --force",
     "test:w3c:sort": "node scripts/sort-w3c-playwright-tests.mjs",
     "test:baseline": "node scripts/create-playwright-baseline.mjs --all",
     "test:gate": "node .agents/skills/regression-gate/scripts/run_regression_gate.mjs",
@@ -44,6 +55,7 @@
     "markdown-it": "^14.1.1",
     "mermaid": "^11.14.0",
     "tsx": "^4.21.0",
-    "vite": "^6.4.1"
+    "vite": "^6.4.1",
+    "xslt3": "^2.7.0"
   }
 }

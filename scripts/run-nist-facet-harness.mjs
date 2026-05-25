@@ -63,6 +63,29 @@ function loadManifest(manifestPath) {
   return manifest;
 }
 
+function resolveSourceTestSetPath(repoRoot, sourceTestSet) {
+  const sourceValue = String(sourceTestSet || "").trim();
+  const directPath = path.resolve(repoRoot, sourceValue);
+  if (fs.existsSync(directPath)) {
+    return { sourceValue, resolvedPath: directPath, warning: null };
+  }
+
+  const normalizedSlashes = sourceValue.replaceAll("\\", "/");
+  const legacyPrefix = "../xsdtests/";
+  if (normalizedSlashes.startsWith(legacyPrefix)) {
+    const mappedSource = `public-test/xsdtests/${normalizedSlashes.slice(legacyPrefix.length)}`;
+    const mappedPath = path.resolve(repoRoot, mappedSource);
+    if (fs.existsSync(mappedPath)) {
+      return {
+        sourceValue: mappedSource,
+        resolvedPath: mappedPath,
+        warning: `legacy source_test_set "${sourceValue}" resolved to "${mappedSource}".`
+      };
+    }
+  }
+
+  return { sourceValue, resolvedPath: directPath, warning: null };
+}
 function selectGroups(manifest, facetsFilter) {
   const selectedFacetNames = facetsFilter.length ? facetsFilter : Object.keys(manifest.facets);
   const missing = selectedFacetNames.filter((name) => !(name in manifest.facets));
@@ -271,14 +294,23 @@ async function main() {
   const checkerPath = path.resolve(repoRoot, "scripts/nist-xsd-instance-check.xsl");
   if (!fs.existsSync(manifestPath)) throw new Error(`Manifest not found: ${manifestPath}`);
   const manifest = loadManifest(manifestPath);
-  const testsetPath = path.resolve(repoRoot, manifest.source_test_set);
-  if (!fs.existsSync(testsetPath)) throw new Error(`Source testSet not found: ${testsetPath}`);
+  const sourceTestSet = resolveSourceTestSetPath(repoRoot, manifest.source_test_set);
+  if (sourceTestSet.warning) {
+    console.warn(`[warn] ${sourceTestSet.warning}`);
+  }
+  const testsetPath = sourceTestSet.resolvedPath;
+  if (!fs.existsSync(testsetPath)) {
+    throw new Error(
+      `Source testSet not found: ${testsetPath} (manifest source_test_set=${manifest.source_test_set})`
+    );
+  }
   const testsetXml = fs.readFileSync(testsetPath, "utf8");
   const groupsIndex = extractGroupBlocks(testsetXml);
   let selected = selectGroups(manifest, args.facets);
   if (args.maxGroups > 0) selected = selected.slice(0, args.maxGroups);
 
   console.log(`manifest=${manifestPath}`);
+  console.log(`source_test_set=${sourceTestSet.sourceValue}`);
   console.log(`testset=${testsetPath}`);
   console.log(`selected_groups=${selected.length}`);
   const jobs = resolveJobCount(args.jobs);
