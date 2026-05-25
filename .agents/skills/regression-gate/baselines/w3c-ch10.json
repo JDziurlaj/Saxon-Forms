@@ -1,6 +1,6 @@
 {
   "suite_id": "w3c-ch10",
-  "test_path": "tests/w3c/ch10.spec.ts",
+  "test_path": "tests/xforms/w3c/ch10.spec.ts",
   "config_path": "playwright.config.ts",
   "last_updated": "2026-05-17T14:02:03.225Z",
   "stats": {

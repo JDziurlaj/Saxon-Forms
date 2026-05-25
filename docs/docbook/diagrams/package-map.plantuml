@@ -17,7 +17,7 @@ package "scripts/" {
   [xd-doc-extract.xsl\nAPI doc extraction] as XD_DOC
 }
 
-package "tests/w3c/" {
+package "tests/xforms/w3c/" {
   [ch02-03.spec.ts] as CH02_03
   [ch04.spec.ts\nProcessing model] as CH04
   [ch05.spec.ts\nData types] as CH05

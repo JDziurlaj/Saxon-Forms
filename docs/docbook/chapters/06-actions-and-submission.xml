@@ -93,7 +93,7 @@
     <section id="chapter-actions-and-submission-checkpoint">
         <title>Checkpoint validation focus</title>
         <itemizedlist>
-            <listitem><para>Targeted W3C coverage: <literal>tests/w3c/ch10.spec.ts</literal> (15 tests, 73% pass) and <literal>tests/w3c/ch11.spec.ts</literal> (submission tests).</para></listitem>
+            <listitem><para>Targeted W3C coverage: <literal>tests/xforms/w3c/ch10.spec.ts</literal> (15 tests, 73% pass) and <literal>tests/xforms/w3c/ch11.spec.ts</literal> (submission tests).</para></listitem>
             <listitem><para>Sequence trace verification must cover both <literal>sequence-action-dispatch</literal> and <literal>sequence-submission</literal>, with reproducible <literal>[SEQTRACE]</literal> evidence for event-to-action resolution, payload serialization, and callback points.</para></listitem>
             <listitem><para>Verify insert/delete known issues match STATUS.md gap cluster description.</para></listitem>
             <listitem><para>Run full regression (<literal>npm run test:gate</literal>) before sign-off.</para></listitem>

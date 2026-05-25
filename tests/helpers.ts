@@ -11,7 +11,7 @@ export async function evaluateSubmissionXPath(
   xmlBody: string,
   expressions: Record<string, string>
 ): Promise<SubmissionXPathEvaluationResult> {
-  // TEST-TRACE: shared SaxonJS XPath payload analyzer for any Playwright spec; helps tests/w3c/ch11.spec.ts and future suites.
+  // TEST-TRACE: shared SaxonJS XPath payload analyzer for any Playwright spec; helps tests/xforms/w3c/ch11.spec.ts and future suites.
   return page.evaluate(
     ({ payload, xpathExpressions }) => {
       const parsed = new DOMParser().parseFromString(payload, "application/xml");

@@ -1,11 +1,11 @@
-import { test, expect, RENDER_TIMEOUT, submitAndCapture } from "./helpers";
+import { test, expect, RENDER_TIMEOUT, submitAndCapture } from "../../xforms/w3c/helpers";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, "..", "..");
+const repoRoot = path.resolve(__dirname, "..", "..", "..");
 
 type ManifestFacetEntry = {
   valid_groups?: string[];
@@ -52,7 +52,7 @@ type EngineCaseBuildResult = {
 };
 
 function loadManifest(): Manifest {
-  const manifestPath = path.resolve(repoRoot, "tests/w3c/nist-simpletype-facets.manifest.json");
+  const manifestPath = path.resolve(repoRoot, "tests/xsd/nist/nist-simpletype-facets.manifest.json");
   return JSON.parse(fs.readFileSync(manifestPath, "utf8")) as Manifest;
 }
 

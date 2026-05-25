@@ -42,8 +42,8 @@ Prevent regressions. The gate enforces two groups of requirements:
   - `.agents/skills/regression-gate/runs/run-index.ndjson`
   - One JSON record per suite run, including `suite_id`, `run_dir`, `policy_result`, `git_head_sha`, `git_branch`, `git_tree_state`, and `related_commit_sha`
 - W3C Playwright coverage lives in:
-  - `tests/w3c/ch02.spec.ts` ... `tests/w3c/ch11.spec.ts`
-  - `tests/w3c/appendix.spec.ts`
+  - `tests/xforms/w3c/ch02.spec.ts` ... `tests/xforms/w3c/ch11.spec.ts`
+  - `tests/xforms/w3c/appendix.spec.ts`
 
 Do not infer baseline from ad-hoc reruns. Always compare to the stored baseline file for the selected suite.
 ## VCS provenance capture (mandatory)

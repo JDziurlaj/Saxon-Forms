@@ -88,7 +88,7 @@
     <section id="chapter-xpath-and-controls-checkpoint">
         <title>Checkpoint validation focus</title>
         <itemizedlist>
-            <listitem><para>Targeted W3C coverage: <literal>tests/w3c/ch07.spec.ts</literal> (XPath, 62 tests), <literal>tests/w3c/ch08.spec.ts</literal> (core controls, 59 tests), and <literal>tests/w3c/ch09.spec.ts</literal> (container controls, 21 tests).</para></listitem>
+            <listitem><para>Targeted W3C coverage: <literal>tests/xforms/w3c/ch07.spec.ts</literal> (XPath, 62 tests), <literal>tests/xforms/w3c/ch08.spec.ts</literal> (core controls, 59 tests), and <literal>tests/xforms/w3c/ch09.spec.ts</literal> (container controls, 21 tests).</para></listitem>
             <listitem><para>Review toggle/repeat-specific behavior against known edge cases (9.3.1.b startindex, 9.3.1.f toggle scoping) before chapter approval.</para></listitem>
             <listitem><para>Verify function library documentation is complete against <literal>IMPLEMENTATION.md</literal> unimplemented function inventory.</para></listitem>
             <listitem><para>Run full regression (<literal>npm run test:gate</literal>) before checkpoint closure.</para></listitem>

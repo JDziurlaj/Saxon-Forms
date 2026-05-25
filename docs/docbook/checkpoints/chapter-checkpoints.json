@@ -39,14 +39,14 @@
       "title": "Processing Model (Ch. 4)",
       "source": "docs/docbook/chapters/03-processing-model.xml",
       "w3c_specs": [
-        "tests/w3c/ch04.spec.ts"
+        "tests/xforms/w3c/ch04.spec.ts"
       ],
       "sequence_diagrams": [
         "sequence-processing-cycle"
       ],
       "validation": {
         "docbook_command": "npm run docs:docbook:validate",
-        "targeted_test_command": "npm run test:e2e:static -- tests/w3c/ch04.spec.ts tests/w3c/sequence-trace.spec.ts",
+        "targeted_test_command": "npm run test:e2e:static -- tests/xforms/w3c/ch04.spec.ts tests/xforms/w3c/sequence-trace.spec.ts",
         "full_regression_command": "npm run test:gate"
       },
       "review_prompts": [
@@ -59,13 +59,13 @@
       "title": "Data Types and MIPs (Ch. 5-6)",
       "source": "docs/docbook/chapters/04-data-types-and-mips.xml",
       "w3c_specs": [
-        "tests/w3c/ch05.spec.ts",
-        "tests/w3c/ch06.spec.ts"
+        "tests/xforms/w3c/ch05.spec.ts",
+        "tests/xforms/w3c/ch06.spec.ts"
       ],
       "sequence_diagrams": [],
       "validation": {
         "docbook_command": "npm run docs:docbook:validate",
-        "targeted_test_command": "npm run test:e2e:static -- tests/w3c/ch05.spec.ts tests/w3c/ch06.spec.ts",
+        "targeted_test_command": "npm run test:e2e:static -- tests/xforms/w3c/ch05.spec.ts tests/xforms/w3c/ch06.spec.ts",
         "full_regression_command": "npm run test:gate"
       },
       "review_prompts": [
@@ -78,14 +78,14 @@
       "title": "XPath and Controls (Ch. 7-9)",
       "source": "docs/docbook/chapters/05-xpath-and-controls.xml",
       "w3c_specs": [
-        "tests/w3c/ch07.spec.ts",
-        "tests/w3c/ch08.spec.ts",
-        "tests/w3c/ch09.spec.ts"
+        "tests/xforms/w3c/ch07.spec.ts",
+        "tests/xforms/w3c/ch08.spec.ts",
+        "tests/xforms/w3c/ch09.spec.ts"
       ],
       "sequence_diagrams": [],
       "validation": {
         "docbook_command": "npm run docs:docbook:validate",
-        "targeted_test_command": "npm run test:e2e:static -- tests/w3c/ch07.spec.ts tests/w3c/ch08.spec.ts tests/w3c/ch09.spec.ts",
+        "targeted_test_command": "npm run test:e2e:static -- tests/xforms/w3c/ch07.spec.ts tests/xforms/w3c/ch08.spec.ts tests/xforms/w3c/ch09.spec.ts",
         "full_regression_command": "npm run test:gate"
       },
       "review_prompts": [
@@ -98,8 +98,8 @@
       "title": "Actions and Submission (Ch. 10-11)",
       "source": "docs/docbook/chapters/06-actions-and-submission.xml",
       "w3c_specs": [
-        "tests/w3c/ch10.spec.ts",
-        "tests/w3c/ch11.spec.ts"
+        "tests/xforms/w3c/ch10.spec.ts",
+        "tests/xforms/w3c/ch11.spec.ts"
       ],
       "sequence_diagrams": [
         "sequence-action-dispatch",
@@ -107,7 +107,7 @@
       ],
       "validation": {
         "docbook_command": "npm run docs:docbook:validate",
-        "targeted_test_command": "npm run test:e2e:static -- tests/w3c/ch10.spec.ts tests/w3c/ch11.spec.ts tests/w3c/sequence-trace.spec.ts",
+        "targeted_test_command": "npm run test:e2e:static -- tests/xforms/w3c/ch10.spec.ts tests/xforms/w3c/ch11.spec.ts tests/xforms/w3c/sequence-trace.spec.ts",
         "full_regression_command": "npm run test:gate"
       },
       "review_prompts": [
@@ -120,7 +120,7 @@
       "title": "Conformance",
       "source": "docs/docbook/chapters/07-conformance.xml",
       "w3c_specs": [
-        "tests/w3c/STATUS.md"
+        "tests/xforms/w3c/STATUS.md"
       ],
       "sequence_diagrams": [],
       "validation": {

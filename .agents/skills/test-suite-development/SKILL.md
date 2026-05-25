@@ -34,8 +34,8 @@ Use a short `TEST-TRACE` comment immediately next to each changed block, using t
 
 Examples:
 - `// TEST-TRACE: restrict repeat toggle scope; helps tests/supplemental/issues.spec.ts "Issue #30"`
-- `/* TEST-TRACE: preserve insert context fallback; helps tests/w3c/ch09.spec.ts "9.3.a" */`
-- `<!-- TEST-TRACE: adjust relevance refresh ordering; helps tests/w3c/ch02.spec.ts "2.3.a" -->`
+- `/* TEST-TRACE: preserve insert context fallback; helps tests/xforms/w3c/ch09.spec.ts "9.3.a" */`
+- `<!-- TEST-TRACE: adjust relevance refresh ordering; helps tests/xforms/w3c/ch02.spec.ts "2.3.a" -->`
 
 Keep comments concise and factual (one short line whenever possible).
 

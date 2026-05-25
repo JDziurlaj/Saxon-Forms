@@ -7,8 +7,8 @@ import {
   type Request,
   type Route,
 } from "@playwright/test";
-import { installDeterministicNetworkRoutes } from "../fixtures/network-routes";
-import type { DispatchedEventRecord, RequestPredicate, SaxonFormsWindow } from "../types";
+import { installDeterministicNetworkRoutes } from "../../fixtures/network-routes";
+import type { DispatchedEventRecord, RequestPredicate, SaxonFormsWindow } from "../../types";
 
 /**
  * Shared test fixture that intercepts echo.sh requests, plus helper
@@ -24,7 +24,7 @@ export const test = base.extend<{}>({
 });
 
 export { expect };
-export { evaluateSubmissionXPath } from "../helpers";
+export { evaluateSubmissionXPath } from "../../helpers";
 
 export const RENDER_TIMEOUT = 15_000;
 

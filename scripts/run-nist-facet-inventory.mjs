@@ -6,13 +6,13 @@ import { spawnSync } from "node:child_process";
 
 function parseArgs(argv) {
   const args = {
-    sourceManifest: "tests/w3c/nist-simpletype-facets.manifest.json",
+    sourceManifest: "tests/xsd/nist/nist-simpletype-facets.manifest.json",
     engine: "saxonforms",
     jobs: 1,
     maxFamilies: 0,
     onlyFamilies: [],
-    outDir: "tests/w3c/.nist-shards",
-    reportJson: "tests/w3c/.nist-shards/inventory-report.json",
+    outDir: "tests/xsd/nist/.shards",
+    reportJson: "tests/xsd/nist/.shards/inventory-report.json",
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -36,7 +36,7 @@ function parseArgs(argv) {
 function printHelp() {
   console.log(`Usage: node scripts/run-nist-facet-inventory.mjs [options]
 Options:
-  --source-manifest <path>  Source manifest path (default: tests/w3c/nist-simpletype-facets.manifest.json)
+  --source-manifest <path>  Source manifest path (default: tests/xsd/nist/nist-simpletype-facets.manifest.json)
   --engine <name>           Harness engine (default: saxonforms)
   --jobs <n>                Harness jobs value (default: 1)
   --max-families <n>        Limit number of family shards to run

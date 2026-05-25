@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <chapter xmlns="http://docbook.org/ns/docbook" id="chapter-conformance">
     <title>Conformance</title>
-    <para>This chapter records conformance claims and known implementation-defined behavior. It is synchronized with the latest W3C test status (<literal>tests/w3c/STATUS.md</literal>) and regression gate outputs.</para>
+    <para>This chapter records conformance claims and known implementation-defined behavior. It is synchronized with the latest W3C test status (<literal>tests/xforms/w3c/STATUS.md</literal>) and regression gate outputs.</para>
 
     <section id="chapter-conformance-summary">
         <title>Test suite coverage summary</title>
@@ -67,7 +67,7 @@
 
     <section id="chapter-conformance-known-gaps">
         <title>Known gap clusters</title>
-        <para>The following gap categories are tracked in <literal>tests/w3c/STATUS.md</literal> with root cause analysis:</para>
+        <para>The following gap categories are tracked in <literal>tests/xforms/w3c/STATUS.md</literal> with root cause analysis:</para>
         <itemizedlist>
             <listitem><para><emphasis>Unimplemented XForms functions</emphasis> (35 test failures) — Functions referenced in the spec but previously unimplemented. Many have been resolved in the fork (property, boolean-from-string, avg, etc.); remaining gaps include <literal>current()</literal> in repeat context (issue #20).</para></listitem>
             <listitem><para><emphasis>Insert/delete action semantics</emphasis> (13 tests) — Root causes include model-level <literal>xforms-ready</literal> handler unreliability, multi-instance <literal>@context</literal> resolution, <literal>@bind/@model</literal> crash, <literal>@at</literal> position evaluation, and post-delete index tracking.</para></listitem>
@@ -105,7 +105,7 @@
     <section id="chapter-conformance-checkpoint">
         <title>Checkpoint validation focus</title>
         <itemizedlist>
-            <listitem><para>Use <literal>tests/w3c/STATUS.md</literal> as the source of truth for known gaps/resolutions.</para></listitem>
+            <listitem><para>Use <literal>tests/xforms/w3c/STATUS.md</literal> as the source of truth for known gaps/resolutions.</para></listitem>
             <listitem><para>Verify pass-rate table matches latest <literal>npm run test:gate</literal> output.</para></listitem>
             <listitem><para>Verify no new W3C regressions in regression-gate evidence before chapter approval.</para></listitem>
             <listitem><para>Review and justify any non-W3C waivers explicitly.</para></listitem>

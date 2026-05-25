@@ -77,7 +77,7 @@ Saxon-Forms support maturity is tracked by conformance behavior and implementati
 - In progress: features tracked as active gaps in conformance status.
 
 For current details:
-- `tests/w3c/STATUS.md` for live gap and resolution tracking
+- `tests/xforms/w3c/STATUS.md` for live gap and resolution tracking
 - `IMPLEMENTATION.md` for implementation coverage narrative
 
 If you are evaluating feature readiness for production, use those files as the source of truth.

@@ -85,7 +85,7 @@
     <section id="chapter-data-types-and-mips-checkpoint">
         <title>Checkpoint validation focus</title>
         <itemizedlist>
-            <listitem><para>Targeted W3C coverage: <literal>tests/w3c/ch05.spec.ts</literal> (15 tests, 73% pass) and <literal>tests/w3c/ch06.spec.ts</literal> (11 tests, 82% pass).</para></listitem>
+            <listitem><para>Targeted W3C coverage: <literal>tests/xforms/w3c/ch05.spec.ts</literal> (15 tests, 73% pass) and <literal>tests/xforms/w3c/ch06.spec.ts</literal> (11 tests, 82% pass).</para></listitem>
             <listitem><para>Cross-check chapter behavior statements against known resolved/gap entries: readonly enforcement (6.1.2.a/b), type coercion (6.1.5.a, 6.1.4.b), constraint events (6.1.6.a).</para></listitem>
             <listitem><para>Verify schema type validation limitation is accurately described per STATUS.md.</para></listitem>
             <listitem><para>Run full regression (<literal>npm run test:gate</literal>) before chapter sign-off.</para></listitem>

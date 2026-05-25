@@ -62,8 +62,8 @@
     <section id="chapter-processing-model-checkpoint">
         <title>Checkpoint validation focus</title>
         <itemizedlist>
-            <listitem><para>Targeted W3C coverage: <literal>tests/w3c/ch04.spec.ts</literal>.</para></listitem>
-            <listitem><para>Sequence trace checkpoints must map each message to concrete runtime hooks and ordered <literal>[SEQTRACE]</literal> template chains in <literal>tests/w3c/sequence-trace.spec.ts</literal>.</para></listitem>
+            <listitem><para>Targeted W3C coverage: <literal>tests/xforms/w3c/ch04.spec.ts</literal>.</para></listitem>
+            <listitem><para>Sequence trace checkpoints must map each message to concrete runtime hooks and ordered <literal>[SEQTRACE]</literal> template chains in <literal>tests/xforms/w3c/sequence-trace.spec.ts</literal>.</para></listitem>
             <listitem><para>Verify deferred update cycle description against non-incremental select fix (4.6.3.a/b/c).</para></listitem>
             <listitem><para>Regression command for final acceptance: <literal>npm run test:gate</literal>.</para></listitem>
         </itemizedlist>

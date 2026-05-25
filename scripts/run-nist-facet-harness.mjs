@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 
 function parseArgs(argv) {
   const args = {
-    manifest: "tests/w3c/nist-simpletype-facets.manifest.json",
+    manifest: "tests/xsd/nist/nist-simpletype-facets.manifest.json",
     validatorCmd: 'xmllint --noout --schema "{schema}" "{instance}"',
     schemaValidatorCmd: "",
     engine: "saxonforms",
