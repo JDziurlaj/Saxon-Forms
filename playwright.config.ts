@@ -4,6 +4,35 @@ const playwrightPort = Number(process.env.PLAYWRIGHT_TEST_PORT || 5174);
 const baseURL =
   process.env.PLAYWRIGHT_BASE_URL || `http://${playwrightHost}:${playwrightPort}`;
 const includeDiagnostics = process.env.PLAYWRIGHT_INCLUDE_DIAGNOSTICS === "1";
+const browserModeRaw = (process.env.PLAYWRIGHT_BROWSER_MODE || "chrome").trim().toLowerCase();
+
+function resolveProjects(browserMode: string) {
+  const normalizedBrowserMode = browserMode === "chromium" ? "chrome" : browserMode;
+  const chromeProject = {
+    name: "chrome",
+    use: { ...devices["Desktop Chrome"] },
+  };
+  const firefoxProject = {
+    name: "firefox",
+    use: { ...devices["Desktop Firefox"] },
+  };
+
+  if (normalizedBrowserMode === "chrome") {
+    return [chromeProject];
+  }
+  if (normalizedBrowserMode === "firefox") {
+    return [firefoxProject];
+  }
+  if (normalizedBrowserMode === "both") {
+    return [chromeProject, firefoxProject];
+  }
+
+  throw new Error(
+    `Unsupported PLAYWRIGHT_BROWSER_MODE '${browserMode}'. Expected one of: chrome, firefox, both.`
+  );
+}
+
+const projects = resolveProjects(browserModeRaw);
 
 export default defineConfig({
   testDir: "./tests",
@@ -23,12 +52,7 @@ export default defineConfig({
       args: ["--disable-web-security"],
     },
   },
-  projects: [
-    {
-      name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
-    },
-  ],
+  projects,
   webServer: {
     command: `npx http-server test-app -p ${playwrightPort} -c-1`,
     url: baseURL,

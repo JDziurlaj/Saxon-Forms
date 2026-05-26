@@ -44,9 +44,6 @@ DocBook commands require:
 
 These requirements are intentional and not committed to git.
 
-### NIST facet harness (`xmllint` engine mode)
-- `scripts/run-nist-facet-harness.mjs` supports an `xmllint` validation engine mode.
-- Install `xmllint` only if you plan to run that mode.
 
 ## Setup commands and profiles
 ### Primary commands
@@ -58,10 +55,10 @@ These requirements are intentional and not committed to git.
   Canonical Docker-based setup validation.
 
 ### Setup profiles
-- `npm run setup:core` — dependencies + SEF build
-- `npm run setup:conformance` — Playwright browsers + W3C suite prep + SEF readiness
-- `npm run setup:docs` — DocBook prerequisite checks
-- `npm run setup:nist` — fetch + validate in-repo `xsdtests` dataset
+- `npm run setup -- --profile core` — dependencies + SEF build
+- `npm run setup -- --profile conformance` — Playwright browsers + W3C suite prep + SEF readiness
+- `npm run setup -- --profile docs` — DocBook prerequisite checks
+- `npm run setup -- --profile nist` — fetch + validate in-repo `xsdtests` dataset
 
 ## Non-repo datasets required for some tests
 ### W3C XForms 1.1 test suite
@@ -78,7 +75,7 @@ NIST-related manifests reference:
 
 Fetch the dataset with:
 - `npm run fetch:nist`
-- `npm run fetch:nist:force` (refresh existing copy)
+- `npm run fetch:nist -- --force` (refresh existing copy)
 
 This mirrors the W3C asset model by placing downloaded test assets under `public-test/` inside this repository (ignored in git).
 
@@ -86,8 +83,8 @@ This mirrors the W3C asset model by placing downloaded test assets under `public
 1. `npm run setup`
 2. `npm run doctor`
 3. `npm run verify:setup`
-4. Install Ant + `ant4docbook-0.10.0/` and run `npm run setup:docs` (if running DocBook build commands)
-5. Run `npm run fetch:nist` and `npm run setup:nist` (if running NIST facet workflows)
+4. Install Ant + `ant4docbook-0.10.0/` and run `npm run setup -- --profile docs` (if running DocBook build commands)
+5. Run `npm run fetch:nist` and `npm run setup -- --profile nist` (if running NIST facet workflows)
 
 ## Repository hygiene note
 `package-lock.json` currently contains an extraneous local path entry (`../rabet-v-oscal-ui/frontend`).  

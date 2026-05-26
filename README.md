@@ -52,6 +52,16 @@ Then open `http://127.0.0.1:5174/` and start with:
 ```bash
 npm run test:e2e
 ```
+Run with a specific browser mode:
+```bash
+npm run test:e2e:chrome
+npm run test:e2e:firefox
+npm run test:e2e:both
+```
+Or pass the harness flag directly:
+```bash
+npm run test:e2e -- --browser=firefox
+```
 
 To run tests interactively:
 ```bash
@@ -64,6 +74,9 @@ npm run test:e2e:ui
 - Compile stylesheet-driven examples on demand: `npm run examples:compile`
 - Fetch W3C suite: `npm run fetch:w3c`
 - Fetch NIST xsdtests dataset: `npm run fetch:nist`
+- Run e2e in Chrome only: `npm run test:e2e:chrome`
+- Run e2e in Firefox only: `npm run test:e2e:firefox`
+- Run e2e in both browsers: `npm run test:e2e:both`
 - Run full e2e flow (prepare + build + test): `npm run test:e2e:full`
 - Run xsd helper tests: `npm run test:xsd-helpers`
 - Run diagnostics tests: `npm run test:e2e:diagnostics`
@@ -103,8 +116,8 @@ Prerequisite for DocBook builds:
 - Build DocBook HTML + PDF using the local `ant4docbook-0.10.0` distribution:
   - `npm run docs:docbook:build`
 - Build only one output format:
-  - `npm run docs:docbook:build:html`
-  - `npm run docs:docbook:build:pdf`
+  - `npm run docs:docbook:build -- --format=html`
+  - `npm run docs:docbook:build -- --format=pdf`
 - List checkpoint definitions and targeted chapter test commands:
   - `npm run docs:docbook:checkpoints`
 

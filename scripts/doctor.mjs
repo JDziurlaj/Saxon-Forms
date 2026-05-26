@@ -176,7 +176,7 @@ async function main() {
       "fail",
       "W3C suite test-app link",
       "test-app/w3c-suite is missing.",
-      "Run `npm run setup:conformance` (or `npm run predev`)."
+      "Run `npm run setup -- --profile conformance` (or `npm run predev`)."
     );
   }
 

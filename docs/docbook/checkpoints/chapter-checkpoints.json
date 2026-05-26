@@ -46,7 +46,7 @@
       ],
       "validation": {
         "docbook_command": "npm run docs:docbook:validate",
-        "targeted_test_command": "npm run test:e2e:static -- tests/xforms/w3c/ch04.spec.ts tests/xforms/w3c/sequence-trace.spec.ts",
+        "targeted_test_command": "npm run test:e2e -- tests/xforms/w3c/ch04.spec.ts tests/xforms/w3c/sequence-trace.spec.ts",
         "full_regression_command": "npm run test:gate"
       },
       "review_prompts": [
@@ -65,7 +65,7 @@
       "sequence_diagrams": [],
       "validation": {
         "docbook_command": "npm run docs:docbook:validate",
-        "targeted_test_command": "npm run test:e2e:static -- tests/xforms/w3c/ch05.spec.ts tests/xforms/w3c/ch06.spec.ts",
+        "targeted_test_command": "npm run test:e2e -- tests/xforms/w3c/ch05.spec.ts tests/xforms/w3c/ch06.spec.ts",
         "full_regression_command": "npm run test:gate"
       },
       "review_prompts": [
@@ -85,7 +85,7 @@
       "sequence_diagrams": [],
       "validation": {
         "docbook_command": "npm run docs:docbook:validate",
-        "targeted_test_command": "npm run test:e2e:static -- tests/xforms/w3c/ch07.spec.ts tests/xforms/w3c/ch08.spec.ts tests/xforms/w3c/ch09.spec.ts",
+        "targeted_test_command": "npm run test:e2e -- tests/xforms/w3c/ch07.spec.ts tests/xforms/w3c/ch08.spec.ts tests/xforms/w3c/ch09.spec.ts",
         "full_regression_command": "npm run test:gate"
       },
       "review_prompts": [
@@ -107,7 +107,7 @@
       ],
       "validation": {
         "docbook_command": "npm run docs:docbook:validate",
-        "targeted_test_command": "npm run test:e2e:static -- tests/xforms/w3c/ch10.spec.ts tests/xforms/w3c/ch11.spec.ts tests/xforms/w3c/sequence-trace.spec.ts",
+        "targeted_test_command": "npm run test:e2e -- tests/xforms/w3c/ch10.spec.ts tests/xforms/w3c/ch11.spec.ts tests/xforms/w3c/sequence-trace.spec.ts",
         "full_regression_command": "npm run test:gate"
       },
       "review_prompts": [
