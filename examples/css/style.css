@@ -42,6 +42,46 @@ span.selected {
     padding: 0.5em;
 }
 
+/* XForms validation feedback */
+.xforms-input.xforms-invalid input,
+.xforms-select.xforms-invalid select,
+.xforms-textarea.xforms-invalid textarea,
+input.xforms-invalid,
+select.xforms-invalid,
+textarea.xforms-invalid {
+    border: 2px solid #96433D;
+    background-color: #fff2f2;
+}
+
+.xforms-input.xforms-invalid::after,
+.xforms-select.xforms-invalid::after,
+.xforms-textarea.xforms-invalid::after {
+    content: "Invalid value. Check the hint.";
+    display: block;
+    margin-top: 0.2em;
+    font-size: 8pt;
+    font-weight: bold;
+    color: #96433D;
+}
+
+.xforms-input.xforms-valid input,
+.xforms-select.xforms-valid select,
+.xforms-textarea.xforms-valid textarea,
+input.xforms-valid,
+select.xforms-valid,
+textarea.xforms-valid {
+    border: 2px solid #2e7d32;
+    background-color: #f1fff1;
+}
+
+.xforms-input.xforms-required label::after,
+.xforms-select.xforms-required label::after,
+.xforms-textarea.xforms-required label::after {
+    content: " *";
+    color: #96433D;
+    font-weight: bold;
+}
+
 /* 
 Text blue: #3D5B96
 Dark blue: #c1cede
