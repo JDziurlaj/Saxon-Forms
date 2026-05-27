@@ -50,6 +50,8 @@ If your change affects documentation, also run:
 
 ```bash
 npm run docs:docbook:build
+npm run site:build
+npm run site:validate
 ```
 
 ## Working with W3C tests
@@ -87,6 +89,7 @@ Update docs whenever behavior changes:
 - User-facing workflows: `README.md`
 - Implementation details: `docs/docbook/`
 - Conformance gap status: `tests/xforms/w3c/STATUS.md`
+- Published docs/examples site assembly: `npm run site:build` output in `builds/site/`
 
 ## Pull request expectations
 A pull request should clearly describe:

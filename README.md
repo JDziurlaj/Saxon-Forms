@@ -100,7 +100,7 @@ Saxon-Forms support maturity is tracked by conformance behavior and implementati
 
 For current details:
 - `tests/xforms/w3c/STATUS.md` for live gap and resolution tracking
-- `IMPLEMENTATION.md` for implementation coverage narrative
+- `docs/docbook/` for implementation architecture and behavior mapping
 
 If you are evaluating feature readiness for production, use those files as the source of truth.
 
@@ -122,6 +122,24 @@ Prerequisite for DocBook builds:
   - `npm run docs:docbook:checkpoints`
 
 Generated DocBook outputs are written to `builds/docs-docbook/`.
+
+## GitHub Pages documentation site (CI/CD)
+
+The repository supports an assembled static docs site artifact under `builds/site/`.
+This includes:
+- Curated markdown docs (allowlisted)
+- DocBook implementation guide HTML output
+- Published `examples/` pages and required runtime assets
+
+Build and validate locally:
+- `npm run site:build`
+- `npm run site:validate`
+
+The CI workflow `.github/workflows/pages-docs.yml` builds and validates this artifact on pull requests, and deploys to GitHub Pages on pushes to the default branch.
+
+Note on examples in static hosting:
+- Most examples render normally on Pages.
+- Endpoint-backed submission demos (paths such as `/api/test`, `/api/echo`, `/api/book-submit`) require the local examples server for full behavior (`npm run examples`).
 
 ## Cryptographic Functions (Optional)
 
