@@ -4,22 +4,22 @@ skinparam componentStyle rectangle
 skinparam packageStyle rectangle
 
 package "XForms Controls\n(saxon-xforms.xsl)" {
-  [xforms:input\nget-html mode (L2493)] as XF_INPUT
-  [xforms:output\nget-html mode (L2271)] as XF_OUTPUT
-  [xforms:textarea\nget-html mode (L2806)] as XF_TEXTAREA
-  [xforms:select\nget-html mode (L2906)] as XF_SELECT
-  [xforms:select1\nget-html mode (L2906)] as XF_SELECT1
-  [xforms:range\nget-html mode (L2696)] as XF_RANGE
-  [xforms:upload\nget-html mode (L2442)] as XF_UPLOAD
-  [xforms:trigger\nget-html mode (L3743)] as XF_TRIGGER
-  [xforms:submit\n(L3574)] as XF_SUBMIT
+  [xforms:input\nget-html mode] as XF_INPUT
+  [xforms:output\nget-html mode] as XF_OUTPUT
+  [xforms:textarea\nget-html mode] as XF_TEXTAREA
+  [xforms:select\nget-html mode] as XF_SELECT
+  [xforms:select1\nget-html mode] as XF_SELECT1
+  [xforms:range\nget-html mode] as XF_RANGE
+  [xforms:upload\nget-html mode] as XF_UPLOAD
+  [xforms:trigger\nget-html mode] as XF_TRIGGER
+  [xforms:submit\ntemplate] as XF_SUBMIT
 }
 
 package "Container Controls" {
-  [xforms:group\nget-html mode (L3369)] as XF_GROUP
-  [xforms:repeat\n(L3430)] as XF_REPEAT
-  [xforms:switch\n(L3269)] as XF_SWITCH
-  [xforms:case\nget-html mode (L3314)] as XF_CASE
+  [xforms:group\nget-html mode] as XF_GROUP
+  [xforms:repeat\ntemplate] as XF_REPEAT
+  [xforms:switch\ntemplate] as XF_SWITCH
+  [xforms:case\nget-html mode] as XF_CASE
 }
 
 package "HTML Output Elements" {
@@ -38,10 +38,10 @@ package "HTML Output Elements" {
 }
 
 package "DOM Event Handlers\n(ixsl:on* mode templates)" {
-  [ixsl:onchange\n(L485, L493, L511)] as EV_CHANGE
-  [ixsl:onclick\n(L525, L3727)] as EV_CLICK
-  [ixsl:onkeyup\n(L445)] as EV_KEYUP
-  [ixsl:oninput\n(L455)] as EV_INPUT
+  [ixsl:onchange\n(saxon-xforms.xsl)] as EV_CHANGE
+  [ixsl:onclick\n(saxon-xforms.xsl)] as EV_CLICK
+  [ixsl:onkeyup\n(saxon-xforms.xsl)] as EV_KEYUP
+  [ixsl:oninput\n(saxon-xforms.xsl)] as EV_INPUT
 }
 
 XF_INPUT --> H_INPUT

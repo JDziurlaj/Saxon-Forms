@@ -24,6 +24,39 @@ function parseArgs(argv) {
   return config;
 }
 
+const citationLintRules = [
+  {
+    description: "L-number line citation",
+    pattern: /\bL\d{2,}(?:[–-]\d{2,})?\b/g
+  },
+  {
+    description: "file:line citation",
+    pattern: /\b[\w./-]+\.xsl:\d+\b/g
+  }
+];
+
+async function validateCitationStability(errors) {
+  const sourceFiles = await collectFiles(docbookRoot, new Set([".xml", ".plantuml"]));
+
+  for (const sourceFilePath of sourceFiles) {
+    const source = await fs.readFile(sourceFilePath, "utf8");
+    const relativeSourcePath = toPosixPath(path.relative(repoRoot, sourceFilePath));
+
+    for (const rule of citationLintRules) {
+      const matches = source.match(rule.pattern) ?? [];
+      if (matches.length === 0) {
+        continue;
+      }
+      const uniqueMatches = [...new Set(matches)];
+      const sampleMatches = uniqueMatches.slice(0, 5).join(", ");
+      const moreSuffix = uniqueMatches.length > 5 ? ", ..." : "";
+      errors.push(
+        `Found ${rule.description} in ${relativeSourcePath}: ${sampleMatches}${moreSuffix}. Use symbol and file references instead.`
+      );
+    }
+  }
+}
+
 function printHelp() {
   console.log(
     [
@@ -225,6 +258,7 @@ async function main() {
   }
 
   await validateCheckpointMetadata(errors, warnings);
+  await validateCitationStability(errors);
 
   console.log(
     JSON.stringify(

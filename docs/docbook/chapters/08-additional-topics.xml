@@ -14,20 +14,20 @@
 
         <section id="chapter-additional-topics-property-resolution">
             <title>Property resolution (<literal>get-properties</literal> mode)</title>
-            <para>The <literal>get-properties</literal> mode template (<literal>L637</literal>) is the central binding resolution mechanism. It accepts any XForms element and returns a <literal>map(*)</literal> containing the resolved nodeset, instance context, matching bind, and context model. This template is called by every control rendering template and every action template that needs to resolve a data reference.</para>
+            <para>The <literal>get-properties</literal> mode template in <literal>src/saxon-xforms.xsl</literal> is the central binding resolution mechanism. It accepts any XForms element and returns a <literal>map(*)</literal> containing the resolved nodeset, instance context, matching bind, and context model. This template is called by every control rendering template and every action template that needs to resolve a data reference.</para>
         </section>
 
         <section id="chapter-additional-topics-context-instance">
             <title>Context instance resolution (<literal>get-context-instance-id</literal> mode)</title>
-            <para>The <literal>get-context-instance-id</literal> mode template (<literal>L561</literal>) determines which instance an XForms element refers to. It checks: (1) whether the element has a <literal>@bind</literal> that belongs to a specific model, (2) whether the element's nodeset expression references a specific instance via <literal>instance('id')</literal>, (3) whether the element's ancestor model has a default instance.</para>
+            <para>The <literal>get-context-instance-id</literal> mode template in <literal>src/saxon-xforms.xsl</literal> determines which instance an XForms element refers to. It checks: (1) whether the element has a <literal>@bind</literal> that belongs to a specific model, (2) whether the element's nodeset expression references a specific instance via <literal>instance('id')</literal>, (3) whether the element's ancestor model has a default instance.</para>
         </section>
 
         <section id="chapter-additional-topics-xpath-evaluation">
             <title>XPath evaluation functions</title>
             <para>Two primary functions handle XPath evaluation against instance data:</para>
             <itemizedlist>
-                <listitem><para><literal>xforms:evaluate-xpath-with-context-node()</literal> (<literal>L1448</literal>) — Evaluates an XPath expression with a given context node and namespace context. Used for binding resolution, calculate evaluation, and control value computation.</para></listitem>
-                <listitem><para><literal>xforms:evaluate-xpath-with-instance-id()</literal> (<literal>L1495</literal>) — Resolves the instance root element first, then delegates to the context-node variant.</para></listitem>
+                <listitem><para><literal>xforms:evaluate-xpath-with-context-node()</literal> in <literal>src/saxon-xforms.xsl</literal> — Evaluates an XPath expression with a given context node and namespace context. Used for binding resolution, calculate evaluation, and control value computation.</para></listitem>
+                <listitem><para><literal>xforms:evaluate-xpath-with-instance-id()</literal> in <literal>src/saxon-xforms.xsl</literal> — Resolves the instance root element first, then delegates to the context-node variant.</para></listitem>
             </itemizedlist>
         </section>
 
@@ -35,8 +35,8 @@
             <title>DOM field accessors</title>
             <para>The <literal>get-field</literal> and <literal>set-field</literal> mode templates provide a uniform interface for reading from and writing to HTML form controls:</para>
             <itemizedlist>
-                <listitem><para><literal>get-field</literal> — <literal>*:input</literal> (<literal>L3928</literal>), <literal>*:select</literal> (<literal>L3946</literal>), <literal>*:textarea</literal> (<literal>L3957</literal>), <literal>*[@data-xf-component]</literal> (web components).</para></listitem>
-                <listitem><para><literal>set-field</literal> — <literal>*:input</literal> (<literal>L3969</literal>), <literal>*:select</literal> (<literal>L3989</literal>), <literal>*:textarea</literal> (<literal>L4004</literal>), <literal>*[@data-xf-component]</literal> (web components).</para></listitem>
+                <listitem><para><literal>get-field</literal> — Specializations for <literal>*:input</literal>, <literal>*:select</literal>, <literal>*:textarea</literal>, and <literal>*[@data-xf-component]</literal> (web components) in <literal>src/saxon-xforms.xsl</literal>.</para></listitem>
+                <listitem><para><literal>set-field</literal> — Specializations for <literal>*:input</literal>, <literal>*:select</literal>, <literal>*:textarea</literal>, and <literal>*[@data-xf-component]</literal> (web components) in <literal>src/saxon-xforms.xsl</literal>.</para></listitem>
             </itemizedlist>
             <para>All accessors use the standard <literal>.value</literal> property, making them compatible with both native HTML controls and form-associated custom elements.</para>
         </section>
@@ -45,10 +45,10 @@
             <title>Refresh subsystem</title>
             <para>The refresh phase uses four named templates that update different categories of DOM elements:</para>
             <itemizedlist>
-                <listitem><para><literal>refreshOutputs-JS</literal> (<literal>L4345</literal>) — Re-evaluates and updates all registered <literal>xforms:output</literal> elements, and projects validation MIP classes (<literal>xforms-valid</literal>/<literal>xforms-invalid</literal>, <literal>xforms-required</literal>/<literal>xforms-optional</literal>) from the revalidate registry onto controls (including parent wrappers for <literal>input</literal>/<literal>select</literal>/<literal>textarea</literal>).</para></listitem>
-                <listitem><para><literal>refreshRepeats-JS</literal> (<literal>L4462</literal>) — Regenerates repeat item content when instance data changes.</para></listitem>
-                <listitem><para><literal>refreshRelevantFields-JS</literal> (<literal>L4550</literal>) — Shows/hides controls based on the <literal>relevant</literal> MIP.</para></listitem>
-                <listitem><para><literal>refreshElementsUsingIndexFunction-JS</literal> (<literal>L4629</literal>) — Updates elements whose values depend on <literal>index()</literal> function results.</para></listitem>
+                <listitem><para><literal>refreshOutputs-JS</literal> in <literal>src/saxon-xforms.xsl</literal> — Re-evaluates and updates all registered <literal>xforms:output</literal> elements, and projects validation MIP classes (<literal>xforms-valid</literal>/<literal>xforms-invalid</literal>, <literal>xforms-required</literal>/<literal>xforms-optional</literal>) from the revalidate registry onto controls (including parent wrappers for <literal>input</literal>/<literal>select</literal>/<literal>textarea</literal>).</para></listitem>
+                <listitem><para><literal>refreshRepeats-JS</literal> in <literal>src/saxon-xforms.xsl</literal> — Regenerates repeat item content when instance data changes.</para></listitem>
+                <listitem><para><literal>refreshRelevantFields-JS</literal> in <literal>src/saxon-xforms.xsl</literal> — Shows/hides controls based on the <literal>relevant</literal> MIP.</para></listitem>
+                <listitem><para><literal>refreshElementsUsingIndexFunction-JS</literal> in <literal>src/saxon-xforms.xsl</literal> — Updates elements whose values depend on <literal>index()</literal> function results.</para></listitem>
             </itemizedlist>
         </section>
     </section>
@@ -181,17 +181,17 @@
 
         <section id="chapter-additional-topics-a11y-keyboard">
             <title>Keyboard navigation</title>
-            <para>Since SaxonForms renders standard HTML <literal>&lt;input&gt;</literal>, <literal>&lt;select&gt;</literal>, <literal>&lt;textarea&gt;</literal>, and <literal>&lt;button&gt;</literal> elements, keyboard tab navigation works natively. The <literal>action-setfocus</literal> template (<literal>L7804</literal>) supports programmatic focus management, including suffixed-ID fallback and group→first-child focus delegation.</para>
+            <para>Since SaxonForms renders standard HTML <literal>&lt;input&gt;</literal>, <literal>&lt;select&gt;</literal>, <literal>&lt;textarea&gt;</literal>, and <literal>&lt;button&gt;</literal> elements, keyboard tab navigation works natively. The <literal>action-setfocus</literal> template in <literal>src/saxon-xforms.xsl</literal> supports programmatic focus management, including suffixed-ID fallback and group→first-child focus delegation.</para>
         </section>
 
         <section id="chapter-additional-topics-a11y-labels">
             <title>Labels and descriptions</title>
-            <para>The <literal>xforms:label</literal> template (<literal>L3054</literal>) renders labels associated with controls. <literal>xforms:hint</literal> (<literal>L2892</literal>) is matched but currently suppressed (empty template). The <literal>action-message</literal> template (<literal>L7631</literal>) handles <literal>xforms:message</literal> display via <literal>alert()</literal>, though model-level message dispatch has known issues (10.13.a, 8.2.2.a–c, 8.2.3.a–c).</para>
+            <para>The <literal>xforms:label</literal> template in <literal>src/saxon-xforms.xsl</literal> renders labels associated with controls. <literal>xforms:hint</literal> is matched but currently suppressed (empty template). The <literal>action-message</literal> template handles <literal>xforms:message</literal> display via <literal>alert()</literal>, though model-level message dispatch has known issues (10.13.a, 8.2.2.a–c, 8.2.3.a–c).</para>
         </section>
 
         <section id="chapter-additional-topics-a11y-css">
             <title>CSS class hooks for state</title>
-            <para>The <literal>getHtmlClass</literal> template (<literal>L4175</literal>) computes CSS classes for controls based on MIP state: <literal>xforms-readonly</literal>, <literal>xforms-required</literal>, <literal>xforms-valid</literal>/<literal>xforms-invalid</literal>, <literal>xforms-enabled</literal>/<literal>xforms-disabled</literal>. These classes enable CSS-based visual feedback without additional JavaScript.</para>
+            <para>The <literal>getHtmlClass</literal> template in <literal>src/saxon-xforms.xsl</literal> computes CSS classes for controls based on MIP state: <literal>xforms-readonly</literal>, <literal>xforms-required</literal>, <literal>xforms-valid</literal>/<literal>xforms-invalid</literal>, <literal>xforms-enabled</literal>/<literal>xforms-disabled</literal>. These classes enable CSS-based visual feedback without additional JavaScript.</para>
         </section>
     </section>
 
@@ -214,51 +214,51 @@
         <section id="chapter-api-lifecycle-templates">
             <title>Lifecycle templates (saxon-xforms.xsl)</title>
             <itemizedlist>
-                <listitem><para><literal>xformsjs-main</literal> (L154) — Entry point. Parses XForms source, builds submission map, initiates model construction.</para></listitem>
-                <listitem><para><literal>xforms-model-construct</literal> (L5205) — Initializes model instances and binds.</para></listitem>
-                <listitem><para><literal>xforms-rebuild</literal> (L5296) — Processes bind elements, resolves nodesets.</para></listitem>
-                <listitem><para><literal>xforms-recalculate</literal> (L5392) — Evaluates MIP expressions on all binds.</para></listitem>
-                <listitem><para><literal>xforms-revalidate</literal> (L5531) — Validates required fields, constraints, XSD types.</para></listitem>
-                <listitem><para><literal>xforms-refresh</literal> (L5622) — Updates DOM to reflect model state.</para></listitem>
+                <listitem><para><literal>xformsjs-main</literal> (template in <literal>src/saxon-xforms.xsl</literal>) — Entry point. Parses XForms source, builds submission map, initiates model construction.</para></listitem>
+                <listitem><para><literal>xforms-model-construct</literal> (template in <literal>src/saxon-xforms.xsl</literal>) — Initializes model instances and binds.</para></listitem>
+                <listitem><para><literal>xforms-rebuild</literal> (template in <literal>src/saxon-xforms.xsl</literal>) — Processes bind elements, resolves nodesets.</para></listitem>
+                <listitem><para><literal>xforms-recalculate</literal> (template in <literal>src/saxon-xforms.xsl</literal>) — Evaluates MIP expressions on all binds.</para></listitem>
+                <listitem><para><literal>xforms-revalidate</literal> (template in <literal>src/saxon-xforms.xsl</literal>) — Validates required fields, constraints, XSD types.</para></listitem>
+                <listitem><para><literal>xforms-refresh</literal> (template in <literal>src/saxon-xforms.xsl</literal>) — Updates DOM to reflect model state.</para></listitem>
             </itemizedlist>
         </section>
 
         <section id="chapter-api-action-templates">
             <title>Action templates (saxon-xforms.xsl)</title>
             <itemizedlist>
-                <listitem><para><literal>applyActions</literal> (L4666) — Main action dispatch entry point.</para></listitem>
-                <listitem><para><literal>action-setvalue</literal> (L6782), <literal>action-insert</literal> (L7152), <literal>action-delete</literal> (L7388), <literal>action-toggle</literal> (L8005), <literal>action-dispatch</literal> (L7530), <literal>action-message</literal> (L7631), <literal>action-send</literal> (L7825), <literal>action-setindex</literal> (L7845), <literal>action-setfocus</literal> (L7804), <literal>action-reset</literal> (L7948), <literal>action-recalculate</literal> (L7913), <literal>action-revalidate</literal>, <literal>action-refresh</literal> (L7927), <literal>action-script</literal> (L7741), <literal>action-load</literal> (L7764).</para></listitem>
+                <listitem><para><literal>applyActions</literal> (template in <literal>src/saxon-xforms.xsl</literal>) — Main action dispatch entry point.</para></listitem>
+                <listitem><para><literal>action-setvalue</literal>, <literal>action-insert</literal>, <literal>action-delete</literal>, <literal>action-toggle</literal>, <literal>action-dispatch</literal>, <literal>action-message</literal>, <literal>action-send</literal>, <literal>action-setindex</literal>, <literal>action-setfocus</literal>, <literal>action-reset</literal>, <literal>action-recalculate</literal>, <literal>action-revalidate</literal>, <literal>action-refresh</literal>, <literal>action-script</literal>, and <literal>action-load</literal> templates in <literal>src/saxon-xforms.xsl</literal>.</para></listitem>
             </itemizedlist>
         </section>
 
         <section id="chapter-api-function-library">
             <title>Function library (xforms-function-library.xsl)</title>
             <itemizedlist>
-                <listitem><para><literal>xforms:impose($xpath)</literal> (L24) — Rewrites XForms function calls to xforms: namespace.</para></listitem>
-                <listitem><para><literal>xforms:resolve-index($xpath)</literal> (L95) — Substitutes index() calls with current values.</para></listitem>
-                <listitem><para><literal>xforms:instance($id?)</literal> (L159/167) — Returns instance root element.</para></listitem>
-                <listitem><para><literal>xforms:index($repeatId)</literal> (L123) — Returns current repeat index.</para></listitem>
-                <listitem><para><literal>xforms:id($value, $node?)</literal> (L200/213) — XForms-compliant id() with xml:id and xsi:type support.</para></listitem>
-                <listitem><para><literal>xforms:min($seq)</literal> (L270), <literal>xforms:max($seq)</literal> (L288) — NaN-safe min/max.</para></listitem>
+                <listitem><para><literal>xforms:impose($xpath)</literal> in <literal>src/xforms-function-library.xsl</literal> — Rewrites XForms function calls to xforms: namespace.</para></listitem>
+                <listitem><para><literal>xforms:resolve-index($xpath)</literal> in <literal>src/xforms-function-library.xsl</literal> — Substitutes index() calls with current values.</para></listitem>
+                <listitem><para><literal>xforms:instance($id?)</literal> in <literal>src/xforms-function-library.xsl</literal> — Returns instance root element.</para></listitem>
+                <listitem><para><literal>xforms:index($repeatId)</literal> in <literal>src/xforms-function-library.xsl</literal> — Returns current repeat index.</para></listitem>
+                <listitem><para><literal>xforms:id($value, $node?)</literal> in <literal>src/xforms-function-library.xsl</literal> — XForms-compliant id() with xml:id and xsi:type support.</para></listitem>
+                <listitem><para><literal>xforms:min($seq)</literal> and <literal>xforms:max($seq)</literal> in <literal>src/xforms-function-library.xsl</literal> — NaN-safe min/max.</para></listitem>
             </itemizedlist>
         </section>
 
         <section id="chapter-api-xpath-functions">
             <title>XPath functions (xforms-xpath-functions.xsl)</title>
             <itemizedlist>
-                <listitem><para><literal>xforms:property($name)</literal> (L26) — Returns XForms property values (version, conformance-level).</para></listitem>
-                <listitem><para><literal>xforms:boolean-from-string($s)</literal> (L43), <literal>xforms:count-non-empty($seq)</literal> (L54), <literal>xforms:power($base, $exp)</literal> (L65), <literal>xforms:choose($cond, $t, $f)</literal> (L78).</para></listitem>
-                <listitem><para><literal>xforms:avg($seq)</literal> (L111), <literal>xforms:is-card-number($s)</literal> (L133), <literal>xforms:event($name)</literal> (L91).</para></listitem>
-                <listitem><para>Date/time: <literal>xforms:now()</literal> (L164), <literal>xforms:local-date()</literal> (L174), <literal>xforms:local-dateTime()</literal> (L184), <literal>xforms:days-from-date()</literal> (L195), <literal>xforms:days-to-date()</literal> (L223), <literal>xforms:seconds-from-dateTime()</literal> (L247), <literal>xforms:seconds-to-dateTime()</literal> (L276), <literal>xforms:seconds()</literal> (L302), <literal>xforms:months()</literal> (L332), <literal>xforms:adjust-dateTime-to-timezone()</literal> (L354/369).</para></listitem>
-                <listitem><para>Crypto: <literal>xforms:digest()</literal> (L382/390), <literal>xforms:hmac()</literal> (L405/414) — JS crypto.subtle bridge.</para></listitem>
+                <listitem><para><literal>xforms:property($name)</literal> in <literal>src/xforms-xpath-functions.xsl</literal> — Returns XForms property values (version, conformance-level).</para></listitem>
+                <listitem><para><literal>xforms:boolean-from-string($s)</literal>, <literal>xforms:count-non-empty($seq)</literal>, <literal>xforms:power($base, $exp)</literal>, and <literal>xforms:choose($cond, $t, $f)</literal> in <literal>src/xforms-xpath-functions.xsl</literal>.</para></listitem>
+                <listitem><para><literal>xforms:avg($seq)</literal>, <literal>xforms:is-card-number($s)</literal>, and <literal>xforms:event($name)</literal> in <literal>src/xforms-xpath-functions.xsl</literal>.</para></listitem>
+                <listitem><para>Date/time functions in <literal>src/xforms-xpath-functions.xsl</literal>: <literal>xforms:now()</literal>, <literal>xforms:local-date()</literal>, <literal>xforms:local-dateTime()</literal>, <literal>xforms:days-from-date()</literal>, <literal>xforms:days-to-date()</literal>, <literal>xforms:seconds-from-dateTime()</literal>, <literal>xforms:seconds-to-dateTime()</literal>, <literal>xforms:seconds()</literal>, <literal>xforms:months()</literal>, and <literal>xforms:adjust-dateTime-to-timezone()</literal>.</para></listitem>
+                <listitem><para>Crypto functions in <literal>src/xforms-xpath-functions.xsl</literal>: <literal>xforms:digest()</literal> and <literal>xforms:hmac()</literal> — JS crypto.subtle bridge.</para></listitem>
             </itemizedlist>
         </section>
 
         <section id="chapter-api-xsd-helpers">
             <title>XSD helpers (xsd-helpers.xsl)</title>
             <itemizedlist>
-                <listitem><para><literal>xsdh:canonical-type($type)</literal> (L16) — Normalizes XSD type QNames.</para></listitem>
-                <listitem><para><literal>xsdh:is-type-valid($value, $type)</literal> (L41) — Validates value against XSD type.</para></listitem>
+                <listitem><para><literal>xsdh:canonical-type($type)</literal> in <literal>src/xsd-helpers.xsl</literal> — Normalizes XSD type QNames.</para></listitem>
+                <listitem><para><literal>xsdh:is-type-valid($value, $type)</literal> in <literal>src/xsd-helpers.xsl</literal> — Validates value against XSD type.</para></listitem>
             </itemizedlist>
         </section>
     </section>
@@ -268,7 +268,7 @@
         <itemizedlist>
             <listitem><para>Validate consistency between chapter workflows and existing BPMN process definitions.</para></listitem>
             <listitem><para>Confirm accessibility guidance is backed by executable tests where available.</para></listitem>
-            <listitem><para>Verify API reference line numbers match current source.</para></listitem>
+            <listitem><para>Verify API reference symbol names and file paths match current source.</para></listitem>
             <listitem><para>Gather user review feedback before final full-document validation pass.</para></listitem>
         </itemizedlist>
     </section>

@@ -44,6 +44,12 @@ jobs:
           path: ant4docbook-0.10.0
           key: ant4docbook-0.10.0
 
+      - name: Cache ant4docbook runtime assets
+        uses: actions/cache@v4
+        with:
+          path: ~/.ant4docbook/V0.10.0
+          key: ant4docbook-runtime-v0.10.0-v1
+
       - name: Provision ant4docbook-0.10.0
         run: |
           if [ ! -f ant4docbook-0.10.0/ant4docbook-0.10.0.jar ]; then
@@ -53,6 +59,11 @@ jobs:
             tar -xzf /tmp/ant4docbook-0.10.0.tar.gz -C .
           fi
           test -f ant4docbook-0.10.0/ant4docbook-0.10.0.jar
+          if [ ! -f "$HOME/.ant4docbook/V0.10.0/css/jbossorg.css" ]; then
+            mkdir -p "$HOME/.ant4docbook/V0.10.0"
+            unzip -q -o ant4docbook-0.10.0/ant4docbook-0.10.0.jar -d "$HOME/.ant4docbook/V0.10.0"
+          fi
+          test -f "$HOME/.ant4docbook/V0.10.0/css/jbossorg.css"
 
       - name: Cache DocBook XSL snapshot
         uses: actions/cache@v4

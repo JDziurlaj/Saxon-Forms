@@ -13,6 +13,7 @@ const defaultAnt4DocbookHome = path.join(repoRoot, "ant4docbook-0.10.0");
 const defaultAnt4DocbookCacheHome = path.join(os.homedir(), ".ant4docbook");
 const DOCBOOK_XSL_VERSION = "docbook-xsl-2020-06-03";
 const DOCBOOK_XSL_SNAPSHOT = "docbook-xsl-snapshot";
+const ANT4DOCBOOK_RUNTIME_CACHE_VERSION = "V0.10.0";
 
 const TARGET_BY_FORMAT = {
   all: "docbook-all",
@@ -154,6 +155,33 @@ async function cloneDocbookTree(sourceRoot, destinationRoot) {
   }
 }
 
+
+async function runCommand(command, args, options = {}) {
+  const isWindows = process.platform === "win32";
+  const resolvedCommand = isWindows ? "cmd.exe" : command;
+  const resolvedArgs = isWindows ? ["/d", "/s", "/c", command, ...args] : args;
+  const cwd = options.cwd || repoRoot;
+  const stdio = options.stdio || "ignore";
+
+  await new Promise((resolve, reject) => {
+    const child = spawn(resolvedCommand, resolvedArgs, {
+      cwd,
+      stdio
+    });
+    child.on("error", reject);
+    child.on("exit", (code, signal) => {
+      if (signal) {
+        reject(new Error(`Command terminated by signal ${signal}: ${command} ${args.join(" ")}`));
+        return;
+      }
+      if ((code ?? 1) !== 0) {
+        reject(new Error(`Command failed (${code}): ${command} ${args.join(" ")}`));
+        return;
+      }
+      resolve();
+    });
+  });
+}
 async function ensureDocbookStylesheetCompatibility(config) {
   const cacheHome = config.ant4docbookCacheHome;
   const versionRoot = path.join(cacheHome, DOCBOOK_XSL_VERSION);
@@ -201,6 +229,34 @@ async function ensureDocbookStylesheetCompatibility(config) {
   if (!(await pathExists(nestedStylesheet))) {
     throw new Error(
       `DocBook stylesheet cache is present but incompatible at ${versionRoot}. Missing ${nestedStylesheet}.`
+    );
+  }
+}
+
+async function ensureAnt4DocbookRuntimeCache(config) {
+  const cacheHome = config.ant4docbookCacheHome;
+  const runtimeRoot = path.join(cacheHome, ANT4DOCBOOK_RUNTIME_CACHE_VERSION);
+  const runtimeStylesheet = path.join(runtimeRoot, "css", "jbossorg.css");
+  if (await pathExists(runtimeStylesheet)) {
+    return;
+  }
+
+  const ant4docbookJar = path.join(config.ant4docbookHome, "ant4docbook-0.10.0.jar");
+  if (!(await pathExists(ant4docbookJar))) {
+    return;
+  }
+
+  const jarExists = await commandExists("jar");
+  if (!jarExists) {
+    return;
+  }
+
+  await fs.mkdir(runtimeRoot, { recursive: true });
+  await runCommand("jar", ["xf", ant4docbookJar], { cwd: runtimeRoot });
+
+  if (!(await pathExists(runtimeStylesheet))) {
+    throw new Error(
+      `Failed to provision ant4docbook runtime cache at ${runtimeRoot}. Missing ${runtimeStylesheet}.`
     );
   }
 }
@@ -272,6 +328,7 @@ async function main() {
     );
   }
   await ensureDocbookStylesheetCompatibility(config);
+  await ensureAnt4DocbookRuntimeCache(config);
   await runAnt(config);
 }
 

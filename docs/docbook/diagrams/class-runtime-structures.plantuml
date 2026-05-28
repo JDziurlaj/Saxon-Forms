@@ -3,13 +3,13 @@ title Runtime structures (logical class model)
 skinparam classAttributeIconSize 0
 
 class XFormsEngine <<saxon-xforms.xsl>> {
-  +xformsjs-main() : template (L154)
-  +xforms-model-construct() : template (L5205)
-  +xforms-rebuild() : template (L5296)
-  +xforms-recalculate() : template (L5392)
-  +xforms-revalidate() : template (L5531)
-  +xforms-refresh() : template (L5622)
-  +applyActions() : template (L4666)
+  +xformsjs-main() : template
+  +xforms-model-construct() : template
+  +xforms-rebuild() : template
+  +xforms-recalculate() : template
+  +xforms-revalidate() : template
+  +xforms-refresh() : template
+  +applyActions() : template
 }
 
 class ModelState <<in-memory>> {
@@ -29,7 +29,7 @@ class ActionContext <<action-map>> {
   +bindRef : xs:string?
 }
 
-class SubmissionRequest <<HTTPsubmit (L1801)>> {
+class SubmissionRequest <<HTTPsubmit in src/saxon-xforms.xsl>> {
   +method : xs:string
   +resource : xs:string
   +headers : map(*)
@@ -38,7 +38,7 @@ class SubmissionRequest <<HTTPsubmit (L1801)>> {
   +replace : xs:string
 }
 
-class SubmissionResponse <<xforms-submit-done (L6545)>> {
+class SubmissionResponse <<xforms-submit-done in src/saxon-xforms.xsl>> {
   +status : xs:integer
   +headers : element()*
   +payload : document-node()?
@@ -74,9 +74,9 @@ class DomAdapter <<ixsl: extensions>> {
 }
 
 XFormsEngine *-- ModelState
-XFormsEngine --> ActionContext : builds via set-action (L847)
+XFormsEngine --> ActionContext : builds via set-action template
 XFormsEngine --> DomAdapter : refresh/event dispatch
-XFormsEngine --> SubmissionRequest : xforms-submit (L5729)
+XFormsEngine --> SubmissionRequest : xforms-submit template
 XFormsEngine --> FunctionLibrary : XPath evaluation
 XFormsEngine --> XPathFunctions : XPath evaluation
 SubmissionRequest --> SubmissionResponse
