@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -333,6 +334,7 @@ async function assembleSite({
   const docbookOutputPath = path.resolve(repoRoot, manifest.docbook.html_output);
   const docbookDiagramsRoot = path.join(repoRoot, "docs", "docbook", "diagrams");
   const bpmnRoot = path.join(repoRoot, "docs", "bpmn");
+  const ant4docbookCssRoot = path.join(os.homedir(), ".ant4docbook", "V0.10.0", "css");
   const examplesRoot = path.join(repoRoot, "examples");
   const saxonJsRoot = path.join(repoRoot, "Saxon-JS");
   const sefRoot = path.join(repoRoot, "sef");
@@ -361,8 +363,20 @@ async function assembleSite({
   await fs.cp(docbookDiagramsRoot, path.join(siteRoot, "docs", "docbook", "diagrams"), {
     recursive: true
   });
+  const docbookCssSiteRoot = path.join(siteRoot, "docs", "docbook", "css");
+  if (await pathExists(ant4docbookCssRoot)) {
+    await fs.cp(ant4docbookCssRoot, docbookCssSiteRoot, { recursive: true });
+  } else {
+    await fs.mkdir(docbookCssSiteRoot, { recursive: true });
+    await fs.writeFile(
+      path.join(docbookCssSiteRoot, "jbossorg.css"),
+      "/* Fallback stylesheet for static publishing when ant4docbook cache CSS is unavailable. */\n",
+      "utf8"
+    );
+  }
   if (await pathExists(bpmnRoot)) {
     await fs.cp(bpmnRoot, path.join(siteRoot, "docs", "bpmn"), { recursive: true });
+    await fs.cp(bpmnRoot, path.join(siteRoot, "bpmn"), { recursive: true });
   }
 
   await fs.cp(examplesRoot, path.join(siteRoot, "examples"), { recursive: true });

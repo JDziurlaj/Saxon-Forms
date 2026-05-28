@@ -52,16 +52,21 @@ jobs:
 
       - name: Provision ant4docbook-0.10.0
         run: |
+          set -euxo pipefail
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Checking ant4docbook distribution cache"
           if [ ! -f ant4docbook-0.10.0/ant4docbook-0.10.0.jar ]; then
+            echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Downloading ant4docbook-0.10.0"
             curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused \
               -L "https://sourceforge.net/projects/ant4docbook/files/ant4docbook-0.10.0.tar.gz/download" \
               -o /tmp/ant4docbook-0.10.0.tar.gz
+            echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Extracting ant4docbook-0.10.0"
             tar -xzf /tmp/ant4docbook-0.10.0.tar.gz -C .
           fi
           test -f ant4docbook-0.10.0/ant4docbook-0.10.0.jar
           if [ ! -f "$HOME/.ant4docbook/V0.10.0/css/jbossorg.css" ]; then
+            echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Provisioning runtime CSS assets"
             mkdir -p "$HOME/.ant4docbook/V0.10.0"
-            unzip -q -o ant4docbook-0.10.0/ant4docbook-0.10.0.jar -d "$HOME/.ant4docbook/V0.10.0"
+            unzip -o ant4docbook-0.10.0/ant4docbook-0.10.0.jar "css/*" -d "$HOME/.ant4docbook/V0.10.0"
           fi
           test -f "$HOME/.ant4docbook/V0.10.0/css/jbossorg.css"
 

@@ -252,7 +252,7 @@ async function ensureAnt4DocbookRuntimeCache(config) {
   }
 
   await fs.mkdir(runtimeRoot, { recursive: true });
-  await runCommand("jar", ["xf", ant4docbookJar], { cwd: runtimeRoot });
+  await runCommand("jar", ["xf", ant4docbookJar, "css/jbossorg.css"], { cwd: runtimeRoot });
 
   if (!(await pathExists(runtimeStylesheet))) {
     throw new Error(
