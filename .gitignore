@@ -3,3 +3,16 @@ Thumbs.db
 TestSuite/
 TestSuite-SF/
 xsltforms/
+node_modules/
+test-results/
+playwright-report/
+public-test/
+test-app/w3c-suite
+public-test/w3c-suite/
+runs/
+builds/
+examples/generated/*.sef.xml
+ant4docbook-0.10.0/
+apache-ant*/
+docs/docbook/_ant4dbk_book.jdom.fo
+docs/docbook/chapters/tmp*.xml

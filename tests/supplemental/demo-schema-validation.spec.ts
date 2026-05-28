@@ -1,0 +1,173 @@
+import { test, expect } from "@playwright/test";
+import { spawn, type ChildProcess } from "node:child_process";
+import { once } from "node:events";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoRoot = path.resolve(__dirname, "..", "..");
+const examplesHost = "127.0.0.1";
+const examplesPort = 5198;
+const renderTimeoutMs = 15_000;
+
+type RunningServer = {
+  baseUrl: string;
+  child: ChildProcess;
+  name: string;
+};
+
+function startExamplesServer(): RunningServer {
+  const child = spawn("node", ["examples/server.mjs"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      EXAMPLES_HOST: examplesHost,
+      EXAMPLES_PORT: String(examplesPort)
+    },
+    stdio: "pipe"
+  });
+
+  return {
+    baseUrl: `http://${examplesHost}:${examplesPort}`,
+    child,
+    name: "examples-server"
+  };
+}
+
+async function waitForServerReady(server: RunningServer, timeoutMs = 15_000): Promise<void> {
+  const startedAt = Date.now();
+  while ((Date.now() - startedAt) < timeoutMs) {
+    if (server.child.exitCode !== null) {
+      const errorOutput = server.child.stderr?.read?.()?.toString() ?? "";
+      throw new Error(`${server.name} exited before ready (code ${server.child.exitCode}). ${errorOutput}`);
+    }
+    try {
+      const response = await fetch(`${server.baseUrl}/index.html`);
+      if (response.ok) {
+        return;
+      }
+    } catch {
+      // wait and retry
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`Timed out waiting for ${server.name} at ${server.baseUrl}.`);
+}
+
+async function stopServer(server: RunningServer): Promise<void> {
+  if (!server || server.child.exitCode !== null) {
+    return;
+  }
+  server.child.kill("SIGTERM");
+  await Promise.race([
+    once(server.child, "exit"),
+    new Promise((resolve) => setTimeout(resolve, 2_000))
+  ]);
+  if (server.child.exitCode === null) {
+    server.child.kill("SIGKILL");
+  }
+}
+
+
+test.describe("Schema validation demo", () => {
+  test.describe.configure({ mode: "serial" });
+  let examplesServer: RunningServer;
+
+  test.beforeAll(async () => {
+    examplesServer = startExamplesServer();
+    await waitForServerReady(examplesServer);
+  });
+
+  test.afterAll(async () => {
+    await stopServer(examplesServer);
+  });
+
+  test("renders schema demo controls", async ({ page }) => {
+    await page.goto(`${examplesServer.baseUrl}/demo-schema-validation.html`);
+    await expect(page.locator("#xForm .xforms-input").first()).toBeVisible({ timeout: renderTimeoutMs });
+    await expect(page.locator("#xForm")).toContainText("Order ID:");
+    await expect(page.locator("#xForm")).toContainText("Delivery Window:");
+    await expect(page.locator("#xForm")).toContainText("Submit Purchase");
+  });
+
+  test("typed values persist after blur", async ({ page }) => {
+    await page.goto(`${examplesServer.baseUrl}/demo-schema-validation.html`);
+    await expect(page.locator("#xForm .xforms-input").first()).toBeVisible({ timeout: renderTimeoutMs });
+
+    const orderIdInput = page.getByRole("textbox", { name: "Pattern: AAA-1234" });
+    const emailInput = page.getByRole("textbox", { name: "Must look like a valid email address." });
+    const orderDateInput = page.getByRole("textbox", { name: "Type: xs:date" });
+    const quantityInput = page.getByRole("textbox", { name: "1 to 500" });
+    const unitPriceInput = page.getByRole("textbox", { name: "Decimal with exactly 2 fraction digits." });
+    const deliveryWindowInput = page.getByRole("textbox", { name: "Duration between PT12H and P7D (for example P2D)." });
+    const tagsInput = page.getByRole("textbox", { name: "Space-separated NMTOKENS, at least 2 values." });
+
+    await orderIdInput.fill("ABC-1234");
+    await page.locator("body").click();
+    await expect(orderIdInput).toHaveValue("ABC-1234");
+
+    await emailInput.fill("qa@example.org");
+    await page.locator("body").click();
+    await expect(emailInput).toHaveValue("qa@example.org");
+
+    await orderDateInput.fill("2026-05-21");
+    await page.locator("body").click();
+    await expect(orderDateInput).toHaveValue("2026-05-21");
+
+    await quantityInput.fill("42");
+    await page.locator("body").click();
+    await expect(quantityInput).toHaveValue("42");
+
+    await unitPriceInput.fill("12.34");
+    await page.locator("body").click();
+    await expect(unitPriceInput).toHaveValue("12.34");
+
+    await deliveryWindowInput.fill("P3D");
+    await page.locator("body").click();
+    await expect(deliveryWindowInput).toHaveValue("P3D");
+
+    await tagsInput.fill("priority wholesale");
+    await page.locator("body").click();
+    await expect(tagsInput).toHaveValue("priority wholesale");
+  });
+
+  test("orderId pattern facet marks invalid then valid", async ({ page }) => {
+    await page.goto(`${examplesServer.baseUrl}/demo-schema-validation.html`);
+    await expect(page.locator("#xForm .xforms-input").first()).toBeVisible({ timeout: renderTimeoutMs });
+
+    const orderIdInput = page.getByRole("textbox", { name: "Pattern: AAA-1234" });
+
+    await orderIdInput.fill("bad");
+    await page.locator("body").click();
+    await expect(orderIdInput).toHaveValue("bad");
+    await expect(orderIdInput).toHaveClass(/xforms-invalid/);
+
+    await orderIdInput.fill("ABC-1234");
+    await page.locator("body").click();
+    await expect(orderIdInput).toHaveValue("ABC-1234");
+    await expect(orderIdInput).toHaveClass(/xforms-valid/);
+  });
+
+  test("invalid orderId does not submit purchase request", async ({ page }) => {
+    const requests: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && request.url().includes("/api/purchase")) {
+        requests.push(request.url());
+      }
+    });
+
+    await page.goto(`${examplesServer.baseUrl}/demo-schema-validation.html`);
+    await expect(page.locator("#xForm .xforms-input").first()).toBeVisible({ timeout: renderTimeoutMs });
+
+    const orderIdInput = page.getByRole("textbox", { name: "Pattern: AAA-1234" });
+    await orderIdInput.fill("ORD-10241");
+    await page.locator("body").click();
+    await expect(orderIdInput).toHaveClass(/xforms-invalid/);
+
+    await page.getByRole("button", { name: "Submit Purchase" }).click();
+    await page.waitForTimeout(500);
+
+    expect(requests).toEqual([]);
+  });
+});

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<chapter xmlns="http://docbook.org/ns/docbook" id="chapter-xpath-and-controls" xmlns:xi="http://www.w3.org/2001/XInclude">
+    <title>XPath and Controls (XForms 1.1 Chapters 7, 8, and 9)</title>
+    <para>This chapter maps XForms XPath semantics to XPath 3.1 execution in SaxonForms and explains control rendering and interaction patterns for standard and custom controls.</para>
+
+    <section id="chapter-xpath-mapping">
+        <title>XPath expression mapping</title>
+        <para>SaxonForms translates XForms XPath expressions into XPath 3.1 at evaluation time through a function-rewriting pipeline. The central rewriting function is <literal>xforms:impose()</literal> in <literal>src/xforms-function-library.xsl</literal>, which rewrites XForms function calls to their <literal>xforms:</literal>-prefixed XSLT equivalents so SaxonJS can evaluate them natively.</para>
+
+        <section id="chapter-xpath-function-rewriting">
+            <title>Function rewriting (<literal>xforms:impose</literal>)</title>
+            <para>When a binding expression or calculate attribute is evaluated, <literal>xforms:impose()</literal> performs string-level substitution of XForms function names to their <literal>xforms:</literal> namespace counterparts. For example, <literal>instance('foo')</literal> is rewritten to <literal>xforms:instance('foo')</literal>, which resolves to the XSLT function <literal>xforms:instance()</literal> in <literal>src/xforms-function-library.xsl</literal>.</para>
+            <para>The <literal>xforms:resolve-index()</literal> function in <literal>src/xforms-function-library.xsl</literal> handles repeat index substitution: expressions containing <literal>index('repeatId')</literal> are replaced with the current integer index value before evaluation. This avoids runtime resolution issues where <literal>index()</literal> would need repeat context that is unavailable in a static XPath 3.1 call.</para>
+        </section>
+
+        <section id="chapter-xpath-context-resolution">
+            <title>Context resolution in repeat and action scopes</title>
+            <para>XPath evaluation is dispatched through <literal>xforms:evaluate-xpath-with-context-node()</literal> in <literal>src/saxon-xforms.xsl</literal>, which accepts the expression string, a context node from the bound instance, and the namespace context for prefix resolution. The related <literal>xforms:evaluate-xpath-with-instance-id()</literal> function resolves the instance element first.</para>
+            <para>Within repeats, context resolution relies on positional information. The <literal>xforms:resolveXPathStrings()</literal> function in <literal>src/saxon-xforms.xsl</literal> resolves relative paths against the current repeat context node. The <literal>position()</literal>/<literal>last()</literal> substitution (resolved status: 7.2.e) pre-computes positional values in bind calculate expressions before evaluation.</para>
+        </section>
+
+        <section id="chapter-xpath-function-library">
+            <title>XForms function library</title>
+            <para>Functions are split across two XSLT packages:</para>
+            <itemizedlist>
+                <listitem><para><literal>xforms-function-library.xsl</literal> (~300 lines): Core runtime functions — <literal>instance()</literal>, <literal>index()</literal>, <literal>id()</literal> (three overloads: <literal>fn:id</literal>, <literal>@xml:id</literal>, and <literal>xsi:type</literal> ID), <literal>min()</literal>/<literal>max()</literal> (NaN-safe wrappers), <literal>random()</literal>, <literal>context()</literal>, <literal>if()</literal>.</para></listitem>
+                <listitem><para><literal>xforms-xpath-functions.xsl</literal> (~420 lines): Specification-defined functions — <literal>property()</literal>, <literal>boolean-from-string()</literal>, <literal>count-non-empty()</literal>, <literal>power()</literal>, <literal>choose()</literal>, <literal>avg()</literal>, <literal>is-card-number()</literal> (Luhn algorithm), <literal>event()</literal>, date/time functions (<literal>now()</literal>, <literal>local-date()</literal>, <literal>local-dateTime()</literal>, <literal>days-from-date()</literal>, <literal>days-to-date()</literal>, <literal>seconds-from-dateTime()</literal>, <literal>seconds-to-dateTime()</literal>, <literal>seconds()</literal>, <literal>months()</literal>, <literal>adjust-dateTime-to-timezone()</literal>), and cryptographic stubs (<literal>digest()</literal>, <literal>hmac()</literal> — delegated to JS <literal>crypto.subtle</literal>).</para></listitem>
+            </itemizedlist>
+        </section>
+
+        <section id="chapter-xpath-edge-cases">
+            <title>Edge-case behavior</title>
+            <itemizedlist>
+                <listitem><para><literal>position()</literal>/<literal>last()</literal> in bind calculate — Pre-substituted with actual nodeset position and size before evaluation (resolved: 7.2.e).</para></listitem>
+                <listitem><para><literal>current()</literal> in repeat — Output <literal>@value</literal> starting with <literal>instance(...)</literal> no longer short-circuits <literal>$instanceField</literal> inside repeats (resolved: 7.10.2.b).</para></listitem>
+                <listitem><para><literal>id()</literal> routing — Added to function rewriting; supports <literal>fn:id</literal>, <literal>@xml:id</literal>, and both W3C <literal>xsi</literal> namespace URIs (resolved: 7.10.3.a/b/c).</para></listitem>
+                <listitem><para>Type coercion in calculate/relevant — Wrapped in try/catch to handle empty-string arithmetic crashes under XPath 3.1 strict typing (resolved: 6.1.5.a, 6.1.4.b).</para></listitem>
+                <listitem><para><literal>min()</literal>/<literal>max()</literal> negative tests — Return NaN instead of throwing XPath 3.1 type errors (resolved: 7.7.2.b, 7.7.3.b).</para></listitem>
+            </itemizedlist>
+        </section>
+    </section>
+
+    <section id="chapter-controls-mapping">
+        <title>Controls and rendering model</title>
+        <para>SaxonForms maps each XForms control element to an HTML element via <literal>get-html</literal> mode templates. The control rendering entry point is the control-match template in <literal>src/saxon-xforms.xsl</literal>, which processes all XForms control elements and delegates to <literal>get-html</literal> mode for HTML output generation.</para>
+        <para>The diagram below maps each XForms control to its HTML output element and the DOM event handlers that wire interactive behavior back into the action dispatch pipeline.</para>
+        <mediaobject>
+            <imageobject>
+                <imagedata fileref="../diagrams/controls-html-mapping.svg" format="SVG" width="100%" scalefit="1"/>
+            </imageobject>
+        </mediaobject>
+
+        <section id="chapter-controls-core">
+            <title>Core form controls</title>
+            <para>Each core control template resolves its data binding via the <literal>get-properties</literal> mode template in <literal>src/saxon-xforms.xsl</literal>, which returns a map containing the bound nodeset, instance context, and matching bind element. Key control templates:</para>
+            <itemizedlist>
+                <listitem><para><literal>xforms:input</literal> template in <literal>src/saxon-xforms.xsl</literal> — Renders <literal>&lt;input&gt;</literal> with type derived from XSD type (<literal>xs:date</literal> → <literal>type="date"</literal>, <literal>xs:boolean</literal> → <literal>type="checkbox"</literal>). Supports incremental mode via <literal>ixsl:onkeyup</literal> handlers.</para></listitem>
+                <listitem><para><literal>xforms:output</literal> template in <literal>src/saxon-xforms.xsl</literal> — Renders <literal>&lt;span&gt;</literal> with computed value. Supports <literal>@mediatype</literal> for image rendering and <literal>@value</literal> attribute for XPath expression evaluation.</para></listitem>
+                <listitem><para><literal>xforms:select</literal>/<literal>xforms:select1</literal> templates in <literal>src/saxon-xforms.xsl</literal> — Render <literal>&lt;select&gt;</literal> (multi/single). Handle <literal>xforms:item</literal>, <literal>xforms:choices</literal>, and <literal>xforms:itemset</literal> child elements. Non-incremental select uses blur/focusout handlers for deferred update.</para></listitem>
+                <listitem><para><literal>xforms:textarea</literal> template in <literal>src/saxon-xforms.xsl</literal> — Renders <literal>&lt;textarea&gt;</literal>.</para></listitem>
+                <listitem><para><literal>xforms:range</literal> template in <literal>src/saxon-xforms.xsl</literal> — Renders <literal>&lt;input type="range"&gt;</literal>. Incremental mode uses <literal>ixsl:oninput</literal> handlers.</para></listitem>
+                <listitem><para><literal>xforms:upload</literal> template in <literal>src/saxon-xforms.xsl</literal> — Renders <literal>&lt;input type="file"&gt;</literal>. File content is parsed via <literal>readFileAsXML()</literal> in <literal>xforms-javascript-library.xsl</literal> and inserted into the bound instance node.</para></listitem>
+                <listitem><para><literal>xforms:trigger</literal> template in <literal>src/saxon-xforms.xsl</literal> — Renders <literal>&lt;button&gt;</literal> or <literal>&lt;a&gt;</literal> with <literal>data-action</literal> attribute. Onclick dispatches <literal>DOMActivate</literal>.</para></listitem>
+                <listitem><para><literal>xforms:submit</literal> template in <literal>src/saxon-xforms.xsl</literal> — Renders <literal>&lt;button data-submit&gt;</literal>. Onclick triggers submission flow.</para></listitem>
+            </itemizedlist>
+        </section>
+
+        <section id="chapter-controls-container">
+            <title>Container controls</title>
+            <itemizedlist>
+                <listitem><para><literal>xforms:group</literal> template in <literal>src/saxon-xforms.xsl</literal> — Renders <literal>&lt;div class="xforms-group"&gt;</literal>. Supports <literal>@ref</literal> for scoped context and <literal>relevant</literal> hiding.</para></listitem>
+                <listitem><para><literal>xforms:repeat</literal> template in <literal>src/saxon-xforms.xsl</literal> — Renders iterable <literal>&lt;div data-repeatable-context&gt;</literal> with <literal>data-repeat-item</literal> children. Repeat index is tracked and updated on click events. Refresh is handled by <literal>refreshRepeats-JS</literal>.</para></listitem>
+                <listitem><para><literal>xforms:switch</literal>/<literal>xforms:case</literal> templates in <literal>src/saxon-xforms.xsl</literal> — Render <literal>&lt;div class="xforms-switch"&gt;</literal> with cases shown/hidden. The <literal>action-toggle</literal> template controls case visibility. Known issue: toggle inside repeat affects all iterations (9.3.1.f).</para></listitem>
+            </itemizedlist>
+        </section>
+
+        <section id="chapter-controls-custom">
+            <title>Custom controls and fork enhancements</title>
+            <para>The fork adds several controls and behaviors not present in upstream Saxon-Forms:</para>
+            <itemizedlist>
+                <listitem><para><literal>xf:script</literal> action (<literal>action-script</literal> template in <literal>src/saxon-xforms.xsl</literal>) — XForms 2.0 script execution via <literal>ixsl:call(window, 'eval', ...)</literal>.</para></listitem>
+                <listitem><para><literal>xf:load</literal> action (<literal>action-load</literal> template in <literal>src/saxon-xforms.xsl</literal>) — Supports <literal>show="new"</literal>, <literal>show="replace"</literal>, and <literal>javascript:</literal> URI scheme.</para></listitem>
+                <listitem><para>Namespace prefix propagation — XPaths can use prefixes declared on <literal>&lt;xf:xform&gt;</literal> (e.g., <literal>o:catalog</literal> instead of <literal>*:catalog</literal>). Implemented via <literal>addNamespaceDeclarationsToDocument()</literal> in <literal>src/saxon-xforms.xsl</literal>.</para></listitem>
+            </itemizedlist>
+        </section>
+    </section>
+
+    <section id="chapter-xpath-and-controls-checkpoint">
+        <title>Checkpoint validation focus</title>
+        <itemizedlist>
+            <listitem><para>Targeted W3C coverage: <literal>tests/xforms/w3c/ch07.spec.ts</literal> (XPath, 62 tests), <literal>tests/xforms/w3c/ch08.spec.ts</literal> (core controls, 59 tests), and <literal>tests/xforms/w3c/ch09.spec.ts</literal> (container controls, 21 tests).</para></listitem>
+            <listitem><para>Review toggle/repeat-specific behavior against known edge cases (9.3.1.b startindex, 9.3.1.f toggle scoping) before chapter approval.</para></listitem>
+            <listitem><para>Verify function library documentation remains aligned with current XSLT sources and the conformance gap inventory in <literal>tests/xforms/w3c/STATUS.md</literal>.</para></listitem>
+            <listitem><para>Run full regression (<literal>npm run test:gate</literal>) before checkpoint closure.</para></listitem>
+        </itemizedlist>
+    </section>
+</chapter>
