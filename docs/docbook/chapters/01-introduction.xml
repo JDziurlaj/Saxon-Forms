@@ -52,9 +52,9 @@
             <varlistentry><term>Bind</term><listitem><para>An <literal>xforms:bind</literal> element associating an XPath nodeset with model item properties (MIPs).</para></listitem></varlistentry>
             <varlistentry><term>MIP</term><listitem><para>Model Item Property — attributes on <literal>xforms:bind</literal> that control node behavior: <literal>readonly</literal>, <literal>relevant</literal>, <literal>required</literal>, <literal>constraint</literal>, <literal>calculate</literal>, <literal>type</literal>.</para></listitem></varlistentry>
             <varlistentry><term>Deferred update cycle</term><listitem><para>The sequence <literal>recalculate → revalidate → refresh</literal> that runs after user interactions or action execution.</para></listitem></varlistentry>
-            <varlistentry><term>Action map</term><listitem><para>An in-memory <literal>map(*)</literal> built by the <literal>set-action</literal> mode template (<literal>L847</literal>) that stores parsed action metadata for runtime dispatch.</para></listitem></varlistentry>
+            <varlistentry><term>Action map</term><listitem><para>An in-memory <literal>map(*)</literal> built by the <literal>set-action</literal> mode template in <literal>src/saxon-xforms.xsl</literal> that stores parsed action metadata for runtime dispatch.</para></listitem></varlistentry>
         </variablelist>
-        <para>Line number references (e.g., L154, L5205) refer to <literal>src/saxon-xforms.xsl</literal> unless a different file is specified.</para>
+        <para>Implementation hook references in this guide use symbol names plus source files (for example, <literal>xformsjs-main</literal> in <literal>src/saxon-xforms.xsl</literal>) unless a different file is specified.</para>
     </section>
 
     <section id="chapter-introduction-checkpoint">

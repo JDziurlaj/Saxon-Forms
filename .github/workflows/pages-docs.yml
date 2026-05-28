@@ -54,6 +54,42 @@ jobs:
           fi
           test -f ant4docbook-0.10.0/ant4docbook-0.10.0.jar
 
+      - name: Cache DocBook XSL snapshot
+        uses: actions/cache@v4
+        with:
+          path: ~/.ant4docbook/docbook-xsl-2020-06-03
+          key: docbook-xsl-2020-06-03-v1
+
+      - name: Provision DocBook XSL snapshot
+        run: |
+          CACHE_ROOT="$HOME/.ant4docbook"
+          VERSION_ROOT="$CACHE_ROOT/docbook-xsl-2020-06-03"
+          SNAPSHOT_ROOT="$CACHE_ROOT/docbook-xsl-snapshot"
+          NESTED_ROOT="$VERSION_ROOT/docbook-xsl-2020-06-03"
+
+          mkdir -p "$CACHE_ROOT"
+
+          if [ ! -f "$VERSION_ROOT/xhtml/docbook.xsl" ] && [ -f "$SNAPSHOT_ROOT/xhtml/docbook.xsl" ]; then
+            rm -rf "$VERSION_ROOT"
+            cp -R "$SNAPSHOT_ROOT" "$VERSION_ROOT"
+          fi
+
+          if [ ! -f "$VERSION_ROOT/xhtml/docbook.xsl" ]; then
+            curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused \
+              -L "https://github.com/docbook/xslt10-stylesheets/releases/download/snapshot%2F2020-06-03/docbook-xsl-snapshot.zip" \
+              -o /tmp/docbook-xsl-snapshot.zip
+            rm -rf "$VERSION_ROOT" "$SNAPSHOT_ROOT"
+            unzip -q /tmp/docbook-xsl-snapshot.zip -d "$CACHE_ROOT"
+            mv "$SNAPSHOT_ROOT" "$VERSION_ROOT"
+          fi
+
+          if [ ! -e "$NESTED_ROOT" ]; then
+            ln -s . "$NESTED_ROOT"
+          fi
+
+          test -f "$VERSION_ROOT/xhtml/docbook.xsl"
+          test -f "$NESTED_ROOT/xhtml/docbook.xsl"
+
       - name: Install dependencies
         run: npm ci
 

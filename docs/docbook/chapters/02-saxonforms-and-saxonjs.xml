@@ -23,8 +23,8 @@
 
         <section id="chapter-saxonforms-and-saxonjs-sef-pipeline">
             <title>SEF compilation and runtime loading</title>
-            <para>The XSLT source is compiled offline into a SEF file (<literal>builds/saxon-xforms.sef.xml</literal> or <literal>sef/saxon-xforms.sef.xml</literal>) using the <literal>xslt3</literal> command-line compiler from Saxonica. At runtime, a host HTML page loads SaxonJS and invokes <literal>SaxonJS.transform2()</literal> with the SEF location and the XForms document as input. This triggers the <literal>xformsjs-main</literal> named template (<literal>L154</literal>), which is the entry point for all SaxonForms processing.</para>
-            <para>The <literal>xformsjs-main</literal> template reads the page DOM via <literal>ixsl:page()</literal>, locates the XForms source document (either embedded or linked), resolves namespace declarations via <literal>addNamespaceDeclarationsToDocument()</literal> (<literal>L4069</literal>), extracts models and instances, builds the submission map, and initiates the model construction lifecycle.</para>
+            <para>The XSLT source is compiled offline into a SEF file (<literal>builds/saxon-xforms.sef.xml</literal> or <literal>sef/saxon-xforms.sef.xml</literal>) using the <literal>xslt3</literal> command-line compiler from Saxonica. At runtime, a host HTML page loads SaxonJS and invokes <literal>SaxonJS.transform2()</literal> with the SEF location and the XForms document as input. This triggers the <literal>xformsjs-main</literal> named template in <literal>src/saxon-xforms.xsl</literal>, which is the entry point for all SaxonForms processing.</para>
+            <para>The <literal>xformsjs-main</literal> template reads the page DOM via <literal>ixsl:page()</literal>, locates the XForms source document (either embedded or linked), resolves namespace declarations via <literal>addNamespaceDeclarationsToDocument()</literal> in <literal>src/saxon-xforms.xsl</literal>, extracts models and instances, builds the submission map, and initiates the model construction lifecycle.</para>
         </section>
     </section>
 
