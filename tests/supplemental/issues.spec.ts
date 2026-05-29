@@ -336,3 +336,17 @@ test.describe("Issue #31 — insert fallback on empty nodeset", () => {
     await expect(page.locator("#out-31-count")).toContainText("1");
   });
 });
+
+// =========================================================
+// #32 — current() inside string literals
+// Expected: literal "current()" text is preserved (not rewritten)
+// =========================================================
+test.describe("Issue #32 — current() literal handling", () => {
+  test("current() inside quotes remains literal text", async ({ page }) => {
+    await waitForIssuesForm(page);
+
+    const output = page.locator("#out-32-contains");
+    await expect(output).toBeVisible({ timeout: RENDER_TIMEOUT });
+    await expect(output).toContainText("true");
+  });
+});

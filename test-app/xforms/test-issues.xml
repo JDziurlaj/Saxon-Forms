@@ -293,6 +293,14 @@
       </span>
     </div>
 
+    <!-- ======== #32: current() inside string literal ======== -->
+    <div id="issue-32" class="issue-section">
+      <h3>#32: current() literal is not rewritten</h3>
+      <span id="out-32-contains" class="issue-output">
+        <xf:output value="contains('current()', '()')"/>
+      </span>
+    </div>
+
   </div>
 
 </xf:xform>

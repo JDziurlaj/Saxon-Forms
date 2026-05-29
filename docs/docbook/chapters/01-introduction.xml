@@ -1,24 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <chapter xmlns="http://docbook.org/ns/docbook" id="chapter-introduction" xmlns:xi="http://www.w3.org/2001/XInclude">
     <title>Introduction to SaxonForms</title>
-    <para>SaxonForms implements XForms behavior using Interactive XSLT 3.0 and SaxonJS. This guide maps the XForms 1.1 specification to concrete runtime structures in the repository so developers can understand behavior, locate implementation points, and validate conformance incrementally.</para>
+    <para>SaxonForms implements XForms behavior using Interactive XSLT 3.0 and SaxonJS. This guide
+        maps the XForms 1.1 specification to concrete runtime structures in the SaxonForms so
+        developers can understand behavior, locate implementation points, and validate conformance
+        incrementally.</para>
 
     <section id="chapter-introduction-overview">
         <title>Overview and scope</title>
         <para>SaxonForms is an implementation of XForms built with Interactive XSLT 3.0 and SaxonJS. It runs in the browser and is authored primarily in XSLT, using SaxonJS extension mechanisms for event handling and DOM updates.</para>
-        <para>The initial implementation is intentionally partial rather than full XForms 1.1 conformance. The project started from a practical need: rewriting Saxonica&apos;s internal license-management application so more processing could move into XSLT and into the browser, with less Java-specific application code.</para>
-        <para>A key design goal is integration with application logic. In the conference walkthrough, the form pipeline is combined with custom XSLT logic to parse incoming order text, populate instance data, apply business rules during edits, and handle submission responses in-application.</para>
-        <para>Historical context and implementation details are discussed in the presentation at <ulink url="https://www.youtube.com/watch?v=GWvl7EhsocI">https://www.youtube.com/watch?v=GWvl7EhsocI</ulink>. This guide uses that material as background and then maps SaxonForms behavior to implementation artifacts and the XForms specification.</para>
+        <para>The project started from a practical need: rewriting Saxonica&apos;s internal
+            license-management application so more processing could move into XSLT and into the
+            browser, with less Java-specific application code.</para>
+        <para>A key design goal is integration with application logic. For example, the form
+            pipeline can be combined with custom XSLT logic to parse incoming order text, populate
+            instance data, apply business rules during edits, and handle submission responses
+            in-application.</para>
+        <para>Historical context and implementation details are discussed in the presentation at
+                <ulink url="https://www.youtube.com/watch?v=GWvl7EhsocI"
+                >https://www.youtube.com/watch?v=GWvl7EhsocI</ulink>. </para>
 
         <section id="chapter-introduction-scope">
             <title>Guide structure</title>
             <para>The guide follows the XForms 1.1 specification structure, while focusing on how SaxonForms currently implements those features:</para>
             <itemizedlist>
                 <listitem><para><emphasis>SaxonForms and SaxonJS</emphasis> — Runtime boundaries and Interactive XSLT integration points.</para></listitem>
-                <listitem><para><emphasis>Processing Model</emphasis> (XForms Ch. 4) — Initialization, event flow, and update cycle behavior.</para></listitem>
-                <listitem><para><emphasis>Data Types and MIPs</emphasis> (XForms Ch. 5–6) — XSD support and model item property handling.</para></listitem>
-                <listitem><para><emphasis>XPath and Controls</emphasis> (XForms Ch. 7–9) — Expression handling and control-to-HTML rendering.</para></listitem>
-                <listitem><para><emphasis>Actions and Submission</emphasis> (XForms Ch. 10–11) — Action execution and HTTP submission mechanisms.</para></listitem>
+                <listitem><para><emphasis>Processing Model</emphasis> — Initialization, event flow, and update cycle
+                        behavior.</para></listitem>
+                <listitem><para><emphasis>Data Types and MIPs</emphasis>  — XSD support and model item property
+                        handling.</para></listitem>
+                <listitem><para><emphasis>XPath and Controls</emphasis> — Expression handling and control-to-HTML
+                        rendering.</para></listitem>
+                <listitem><para><emphasis>Actions and Submission</emphasis>  — Action execution and HTTP submission
+                        mechanisms.</para></listitem>
                 <listitem><para><emphasis>Conformance</emphasis> — Test coverage and implementation-defined behavior.</para></listitem>
                 <listitem><para><emphasis>Additional Topics</emphasis> — Reusable components, accessibility, BPMN workflows, XSLT API reference.</para></listitem>
             </itemizedlist>
@@ -32,13 +46,10 @@
             <listitem><para><emphasis>Form Author</emphasis> — Writes XForms markup using standard controls and XPath bindings. Relies on correct rendering and function evaluation.</para></listitem>
             <listitem><para><emphasis>Application Developer</emphasis> — Integrates SaxonForms into web applications, using actions (insert, delete, toggle, script, load), submission, and file upload.</para></listitem>
             <listitem><para><emphasis>End User</emphasis> — Interacts with rendered forms, triggering lifecycle events and control updates through the DOM event bridge.</para></listitem>
-            <listitem><para><emphasis>QA Engineer</emphasis> — Validates conformance using the W3C Playwright test suite (<literal>tests/xforms/w3c/ch02–ch11, appendix</literal>) and regression gate.</para></listitem>
+            <listitem><para><emphasis>QA Engineer</emphasis> — Validates conformance using the W3C Playwright test suite
+                        (<literal>e.g. tests/xforms/w3c/ch02–ch11, appendix</literal>) and
+                    regression gate.</para></listitem>
         </itemizedlist>
-        <mediaobject>
-            <imageobject>
-                <imagedata fileref="../diagrams/use-cases.svg" format="SVG" width="100%" scalefit="1"/>
-            </imageobject>
-        </mediaobject>
     </section>
 
     <section id="chapter-introduction-terminology">

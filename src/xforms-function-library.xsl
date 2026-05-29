@@ -76,12 +76,25 @@
             outermost context item (.), so that $__xf_current stays stable even
             inside predicates where . would change.
             See https://www.w3.org/TR/xforms11/#fn-current
+            TEST-TRACE: keep current() inside quoted string literals untouched; helps tests/supplemental/issues.spec.ts "Issue #32 — current() literal handling".
         -->
+        <xsl:variable name="input4-core" as="xs:string">
+            <xsl:variable name="parts2" as="xs:string*">
+                <xsl:analyze-string select="$input3" regex="'([^']|'')*'|&quot;([^&quot;]|&quot;&quot;)*&quot;">
+                    <xsl:matching-substring>
+                        <xsl:sequence select="."/>
+                    </xsl:matching-substring>
+                    <xsl:non-matching-substring>
+                        <xsl:sequence select="replace(., 'current\\s*\\(\\s*\\)', '\\$__xf_current')"/>
+                    </xsl:non-matching-substring>
+                </xsl:analyze-string>
+            </xsl:variable>
+            <xsl:sequence select="string-join($parts2)"/>
+        </xsl:variable>
         <xsl:variable name="input4" as="xs:string">
             <xsl:choose>
-                <xsl:when test="matches($input3, 'current\s*\(\s*\)')">
-                    <xsl:variable name="replaced" as="xs:string" select="replace($input3, 'current\s*\(\s*\)', '\$__xf_current')"/>
-                    <xsl:sequence select="'let $__xf_current := . return (' || $replaced || ')'" />
+                <xsl:when test="$input4-core ne $input3">
+                    <xsl:sequence select="'let $__xf_current := . return (' || $input4-core || ')' " />
                 </xsl:when>
                 <xsl:otherwise>
                     <xsl:sequence select="$input3"/>

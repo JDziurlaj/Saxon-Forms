@@ -116,54 +116,11 @@
             return models[name];
         }
         
-        
-        var setModelInstances = function(name, value) {
-            modelInstanceMap[name] = value;
-        } 
-        var setModelInstance = function(modelId, instanceId, value) {
-                    
-            if (modelId in modelInstanceMap) {
-                var modelInstances = modelInstanceMap[modelId];
-                modelInstances[instanceId] = value;
-            }
-            else {
-                instanceMap = {};
-                instanceMap[instanceId] = value;
-                modelInstanceMap[modelId] = instanceMap;
-            }
-        } 
-        
-        var setModelDefaultInstance = function(modelId, value) {
-            modelDefaultInstanceMap[modelId] = value;
-        }
-        
         var setModelDefaultInstanceKey = function(modelId, instanceId) {
             modelDefaultInstanceKeyMap[modelId] = [instanceId];
         }
         var getModelDefaultInstanceKey = function(modelId) {
             return modelDefaultInstanceKeyMap[modelId];
-        }
-        
-        var getModelInstances = function(modelId) {
-            return modelInstanceMap[modelId];
-        } 
-        var getModelInstance = function(modelId, instanceId) {
-            var modelInstances = modelInstanceMap[modelId];
-            return modelInstances[instanceId];
-        }
-                
-        var setModelInstanceKey = function(modelId, instanceId) {
-            if (modelId in modelInstanceKeyMap) {
-                var modelInstanceKeys = modelInstanceKeyMap[modelId];
-                modelInstanceKeys.push(instanceId);
-            }
-            else {
-                modelInstanceKeyMap[modelId] = [instanceId];
-            }
-        }
-                
-        var getModelInstanceKeys = function(modelId) {
-            return modelInstanceKeyMap[modelId];
         }
                 
         var setBinding = function(value) {

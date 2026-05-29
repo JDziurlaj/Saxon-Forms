@@ -21,8 +21,9 @@
     xmlns:array="http://www.w3.org/2005/xpath-functions/array"
     xmlns:saxon="http://saxon.sf.net/"
     xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:err="http://www.w3.org/2005/xqt-errors"
         
-    exclude-result-prefixes="xs math xforms xsdh sfl sfp"
+    exclude-result-prefixes="xs math xforms xsdh sfl sfp err"
     extension-element-prefixes="ixsl saxon" version="3.0">
     
     <!-- 
@@ -1145,6 +1146,20 @@
                 <xsl:sequence select="$default-value"/>
             </xsl:otherwise>
         </xsl:choose>
+    </xsl:function>
+    
+    <xsl:function name="xforms:safe-map-get" as="item()*">
+        <xsl:param name="candidate" as="item()*"/>
+        <xsl:param name="key" as="xs:string"/>
+        <xsl:try>
+            <xsl:sequence select="
+                if ($candidate[1] instance of map(*))
+                then map:get($candidate[1],$key)
+                else ()"/>
+            <xsl:catch>
+                <xsl:sequence select="()"/>
+            </xsl:catch>
+        </xsl:try>
     </xsl:function>
     <xsl:function name="xforms:response-headers-to-nodes" as="element()*">
         <xsl:param name="headers" as="map(*)?"/>
@@ -2541,6 +2556,9 @@
                 <xsl:attribute name="class" select="$htmlClass"/>
                 <xsl:attribute name="instance-context" select="$instance-context"/>
                 <xsl:attribute name="data-ref" select="$nodeset"/>
+                <xsl:if test="exists(@value)">
+                    <xsl:attribute name="data-value" select="xforms:resolveContext(@value,$context-nodeset)"/>
+                </xsl:if>
                 <xsl:if test="exists($binding) and exists($binding/@relevant)">
                     <xsl:attribute name="data-relevant" select="$binding/@relevant"/>
                 </xsl:if>
@@ -4482,18 +4500,79 @@
         <!-- MD 2018-06-30 : want to use as="xs:string*" but get a cardinality error!? 
         JS data typing thing?
         -->
-        <xsl:variable name="output-keys" select="js:getOutputKeys()" as="item()*"/>
+        <xsl:variable name="output-keys-raw" select="js:getOutputKeys()" as="item()*"/>
+        <!-- TEST-TRACE: Saxon-JS may surface JS arrays as XDM arrays (function items);
+             normalize to plain string key sequence before iteration;
+             helps tests/supplemental/issues.spec.ts "Issue #29", "Issue #30", "Issue #31". -->
+        <xsl:variable name="output-keys" as="xs:string*" select="
+            for $k in $output-keys-raw
+            return
+                if ($k instance of array(*))
+                then (
+                    for $m in $k?*
+                    return
+                        if ($m instance of function(*))
+                        then ()
+                        else string($m)
+                )
+                else (
+                    if ($k instance of function(*))
+                    then ()
+                    else string($k)
+                )"/>
         
         <xsl:for-each select="$output-keys">
             <xsl:variable name="this-key" as="xs:string" select="."/>
-            <xsl:variable name="this-output" as="map(*)" select="js:getOutput($this-key)"/>
+            <xsl:variable name="this-output-raw" as="item()*" select="js:getOutput($this-key)"/>
+            <!-- TEST-TRACE: Saxon-JS may wrap XDM maps crossing JS boundaries as {'value': <map>};
+                 unwrap so refresh metadata lookups (@value/@ref/etc.) continue to work.
+                 Helps tests/supplemental/issues.spec.ts "Issue #29", "Issue #31". -->
+            <xsl:variable name="this-output" as="item()*" select="
+                let $wrapped := xforms:safe-map-get($this-output-raw,'value')
+                return
+                    if ($wrapped instance of map(*))
+                    then $wrapped
+                    else (
+                        if ($wrapped instance of array(*))
+                        then ((for $m in $wrapped?* return if ($m instance of map(*)) then $m else ())[1], $this-output-raw)[1]
+                        else $this-output-raw
+                    )"/>
+            <xsl:try>
             
             <xsl:variable name="log-label" as="xs:string" select="'[refreshOutputs-JS]'"/>
-            <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> Refreshing output ID = '<xsl:sequence select="$this-key"/>' (@value = <xsl:sequence select="map:get($this-output,'@value')"/>; @ref = <xsl:sequence select="map:get($this-output,'@ref')"/>; @data-type =  <xsl:sequence select="map:get($this-output,'@data-type')"/>; @instance-context =  <xsl:sequence select="map:get($this-output,'@instance-context')"/>)</xsl:message>
+            <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> Refreshing output ID = '<xsl:sequence select="$this-key"/>'</xsl:message>
+            
+            <xsl:variable name="associated-form-control" select="ixsl:page()//*[@id = $this-key]" as="node()?"/>
             
             
-            <xsl:variable name="value-expression" as="xs:string?" select="map:get($this-output,'@value')"/>
-            <xsl:variable name="ref-expression" as="xs:string?" select="map:get($this-output,'@ref')"/>
+            <xsl:variable name="value-expression-item" as="item()*" select="xforms:safe-map-get($this-output,'@value')"/>
+            <xsl:variable name="value-expression-map" as="xs:string?" select="
+                if (empty($value-expression-item))
+                then ()
+                else (
+                    if ($value-expression-item[1] instance of function(*))
+                    then ()
+                    else string($value-expression-item[1])
+                )"/>
+            <xsl:variable name="value-expression-dom" as="xs:string?" select="
+                if (exists($associated-form-control/@data-value) and normalize-space(string($associated-form-control/@data-value)) ne '')
+                then string($associated-form-control/@data-value)
+                else ()"/>
+            <xsl:variable name="value-expression" as="xs:string?" select="($value-expression-map,$value-expression-dom)[1]"/>
+            <xsl:variable name="ref-expression-item" as="item()*" select="xforms:safe-map-get($this-output,'@ref')"/>
+            <xsl:variable name="ref-expression-map" as="xs:string?" select="
+                if (empty($ref-expression-item))
+                then ()
+                else (
+                    if ($ref-expression-item[1] instance of function(*))
+                    then ()
+                    else string($ref-expression-item[1])
+                )"/>
+            <xsl:variable name="ref-expression-dom" as="xs:string?" select="
+                if (exists($associated-form-control/@data-ref) and normalize-space(string($associated-form-control/@data-ref)) ne '')
+                then string($associated-form-control/@data-ref)
+                else ()"/>
+            <xsl:variable name="ref-expression" as="xs:string?" select="($ref-expression-map,$ref-expression-dom)[1]"/>
             <xsl:variable name="value-expression-mod" as="xs:string?" select="
                 if (exists($value-expression) and normalize-space($value-expression) ne '')
                 then 'string(' || $value-expression || ')'
@@ -4501,7 +4580,19 @@
             
             <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> @value = '<xsl:sequence select="$value-expression"/>'; @ref = '<xsl:sequence select="$ref-expression"/>'</xsl:message>
                                     
-            <xsl:variable name="this-instance-id" as="xs:string" select="map:get($this-output,'@instance-context')"/>
+            <xsl:variable name="this-instance-id-item" as="item()*" select="xforms:safe-map-get($this-output,'@instance-context')"/>
+            <xsl:variable name="this-instance-id-dom" as="xs:string?" select="
+                if (exists($associated-form-control/@instance-context) and normalize-space(string($associated-form-control/@instance-context)) ne '')
+                then string($associated-form-control/@instance-context)
+                else ()"/>
+            <xsl:variable name="this-instance-id" as="xs:string" select="
+                if (exists($this-instance-id-item[1]) and not($this-instance-id-item[1] instance of function(*)))
+                then string($this-instance-id-item[1])
+                else (
+                    if (exists($this-instance-id-dom))
+                    then $this-instance-id-dom
+                    else $global-default-instance-id
+                )"/>
             
             <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> $this-instance-id = '<xsl:sequence select="$this-instance-id"/>'</xsl:message>            
             <xsl:variable name="is-ch833-target" as="xs:boolean" select="$ref-expression = ('/icecream/flavor','/colors/mycolor')"/>
@@ -4525,20 +4616,26 @@
                 then xforms:evaluate-xpath-with-instance-id($value-expression-mod,$this-instance-id,())
                 else (
                     if (exists($ref-expression) and normalize-space($ref-expression) ne '')
-                    then string(($ref-evaluated-items)[1])
+                    then (
+                        if (($ref-evaluated-items)[1] instance of function(*))
+                        then ''
+                        else string(($ref-evaluated-items)[1])
+                    )
                     else ''
                 )"/>
             <!-- TEST-TRACE: fallback for output refresh when instance()-qualified refs
                  cannot be evaluated in-place; resolve relative to the instance root.
                  Helps tests/w3c/ch08.spec.ts "8.3.3.b", "8.3.3.c". -->
-            <xsl:variable name="ref-for-fallback" as="xs:string?" select="map:get($this-output,'@ref')"/>
+            <!-- TEST-TRACE: fix instance() prefix stripping regex escaping so fallback
+                 removes instance('...') correctly; helps tests/w3c/ch08.spec.ts "8.3.3.b", "8.3.3.c". -->
+            <xsl:variable name="ref-for-fallback" as="xs:string?" select="$ref-expression"/>
             <xsl:variable name="ref-local-fallback" as="xs:string?" select="
                 if (exists($ref-for-fallback))
                 then
                     replace(
                         replace(normalize-space($ref-for-fallback),
-                            '^instance\\s*\\(\\s*''[^'']+''\\s*\\)\\s*/?', ''),
-                        '^instance\\s*\\(\\s*&quot;[^&quot;]+&quot;\\s*\\)\\s*/?', '')
+                            '^instance\s*\(\s*''[^'']+''\s*\)\s*/?', ''),
+                        '^instance\s*\(\s*&quot;[^&quot;]+&quot;\s*\)\s*/?', '')
                 else ()"/>
             <xsl:variable name="value-fallback" as="xs:string?" select="
                 if (exists($ref-local-fallback) and $ref-local-fallback ne '' and exists(xforms:instance($this-instance-id)))
@@ -4553,11 +4650,22 @@
                     else $value-primary
                 )"/>
             
-            <xsl:variable name="data-type" as="xs:string?" select="map:get($this-output,'@data-type')"/>
+            <xsl:variable name="data-type-item" as="item()*" select="xforms:safe-map-get($this-output,'@data-type')"/>
+            <xsl:variable name="data-type" as="xs:string?" select="
+                if (empty($data-type-item))
+                then (
+                    if (exists($associated-form-control/@data-type))
+                    then string($associated-form-control/@data-type)
+                    else ()
+                )
+                else (
+                    if ($data-type-item[1] instance of function(*))
+                    then ()
+                    else string($data-type-item[1])
+                )"/>
             
-            <xsl:variable name="itemset" as="element(xforms:itemset)?" select="map:get($this-output,'itemset')"/>
-                        
-            <xsl:variable name="associated-form-control" select="ixsl:page()//*[@id = $this-key]" as="node()?"/>
+            <xsl:variable name="itemset-item" as="item()*" select="xforms:safe-map-get($this-output,'itemset')"/>
+            <xsl:variable name="itemset" as="element(xforms:itemset)?" select="if ($itemset-item[1] instance of element(xforms:itemset)) then $itemset-item[1] else ()"/>
                         
             <xsl:choose>
                 <xsl:when test="exists($associated-form-control) and local-name($associated-form-control) = ('input') and $data-type eq 'checkbox'">
@@ -4586,9 +4694,7 @@
                     <xsl:sequence select="js:setSrc($this-key,$value)"/>
                 </xsl:when>
                 <xsl:when test="exists($associated-form-control)">
-                    <xsl:result-document href="#{$this-key}" method="ixsl:replace-content">
-                        <xsl:value-of select="$value"/>
-                    </xsl:result-document>
+                    <ixsl:set-property name="textContent" select="string($value)" object="$associated-form-control"/>
                 </xsl:when>
                 <xsl:otherwise>
                     <xsl:message use-when="$debugMode">[refreshOutputs-JS] Can't find form control with ID '<xsl:sequence select="$this-key"/>'</xsl:message>
@@ -4598,11 +4704,64 @@
             
             <!-- update class (value may include XPath) -->
             
-            <xsl:variable name="xforms-class" as="xs:string?" select="map:get($this-output,'@class')"/>
-            <xsl:variable name="context-nodeset" as="xs:string?" select="map:get($this-output,'@context-nodeset')"/>
-            <xsl:variable name="additional-class-values" as="xs:string*" select="map:get($this-output,'@additional-class-values')"/>
-            <xsl:variable name="incremental" as="xs:string?" select="map:get($this-output,'@incremental')"/>  
-            <xsl:variable name="ref-for-mips" as="xs:string?" select="map:get($this-output,'@ref')"/>
+            <xsl:variable name="xforms-class-item" as="item()*" select="xforms:safe-map-get($this-output,'@class')"/>
+            <xsl:variable name="xforms-class" as="xs:string?" select="
+                if (empty($xforms-class-item))
+                then (
+                    if (exists($associated-form-control/@class))
+                    then string($associated-form-control/@class)
+                    else ()
+                )
+                else (
+                    if ($xforms-class-item[1] instance of function(*))
+                    then ()
+                    else string($xforms-class-item[1])
+                )"/>
+            <xsl:variable name="context-nodeset-item" as="item()*" select="xforms:safe-map-get($this-output,'@context-nodeset')"/>
+            <xsl:variable name="context-nodeset" as="xs:string?" select="
+                if (empty($context-nodeset-item))
+                then (
+                    if (exists($associated-form-control/@data-ref))
+                    then string($associated-form-control/@data-ref)
+                    else ()
+                )
+                else (
+                    if ($context-nodeset-item[1] instance of function(*))
+                    then ()
+                    else string($context-nodeset-item[1])
+                )"/>
+            <!-- TEST-TRACE: @additional-class-values may roundtrip via JS as an XDM array;
+                 flatten and ignore callable items before distinct-values/class rebuild. -->
+            <xsl:variable name="additional-class-values" as="xs:string*" select="
+                for $v in xforms:safe-map-get($this-output,'@additional-class-values')
+                return
+                    if ($v instance of array(*))
+                    then (
+                        for $m in $v?*
+                        return
+                            if ($m instance of function(*))
+                            then ()
+                            else string($m)
+                    )
+                    else (
+                        if ($v instance of function(*))
+                        then ()
+                        else string($v)
+                    )"/>
+            <xsl:variable name="incremental-item" as="item()*" select="xforms:safe-map-get($this-output,'@incremental')"/>  
+            <xsl:variable name="incremental" as="xs:string?" select="
+                if (empty($incremental-item))
+                then (
+                    if (exists($associated-form-control/@class) and contains(concat(' ', string($associated-form-control/@class), ' '), ' incremental '))
+                    then 'true'
+                    else ()
+                )
+                else (
+                    if ($incremental-item[1] instance of function(*))
+                    then ()
+                    else string($incremental-item[1])
+                )"/>
+            <xsl:variable name="ref-for-mips" as="xs:string?" select="$ref-expression"/>
             <xsl:variable name="mip-valid" as="xs:boolean?" select="
                 if (exists($ref-for-mips) and normalize-space($ref-for-mips) ne '')
                 then js:getValidationMIPValid($this-instance-id,normalize-space($ref-for-mips))
@@ -4634,6 +4793,11 @@
                     <ixsl:set-attribute name="class" select="$htmlClass" object="$associated-form-control/parent::*"/>
                 </xsl:if>
             </xsl:if>
+            <xsl:catch>
+                <xsl:message>[refreshOutputs-JS] WARNING: skipping output key '<xsl:value-of select="$this-key"/>' due to refresh error code=<xsl:value-of select="$err:code"/> description=<xsl:value-of select="$err:description"/></xsl:message>
+                <xsl:sequence select="js:removeOutput($this-key)"/>
+            </xsl:catch>
+            </xsl:try>
             
         </xsl:for-each>
         
@@ -4647,7 +4811,24 @@
         <xsl:variable name="log-label" as="xs:string" select="'[refreshRepeats-JS]'"/>
         <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> START</xsl:message>
               
-        <xsl:variable name="repeat-keys" select="js:getRepeatKeys()" as="item()*"/>
+        <xsl:variable name="repeat-keys-raw" select="js:getRepeatKeys()" as="item()*"/>
+        <!-- TEST-TRACE: normalize potential XDM-array return from JS Object.keys() -->
+        <xsl:variable name="repeat-keys" as="xs:string*" select="
+            for $k in $repeat-keys-raw
+            return
+                if ($k instance of array(*))
+                then (
+                    for $m in $k?*
+                    return
+                        if ($m instance of function(*))
+                        then ()
+                        else string($m)
+                )
+                else (
+                    if ($k instance of function(*))
+                    then ()
+                    else string($k)
+                )"/>
         
         <xsl:variable name="namespace-context-item" as="element()" select="js:getXForm()"/>
         
@@ -4813,7 +4994,24 @@
     <xsl:template name="refreshElementsUsingIndexFunction-JS">
         <xsl:message use-when="$debugMode">[refreshElementsUsingIndexFunction-JS] START</xsl:message>
         
-        <xsl:variable name="ElementsUsingIndexFunction-keys" select="js:getElementsUsingIndexFunctionKeys()" as="item()*"/>    
+        <xsl:variable name="ElementsUsingIndexFunction-keys-raw" select="js:getElementsUsingIndexFunctionKeys()" as="item()*"/>    
+        <!-- TEST-TRACE: normalize potential XDM-array return from JS Object.keys() -->
+        <xsl:variable name="ElementsUsingIndexFunction-keys" as="xs:string*" select="
+            for $k in $ElementsUsingIndexFunction-keys-raw
+            return
+                if ($k instance of array(*))
+                then (
+                    for $m in $k?*
+                    return
+                        if ($m instance of function(*))
+                        then ()
+                        else string($m)
+                )
+                else (
+                    if ($k instance of function(*))
+                    then ()
+                    else string($k)
+                )"/>
         
         <xsl:variable name="namespace-context-item" as="element()" select="js:getXForm()"/>
         
@@ -4852,6 +5050,7 @@
         <xsl:param name="source-control" as="node()?" required="no" tunnel="yes"/>
         
         <xsl:variable name="log-label" select="'[applyActions]'"/>
+        <xsl:message>[DIAG applyActions] name=<xsl:value-of select="map:get($action-map,'name')"/> handler-status=<xsl:value-of select="map:get($action-map,'handler-status')"/> event=<xsl:value-of select="map:get($action-map,'@event')"/></xsl:message>
         <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> START <xsl:sequence select="if(exists(map:get($action-map, '@event'))) then '(event ' || map:get($action-map, '@event') || ')' else ''"/><xsl:sequence select="'(action name ' || map:get($action-map, 'name') || ')'"/></xsl:message>
         
         <xsl:variable name="instance-context" select="map:get($action-map, 'instance-context')" as="xs:string"/>
@@ -5061,6 +5260,7 @@
                 <xsl:call-template name="applyActions"/>
             </xsl:if>
             <xsl:if test="$handler-status = 'outermost' and not($event = ('xforms-rebuild','xforms-recalculate','xforms-revalidate','xforms-refresh','xforms-reset'))">
+                <xsl:message>[DIAG outermost-call] from action=<xsl:value-of select="$action-name"/> handler-status=<xsl:value-of select="$handler-status"/> event=<xsl:value-of select="$event"/></xsl:message>
                 <xsl:call-template name="outermost-action-handler"/>
             </xsl:if>
             
@@ -5590,7 +5790,24 @@
         
         <xsl:variable name="bindings" as="element(xforms:bind)*" select="js:getBindings()"/>
         
-        <xsl:variable name="instance-keys" select="js:getInstanceKeys()" as="item()*"/>
+        <xsl:variable name="instance-keys-raw" select="js:getInstanceKeys()" as="item()*"/>
+        <!-- TEST-TRACE: normalize potential XDM-array return from JS Object.keys() -->
+        <xsl:variable name="instance-keys" as="xs:string*" select="
+            for $k in $instance-keys-raw
+            return
+                if ($k instance of array(*))
+                then (
+                    for $m in $k?*
+                    return
+                        if ($m instance of function(*))
+                        then ()
+                        else string($m)
+                )
+                else (
+                    if ($k instance of function(*))
+                    then ()
+                    else string($k)
+                )"/>
         <xsl:for-each select="$instance-keys">
             <xsl:variable name="instance-id" as="xs:string" select="."/>
 <!--            <xsl:variable name="instanceXML" select="xforms:instance(.)"/>-->
@@ -5873,10 +6090,19 @@
         <xsl:if test="$sequence-template-trace-enabled">
             <xsl:message>[SEQTRACE] template=xforms-refresh</xsl:message>
         </xsl:if>
+        <xsl:message>[DIAG xforms-refresh] start</xsl:message>
+        <xsl:message>[DIAG xforms-refresh] before refreshOutputs-JS</xsl:message>
         <xsl:call-template name="refreshOutputs-JS"/>
+        <xsl:message>[DIAG xforms-refresh] after refreshOutputs-JS</xsl:message>
+        <xsl:message>[DIAG xforms-refresh] before refreshRepeats-JS</xsl:message>
         <xsl:call-template name="refreshRepeats-JS"/>
+        <xsl:message>[DIAG xforms-refresh] after refreshRepeats-JS</xsl:message>
+        <xsl:message>[DIAG xforms-refresh] before refreshElementsUsingIndexFunction-JS</xsl:message>
         <xsl:call-template name="refreshElementsUsingIndexFunction-JS"/>
+        <xsl:message>[DIAG xforms-refresh] after refreshElementsUsingIndexFunction-JS</xsl:message>
+        <xsl:message>[DIAG xforms-refresh] before refreshRelevantFields-JS</xsl:message>
         <xsl:call-template name="refreshRelevantFields-JS"/>
+        <xsl:message>[DIAG xforms-refresh] after refreshRelevantFields-JS</xsl:message>
     </xsl:template>
     
     <xd:doc scope="component">
@@ -6435,8 +6661,10 @@
                 <xsl:variable name="mediatype-params-initial" as="xs:string*" select="
                     for $token in subsequence(tokenize($mediatype-base-initial,';'),2)
                     return normalize-space($token)"/>
+                <!-- TEST-TRACE: unescape SOAP mediatype facet regexes so charset/action
+                     parameters are detected and projected into headers; helps tests/w3c/ch11.spec.ts "11.11.3.c". -->
                 <xsl:variable name="mediatype-charset-param" as="xs:string?" select="
-                    ($mediatype-params-initial[matches(lower-case(.),'^charset\\s*=')])[1]"/>
+                    ($mediatype-params-initial[matches(lower-case(.),'^charset\s*=')])[1]"/>
                 <xsl:variable name="mediatype-charset-value-raw" as="xs:string?" select="
                     if (exists($mediatype-charset-param))
                     then normalize-space(substring-after($mediatype-charset-param,'='))
@@ -6446,7 +6674,7 @@
                     then replace(replace($mediatype-charset-value-raw,'^[''&quot;]',''),'[''&quot;]$','')
                     else ()"/>
                 <xsl:variable name="mediatype-action-param" as="xs:string?" select="
-                    ($mediatype-params-initial[matches(lower-case(.),'^action\\s*=')])[1]"/>
+                    ($mediatype-params-initial[matches(lower-case(.),'^action\s*=')])[1]"/>
                 <xsl:variable name="mediatype-action-value-raw" as="xs:string?" select="
                     if (exists($mediatype-action-param))
                     then normalize-space(substring-after($mediatype-action-param,'='))
@@ -6467,11 +6695,11 @@
                     else (
                         if (
                             exists(map:get($submission-map,'@mediatype'))
-                            and matches(lower-case(string(map:get($submission-map,'@mediatype'))), 'charset\\s*=')
+                            and matches(lower-case(string(map:get($submission-map,'@mediatype'))), 'charset\s*=')
                         )
                         then replace(
                             string(map:get($submission-map,'@mediatype')),
-                            '^.*charset\\s*=\\s*[''&quot;]?([^;''&quot;\\s]+).*$',
+                            '^.*charset\s*=\s*[''&quot;]?([^;''&quot;\s]+).*$',
                             '$1'
                         )
                         else (
@@ -6847,6 +7075,7 @@
     </xd:doc>
     <xsl:template name="outermost-action-handler">
         <xsl:variable name="deferred-update-flags" as="map(*)?" select="js:getDeferredUpdateFlags()"/>
+        <xsl:message>[DIAG outermost-entry] rebuild=<xsl:value-of select="map:get($deferred-update-flags,'rebuild')"/> recalculate=<xsl:value-of select="map:get($deferred-update-flags,'recalculate')"/> revalidate=<xsl:value-of select="map:get($deferred-update-flags,'revalidate')"/> refresh=<xsl:value-of select="map:get($deferred-update-flags,'refresh')"/></xsl:message>
         <xsl:if test="$sequence-template-trace-enabled">
             <xsl:message>[SEQTRACE] template=outermost-action-handler recalculate=<xsl:value-of select="map:get($deferred-update-flags,'recalculate')"/> revalidate=<xsl:value-of select="map:get($deferred-update-flags,'revalidate')"/> refresh=<xsl:value-of select="map:get($deferred-update-flags,'refresh')"/></xsl:message>
         </xsl:if>
@@ -6857,12 +7086,14 @@
         <xsl:message use-when="$debugMode">[outermost-action-handler] Refresh: <xsl:sequence select="map:get($deferred-update-flags,'refresh') "/></xsl:message>
         
         <xsl:if test="map:get($deferred-update-flags,'rebuild') = 'true'">
+            <xsl:message>[DIAG outermost-branch] rebuild</xsl:message>
             <!--<xsl:call-template name="xforms-rebuild"/>-->
             <xsl:call-template name="xforms-event-handler">
                 <xsl:with-param name="event-name" select="'xforms-rebuild'" as="xs:string" tunnel="yes"/>
             </xsl:call-template>
         </xsl:if>
         <xsl:if test="map:get($deferred-update-flags,'recalculate') = 'true'">
+            <xsl:message>[DIAG outermost-branch] recalculate</xsl:message>
             <xsl:message use-when="$debugMode">[outermost-action-handler] triggering xforms-recalculate</xsl:message>
             <xsl:call-template name="xforms-event-handler">
                 <xsl:with-param name="event-name" select="'xforms-recalculate'" as="xs:string" tunnel="yes"/>
@@ -6870,6 +7101,7 @@
             <xsl:call-template name="xforms-recalculate"/>
         </xsl:if>
         <xsl:if test="map:get($deferred-update-flags,'revalidate') = 'true'">
+            <xsl:message>[DIAG outermost-branch] revalidate</xsl:message>
             <xsl:message use-when="$debugMode">[outermost-action-handler] triggering xforms-revalidate</xsl:message>
             <xsl:call-template name="xforms-event-handler">
                 <xsl:with-param name="event-name" select="'xforms-revalidate'" as="xs:string" tunnel="yes"/>
@@ -6877,6 +7109,7 @@
             <xsl:call-template name="xforms-revalidate"/>
         </xsl:if>
         <xsl:if test="map:get($deferred-update-flags,'refresh') = 'true'">
+            <xsl:message>[DIAG outermost-branch] refresh</xsl:message>
             <xsl:message use-when="$debugMode">[outermost-action-handler] triggering xforms-refresh</xsl:message>
             <!-- handle actions for this event before performing the refresh -->
             <xsl:call-template name="xforms-event-handler">
@@ -6888,6 +7121,7 @@
        
         
         <xsl:sequence select="js:clearDeferredUpdateFlags()"/>
+        <xsl:message>[DIAG outermost-clear] done</xsl:message>
         <!-- TEST-TRACE: PERF-6a – clear dirty-instance set after refresh cycle completes -->
         <xsl:sequence select="js:clearDirtyInstances()"/>
         <xsl:sequence select="js:clearPendingMutations()"/>
@@ -7042,6 +7276,14 @@
                 </xsl:if>
             </xsl:if>
         </xsl:for-each>                
+        <!-- TEST-TRACE: run one deferred-update pass after DOMActivate action processing,
+             even when action-map metadata does not trigger outermost handling inside
+             applyActions; helps tests/supplemental/issues.spec.ts "Issue #29 — group
+             relevance refresh", "Issue #30 — delete current repeat row", and
+             "Issue #31 — insert fallback on empty nodeset". -->
+        <xsl:if test="exists($actions)">
+            <xsl:call-template name="outermost-action-handler"/>
+        </xsl:if>
         
         <xsl:message use-when="$debugMode">[DOMActivate] END</xsl:message>
         
@@ -7461,13 +7703,15 @@
             if (not($has-bind) and $context-explicit and exists($context) and matches(normalize-space($context), '^instance\s*\('))
             then xforms:getInstanceId($context)
             else $instance-context"/>
+        <!-- TEST-TRACE: fix context prefix normalization regex escaping in insert action
+             so instance('...') context local paths are resolved consistently; helps tests/w3c/ch10.spec.ts "10.3.a", "10.3.c". -->
         <xsl:variable name="context-local" as="xs:string?" select="
             if (exists($context))
             then
                 replace(
                     replace(normalize-space($context),
-                        '^instance\\s*\\(\\s*''[^'']+''\\s*\\)\\s*/?', ''),
-                    '^instance\\s*\\(\\s*&quot;[^&quot;]+&quot;\\s*\\)\\s*/?', '')
+                        '^instance\s*\(\s*''[^'']+''\s*\)\s*/?', ''),
+                    '^instance\s*\(\s*&quot;[^&quot;]+&quot;\s*\)\s*/?', '')
             else ()"/>
         
         
@@ -7702,13 +7946,15 @@
             if (not($has-bind) and $context-explicit and exists($context) and matches(normalize-space($context), '^instance\s*\('))
             then xforms:getInstanceId($context)
             else $instance-context"/>
+        <!-- TEST-TRACE: fix context prefix normalization regex escaping in delete action
+             so instance('...') context local paths are resolved consistently; helps tests/w3c/ch10.spec.ts "10.4.a", "10.4.c". -->
         <xsl:variable name="context-local" as="xs:string?" select="
             if (exists($context))
             then
                 replace(
                     replace(normalize-space($context),
-                        '^instance\\s*\\(\\s*''[^'']+''\\s*\\)\\s*/?', ''),
-                    '^instance\\s*\\(\\s*&quot;[^&quot;]+&quot;\\s*\\)\\s*/?', '')
+                        '^instance\s*\(\s*''[^'']+''\s*\)\s*/?', ''),
+                    '^instance\s*\(\s*&quot;[^&quot;]+&quot;\s*\)\s*/?', '')
             else ()"/>
         
         <xsl:variable name="ref-qualified" as="xs:string?" select="

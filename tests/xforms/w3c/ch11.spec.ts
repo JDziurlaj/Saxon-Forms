@@ -1543,12 +1543,12 @@ test.describe("W3C Ch11 [behavioral promoted]", () => {
     const soapAction = getHeaderValue(headers, "soapaction");
     expect(req).not.toBeNull();
     expect(req?.method()).toBe("POST");
-    expect(contentType.toLowerCase()).toContain("application/soap+xml");
+    // TEST-TRACE: enforce 11.11.3.c SOAP binding semantics (text/xml + SOAPAction extraction);
+    // helps tests/xforms/w3c/ch11.spec.ts "11.11.3.c".
+    expect(contentType.toLowerCase()).toContain("text/xml");
     expect(contentType.toUpperCase()).toContain("ASCII");
-    expect(
-      soapAction.includes("http://www.google.com") ||
-      contentType.toLowerCase().includes("action=http://www.google.com")
-    ).toBe(true);
+    expect(soapAction).toContain("http://www.google.com");
+    expect(contentType.toLowerCase()).not.toContain("application/soap+xml");
   });
 
   test("11.11.3.d — SOAP GET with encoding sets application/soap+xml and UTF-8 accept", async ({ page }) => {
