@@ -62,9 +62,9 @@
             else if ($value = '' and $is-xforms-type)
             then true()
             else if ($type = 'datetime')
-            then ($value castable as xs:dateTime)
+            then (($value castable as xs:dateTime) or xsdh:is-native-datetime-local-lexical($value))
             else if ($type = 'time')
-            then ($value castable as xs:time)
+            then (($value castable as xs:time) or xsdh:is-native-time-lexical($value))
             else if ($type = 'date')
             then ($value castable as xs:date)
             else if ($type = 'gyearmonth')
@@ -161,6 +161,14 @@
                     else every $item in $items satisfies xsdh:is-type-valid($item-type,$item)
             )
             else true()"/>
+    </xsl:function>
+    <xsl:function name="xsdh:is-native-time-lexical" as="xs:boolean">
+        <xsl:param name="value" as="xs:string"/>
+        <xsl:sequence select="matches($value,'^([01][0-9]|2[0-3]):[0-5][0-9]$')"/>
+    </xsl:function>
+    <xsl:function name="xsdh:is-native-datetime-local-lexical" as="xs:boolean">
+        <xsl:param name="value" as="xs:string"/>
+        <xsl:sequence select="matches($value,'^[0-9]{4}-[0-9]{2}-[0-9]{2}T([01][0-9]|2[0-3]):[0-5][0-9]$')"/>
     </xsl:function>
 
 

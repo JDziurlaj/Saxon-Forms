@@ -606,8 +606,8 @@ test.describe("W3C Ch8 — UI [behavioral]", () => {
     for (const color of ["red", "blue", "green"]) {
       await colorSelect.selectOption(color);
       await expect(colorSelect).toHaveValue(color);
-      await expect(yourColorOutput).toContainText(new RegExp(`Your\\s*Color\\s*:\\s*${color}`));
       const xml = await getInstanceXML(page);
+      await expect(yourColorOutput).toContainText(new RegExp(`Your\\s*Color\\s*:\\s*${color}`));
       expect(xml).toContain(`<mycolor>${color}</mycolor>`);
     }
   });

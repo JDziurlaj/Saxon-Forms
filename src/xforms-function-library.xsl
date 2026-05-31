@@ -85,7 +85,7 @@
                         <xsl:sequence select="."/>
                     </xsl:matching-substring>
                     <xsl:non-matching-substring>
-                        <xsl:sequence select="replace(., 'current\\s*\\(\\s*\\)', '\\$__xf_current')"/>
+                        <xsl:sequence select="replace(., 'current\s*\(\s*\)', '\$__xf_current')"/>
                     </xsl:non-matching-substring>
                 </xsl:analyze-string>
             </xsl:variable>

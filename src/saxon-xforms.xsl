@@ -500,6 +500,22 @@
         <xsl:call-template name="outermost-action-handler"/>
     </xsl:template>
     
+    <xsl:template match="*:select[not(xforms:hasClass(.,'incremental'))]" mode="ixsl:oninput">
+        <xsl:message use-when="$debugMode">[ixsl:oninput mode] non-incremental HTML form control '<xsl:sequence select="name()"/>' value changed</xsl:message>
+        <xsl:call-template name="action-setvalue-form-control">
+            <xsl:with-param name="form-control" select="."/>
+        </xsl:call-template>
+        <!-- Keep select/deselect event tracker UI in sync without triggering
+             the deferred update cycle (recalculate/revalidate/refresh) until blur. -->
+        <xsl:call-template name="refreshRepeats-JS"/>
+        <!-- Apply relevance visibility updates immediately for controls whose
+             @relevant depends on the select/select1 value (e.g. Chapt02/2.3.a). -->
+        <xsl:call-template name="refreshRelevantFields-JS"/>
+        <!-- Keep bound outputs in sync for non-incremental select/select1 controls
+             when user agents dispatch input before change. -->
+        <xsl:call-template name="refreshOutputs-JS"/>
+    </xsl:template>
+    
     <xsl:template match="*:select[not(xforms:hasClass(.,'incremental'))]" mode="ixsl:onchange">
         <xsl:message use-when="$debugMode">[ixsl:onchange mode] non-incremental HTML form control '<xsl:sequence select="name()"/>' value changed (deferred cycle on blur)</xsl:message>
         <xsl:call-template name="action-setvalue-form-control">
@@ -514,9 +530,8 @@
         <!-- TEST-TRACE: keep bound outputs in sync on select/select1 change even when
              non-incremental deferred cycle waits for blur; helps tests/w3c/ch08.spec.ts "8.3.3.b". -->
         <xsl:call-template name="refreshOutputs-JS"/>
-        <!-- Ensure standard deferred-update processing still runs for select/select1
-             change notifications used by W3C coverage (e.g. 8.3.3.b/c). -->
-        <xsl:call-template name="outermost-action-handler"/>
+        <!-- Do not run deferred update cycle here; for non-incremental controls this
+             must happen on focus change / blur (4.6.3.b/c sequencing). -->
     </xsl:template>
     
     <xsl:template match="*:input[not(xforms:hasClass(.,'incremental'))][not(@type='file')] | *:textarea" mode="ixsl:onchange">
@@ -525,6 +540,10 @@
             <xsl:with-param name="form-control" select="."/>
         </xsl:call-template>
         <xsl:call-template name="outermost-action-handler"/>
+    </xsl:template>
+    <xsl:template match="*:input[exists(@data-ref)][not(@type='file')] | *:select[exists(@data-ref)] | *:textarea[exists(@data-ref)]" mode="ixsl:onblur">
+        <xsl:sequence select="js:markControlVisited(normalize-space(string(@instance-context)), normalize-space(string(@data-ref)))"/>
+        <xsl:call-template name="refreshOutputs-JS"/>
     </xsl:template>
     
     
@@ -2541,6 +2560,8 @@
                 <xsl:with-param name="incremental" as="xs:string?" select="@incremental"/>
             </xsl:call-template>
         </xsl:variable>
+        <xsl:variable name="hint-text" as="xs:string" select="normalize-space(string-join(xforms:hint/text(), ' '))"/>
+        <xsl:variable name="hint-id" as="xs:string" select="concat($id, '-hint')"/>
         <xsl:sequence use-when="$debugTiming" select="js:endTime($time-id-get-relevant)" />
         
        
@@ -2604,6 +2625,8 @@
                 <xsl:with-param name="incremental" as="xs:string?" select="@incremental"/>
             </xsl:call-template>
         </xsl:variable>
+        <xsl:variable name="hint-text" as="xs:string" select="normalize-space(string-join(xforms:hint/text(), ' '))"/>
+        <xsl:variable name="hint-id" as="xs:string" select="concat($id, '-hint')"/>
         
         <div>
             <xsl:call-template name="copy-custom-data-attributes"/>
@@ -2622,7 +2645,15 @@
                 <xsl:if test="exists($actions)">
                     <xsl:attribute name="data-action" select="$id"/>
                 </xsl:if>
+                <xsl:if test="$hint-text ne ''">
+                    <xsl:attribute name="title" select="$hint-text"/>
+                    <xsl:attribute name="aria-describedby" select="$hint-id"/>
+                </xsl:if>
             </input>
+            <xsl:call-template name="render-control-hint">
+                <xsl:with-param name="hint-id" select="$hint-id"/>
+                <xsl:with-param name="hint-text" select="$hint-text"/>
+            </xsl:call-template>
         </div>
         
         <xsl:message use-when="$debugMode">[xforms:upload get-html] END</xsl:message>
@@ -2677,7 +2708,8 @@
             </xsl:if>
             <xsl:apply-templates select="xforms:label"/>
             
-            <xsl:variable name="hints" select="xforms:hint/text()"/>
+            <xsl:variable name="hint-text" as="xs:string" select="normalize-space(string-join(xforms:hint/text(), ' '))"/>
+            <xsl:variable name="hint-id" as="xs:string" select="concat($id, '-hint')"/>
             
             <input>
                 <xsl:attribute name="id" select="$id"/>
@@ -2759,8 +2791,9 @@
                     <xsl:attribute name="data-action" select="$id"/>
                 </xsl:if>
                 
-                <xsl:if test="exists($hints)">
-                    <xsl:attribute name="title" select="$hints"/>
+                <xsl:if test="$hint-text ne ''">
+                    <xsl:attribute name="title" select="$hint-text"/>
+                    <xsl:attribute name="aria-describedby" select="$hint-id"/>
                 </xsl:if>
                 
                 <xsl:attribute name="size" select="if (exists(@size)) then @size else '50'"/>
@@ -2825,6 +2858,10 @@
                 </xsl:call-template>
                 
             </input>
+            <xsl:call-template name="render-control-hint">
+                <xsl:with-param name="hint-id" select="$hint-id"/>
+                <xsl:with-param name="hint-text" select="$hint-text"/>
+            </xsl:call-template>
         </div> 
         
         
@@ -2868,7 +2905,8 @@
             </xsl:call-template>
         </xsl:variable>
         
-        <xsl:variable name="hints" select="xforms:hint/text()"/>
+        <xsl:variable name="hint-text" as="xs:string" select="normalize-space(string-join(xforms:hint/text(), ' '))"/>
+        <xsl:variable name="hint-id" as="xs:string" select="concat($id, '-hint')"/>
         <xsl:variable name="range-value" as="xs:string" select="
             if (exists($instanceField))
             then string($instanceField)
@@ -2918,8 +2956,9 @@
                 <xsl:if test="exists($actions)">
                     <xsl:attribute name="data-action" select="$id"/>
                 </xsl:if>
-                <xsl:if test="exists($hints)">
-                    <xsl:attribute name="title" select="$hints"/>
+                <xsl:if test="$hint-text ne ''">
+                    <xsl:attribute name="title" select="$hint-text"/>
+                    <xsl:attribute name="aria-describedby" select="$hint-id"/>
                 </xsl:if>
                 <xsl:if test="exists($range-min)">
                     <xsl:attribute name="min" select="$range-min"/>
@@ -2937,6 +2976,10 @@
                     <xsl:with-param name="data-type" as="xs:string" select="'range'"/>
                 </xsl:call-template>
             </input>
+            <xsl:call-template name="render-control-hint">
+                <xsl:with-param name="hint-id" select="$hint-id"/>
+                <xsl:with-param name="hint-text" select="$hint-text"/>
+            </xsl:call-template>
         </div>
     </xsl:template>
     
@@ -2979,7 +3022,8 @@
             </xsl:call-template>
         </xsl:variable>
         
-        <xsl:variable name="hints" select="xforms:hint/text()"/>
+        <xsl:variable name="hint-text" as="xs:string" select="normalize-space(string-join(xforms:hint/text(), ' '))"/>
+        <xsl:variable name="hint-id" as="xs:string" select="concat($id, '-hint')"/>
         
         <div>
             <xsl:call-template name="copy-custom-data-attributes"/>
@@ -3012,8 +3056,9 @@
                     <xsl:attribute name="data-action" select="$id"/>
                 </xsl:if>
                 
-                <xsl:if test="exists($hints)">
-                    <xsl:attribute name="title" select="$hints"/>
+                <xsl:if test="$hint-text ne ''">
+                    <xsl:attribute name="title" select="$hint-text"/>
+                    <xsl:attribute name="aria-describedby" select="$hint-id"/>
                 </xsl:if>
                 
                 <xsl:if test="exists(@size)">
@@ -3029,10 +3074,23 @@
                     </xsl:otherwise>
                 </xsl:choose>
             </textarea>       
+            <xsl:call-template name="render-control-hint">
+                <xsl:with-param name="hint-id" select="$hint-id"/>
+                <xsl:with-param name="hint-text" select="$hint-text"/>
+            </xsl:call-template>
         </div>
     </xsl:template>
 
 
+    <xsl:template name="render-control-hint">
+        <xsl:param name="hint-id" as="xs:string"/>
+        <xsl:param name="hint-text" as="xs:string"/>
+        <xsl:if test="$hint-text ne ''">
+            <div class="xforms-hint" id="{$hint-id}">
+                <xsl:value-of select="$hint-text"/>
+            </div>
+        </xsl:if>
+    </xsl:template>
     <xd:doc scope="component">
         <xd:desc>
             <xd:p>Ignore xforms:hint when rendering the XForm into HTML.</xd:p>
@@ -3115,7 +3173,8 @@
                 <xsl:attribute name="style" select="'display:none'"/>
             </xsl:if>
             <xsl:apply-templates select="xforms:label"/>
-            <xsl:variable name="hints" select="xforms:hint/text()"/>
+            <xsl:variable name="hint-text" as="xs:string" select="normalize-space(string-join(xforms:hint/text(), ' '))"/>
+            <xsl:variable name="hint-id" as="xs:string" select="concat($id, '-hint')"/>
             
             <select>
                 <xsl:attribute name="id" select="$id"/>
@@ -3148,8 +3207,9 @@
                     <xsl:attribute name="data-action" select="$id"/>
                 </xsl:if>
                 
-                <xsl:if test="exists($hints)">
-                    <xsl:attribute name="title" select="$hints"/>
+                <xsl:if test="$hint-text ne ''">
+                    <xsl:attribute name="title" select="$hint-text"/>
+                    <xsl:attribute name="aria-describedby" select="$hint-id"/>
                 </xsl:if>
                 
                 
@@ -3174,6 +3234,10 @@
                 </xsl:apply-templates>
                 
             </select>
+            <xsl:call-template name="render-control-hint">
+                <xsl:with-param name="hint-id" select="$hint-id"/>
+                <xsl:with-param name="hint-text" select="$hint-text"/>
+            </xsl:call-template>
             
         </div>
         
@@ -4080,6 +4144,28 @@
             <xsl:when test="exists(@type) and @type = 'checkbox'">
                 <xsl:sequence select="if (ixsl:get(., 'checked') = true()) then 'true' else ''"/>
             </xsl:when>
+            <xsl:when test="exists(@type) and @type = 'time'">
+                <xsl:variable name="raw-time-value" as="xs:string" select="string(ixsl:get(., 'value'))"/>
+                <xsl:sequence select="
+                    if ($raw-time-value = '')
+                    then ''
+                    else (
+                        if (matches($raw-time-value,'^[0-9]{2}:[0-9]{2}$'))
+                        then concat($raw-time-value, ':00')
+                        else $raw-time-value
+                    )"/>
+            </xsl:when>
+            <xsl:when test="exists(@type) and @type = 'datetime-local'">
+                <xsl:variable name="raw-datetime-value" as="xs:string" select="string(ixsl:get(., 'value'))"/>
+                <xsl:sequence select="
+                    if ($raw-datetime-value = '')
+                    then ''
+                    else (
+                        if (matches($raw-datetime-value,'^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$'))
+                        then concat($raw-datetime-value, ':00')
+                        else $raw-datetime-value
+                    )"/>
+            </xsl:when>
             <xsl:otherwise>
                 <xsl:sequence select="ixsl:get(., 'value')"/>
             </xsl:otherwise>
@@ -4595,11 +4681,6 @@
                 )"/>
             
             <xsl:message use-when="$debugMode"><xsl:sequence select="$log-label"/> $this-instance-id = '<xsl:sequence select="$this-instance-id"/>'</xsl:message>            
-            <xsl:variable name="is-ch833-target" as="xs:boolean" select="$ref-expression = ('/icecream/flavor','/colors/mycolor')"/>
-            <xsl:if test="$is-ch833-target">
-                <xsl:message>[refreshOutputs-JS][diag] key=<xsl:value-of select="$this-key"/> ref=<xsl:value-of select="$ref-expression"/> resolved-ref=<xsl:value-of select="xforms:impose($ref-expression)"/> instance=<xsl:value-of select="$this-instance-id"/></xsl:message>
-            </xsl:if>
-            
             <!-- 
                 If value returned from unmodified XPath is a boolean
                 the string value is '' for false() or 'true' for true()
@@ -4608,9 +4689,6 @@
                 if (exists($ref-expression) and normalize-space($ref-expression) ne '')
                 then xforms:evaluate-xpath-with-instance-id($ref-expression,$this-instance-id,())
                 else ()"/>
-            <xsl:if test="$is-ch833-target">
-                <xsl:message>[refreshOutputs-JS][diag] key=<xsl:value-of select="$this-key"/> evaluated-count=<xsl:value-of select="count($ref-evaluated-items)"/> evaluated-seq=<xsl:value-of select="string-join(for $p in 1 to count($ref-evaluated-items) return concat('[', $p, '] ', if ($ref-evaluated-items[$p] instance of node()) then normalize-space(serialize($ref-evaluated-items[$p])) else string($ref-evaluated-items[$p])), ' || ')"/></xsl:message>
-            </xsl:if>
             <xsl:variable name="value-primary" as="xs:string?" select="
                 if (exists($value-expression-mod))
                 then xforms:evaluate-xpath-with-instance-id($value-expression-mod,$this-instance-id,())
@@ -4762,19 +4840,35 @@
                     else string($incremental-item[1])
                 )"/>
             <xsl:variable name="ref-for-mips" as="xs:string?" select="$ref-expression"/>
-            <xsl:variable name="mip-valid" as="xs:boolean?" select="
+            <xsl:variable name="mip-valid-token" as="xs:string?" select="
                 if (exists($ref-for-mips) and normalize-space($ref-for-mips) ne '')
-                then js:getValidationMIPValid($this-instance-id,normalize-space($ref-for-mips))
+                then normalize-space(string(js:getValidationMIPValid($this-instance-id,normalize-space($ref-for-mips))))
+                else ()"/>
+            <xsl:variable name="mip-valid" as="xs:boolean?" select="
+                if (exists($mip-valid-token) and $mip-valid-token = ('true','false'))
+                then xs:boolean($mip-valid-token)
+                else ()"/>
+            <xsl:variable name="mip-required-token" as="xs:string?" select="
+                if (exists($ref-for-mips) and normalize-space($ref-for-mips) ne '')
+                then normalize-space(string(js:getValidationMIPRequired($this-instance-id,normalize-space($ref-for-mips))))
                 else ()"/>
             <xsl:variable name="mip-required" as="xs:boolean?" select="
-                if (exists($ref-for-mips) and normalize-space($ref-for-mips) ne '')
-                then js:getValidationMIPRequired($this-instance-id,normalize-space($ref-for-mips))
+                if (exists($mip-required-token) and $mip-required-token = ('true','false'))
+                then xs:boolean($mip-required-token)
                 else ()"/>
+            <xsl:variable name="control-visited" as="xs:boolean" select="
+                if (exists($ref-for-mips) and normalize-space($ref-for-mips) ne '')
+                then js:isControlVisited($this-instance-id,normalize-space($ref-for-mips))
+                else false()"/>
+            <xsl:variable name="show-full-feedback" as="xs:boolean" select="js:isForceFullValidationFeedback()"/>
+            <xsl:variable name="show-validation-feedback" as="xs:boolean" select="$show-full-feedback or $control-visited"/>
             <xsl:variable name="validation-class-values" as="xs:string*" select="
-                (
+                if ($show-validation-feedback)
+                then (
                     if (exists($mip-valid)) then (if ($mip-valid) then 'xforms-valid' else 'xforms-invalid') else (),
                     if (exists($mip-required)) then (if ($mip-required) then 'xforms-required' else 'xforms-optional') else ()
-                )"/>
+                )
+                else ()"/>
             <xsl:variable name="effective-additional-class-values" as="xs:string*" select="distinct-values(($additional-class-values,$validation-class-values))"/>
             
             <xsl:variable name="htmlClass" as="xs:string?">
@@ -6090,19 +6184,11 @@
         <xsl:if test="$sequence-template-trace-enabled">
             <xsl:message>[SEQTRACE] template=xforms-refresh</xsl:message>
         </xsl:if>
-        <xsl:message>[DIAG xforms-refresh] start</xsl:message>
-        <xsl:message>[DIAG xforms-refresh] before refreshOutputs-JS</xsl:message>
         <xsl:call-template name="refreshOutputs-JS"/>
-        <xsl:message>[DIAG xforms-refresh] after refreshOutputs-JS</xsl:message>
-        <xsl:message>[DIAG xforms-refresh] before refreshRepeats-JS</xsl:message>
         <xsl:call-template name="refreshRepeats-JS"/>
-        <xsl:message>[DIAG xforms-refresh] after refreshRepeats-JS</xsl:message>
-        <xsl:message>[DIAG xforms-refresh] before refreshElementsUsingIndexFunction-JS</xsl:message>
         <xsl:call-template name="refreshElementsUsingIndexFunction-JS"/>
-        <xsl:message>[DIAG xforms-refresh] after refreshElementsUsingIndexFunction-JS</xsl:message>
-        <xsl:message>[DIAG xforms-refresh] before refreshRelevantFields-JS</xsl:message>
         <xsl:call-template name="refreshRelevantFields-JS"/>
-        <xsl:message>[DIAG xforms-refresh] after refreshRelevantFields-JS</xsl:message>
+        <xsl:sequence select="js:clearForceFullValidationFeedback()"/>
     </xsl:template>
     
     <xd:doc scope="component">
@@ -6224,6 +6310,9 @@
         <xsl:if test="$sequence-template-trace-enabled">
             <xsl:message>[SEQTRACE] template=xforms-submit submission=<xsl:value-of select="$submission"/> submission-id=<xsl:value-of select="$submission-id"/></xsl:message>
         </xsl:if>
+        <xsl:sequence select="js:setForceFullValidationFeedback(true())"/>
+        <xsl:call-template name="xforms-revalidate"/>
+        <xsl:call-template name="xforms-refresh"/>
         
         <xsl:variable name="refi" as="xs:string?" select="map:get($submission-map,'@ref')"/>
         <xsl:variable name="instance-id-submit" as="xs:string" select="xforms:getInstanceId($refi)"/>
@@ -8546,8 +8635,9 @@
         <!-- TEST-TRACE: ensure explicit xf:revalidate executes the same validation pipeline as deferred updates;
              helps tests/supplemental/saxon-forms-validation.spec.ts. -->
         <xsl:message use-when="$debugMode">[action-revalidate] START</xsl:message>
-        
+        <xsl:sequence select="js:setForceFullValidationFeedback(true())"/>
         <xsl:call-template name="xforms-revalidate"/>
+        <xsl:call-template name="xforms-refresh"/>
         <xsl:sequence select="js:clearDeferredUpdateFlag('revalidate')"/>
         
         <xsl:message use-when="$debugMode">[action-revalidate] END</xsl:message>

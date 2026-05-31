@@ -47,6 +47,8 @@
         /* TEST-TRACE: persist validity/required MIP state between revalidate and refresh;
            helps tests/supplemental/saxon-forms-validation.spec.ts. */
         var validationMIPs = {};
+        var visitedControls = {};
+        var forceFullValidationFeedback = false;
                 
         var getCurrentDate = function(){
             var today = new Date();
@@ -91,6 +93,8 @@
             elementsContextUsingIndexFunction = {};
             dirtyInstances = {};
             validationMIPs = {};
+            visitedControls = {};
+            forceFullValidationFeedback = false;
             /* TEST-TRACE: preserve initial snapshots across reset */
         }
         
@@ -233,6 +237,30 @@
         }
         var clearValidationMIPs = function() {
             validationMIPs = {};
+            return true;
+        }
+        var markControlVisited = function(instanceId, ref) {
+            var key = _validationMipKey(instanceId, ref);
+            visitedControls[key] = true;
+            return true;
+        }
+        var isControlVisited = function(instanceId, ref) {
+            var key = _validationMipKey(instanceId, ref);
+            return visitedControls[key] === true;
+        }
+        var clearVisitedControls = function() {
+            visitedControls = {};
+            return true;
+        }
+        var setForceFullValidationFeedback = function(value) {
+            forceFullValidationFeedback = (value === true || String(value) === 'true');
+            return true;
+        }
+        var isForceFullValidationFeedback = function() {
+            return forceFullValidationFeedback === true;
+        }
+        var clearForceFullValidationFeedback = function() {
+            forceFullValidationFeedback = false;
             return true;
         }
                 
