@@ -16,6 +16,8 @@
                 <demo:FeedingTime>08:00</demo:FeedingTime>
                 <demo:FedToday>1</demo:FedToday>
                 <demo:FedTodayStatement></demo:FedTodayStatement>
+                <demo:MoodLevel>4</demo:MoodLevel>
+                <demo:PetPhoto></demo:PetPhoto>
                 <demo:Counter>0</demo:Counter>
             </demo:data>
         </xf:instance>
@@ -79,12 +81,26 @@
     
     <xf:input ref="instance('hello')/demo:FeedingTime" class="demo-input">
         <xf:label>Enter pet's feeding time: </xf:label>
-        <xf:setvalue ref="../demo:FedToday" ev:event="xforms-value-changed" value="xs:time(concat(../demo:FeedingTime/text(),':00')) &lt; current-time()"/>
+        <xf:setvalue ref="../demo:FedToday" ev:event="xforms-value-changed" value="
+            if (normalize-space(string(../demo:FeedingTime)) = '')
+            then false()
+            else xs:time(string(../demo:FeedingTime)) &lt; current-time()
+            "/>
     </xf:input>
     
     <xf:input ref="instance('hello')/demo:FedToday" class="demo-input">
         <xf:label>Have you fed your pet today? </xf:label>
     </xf:input>
+
+    <xf:range ref="instance('hello')/demo:MoodLevel" start="0" end="10" step="1" class="demo-input">
+        <xf:label>Pet mood level: </xf:label>
+        <xf:hint>0 = sleepy, 10 = ecstatic</xf:hint>
+    </xf:range>
+
+    <xf:upload ref="instance('hello')/demo:PetPhoto" mediatype="text/plain" accept=".txt,image/*" class="demo-input">
+        <xf:label>Upload a pet note or image: </xf:label>
+        <xf:hint>Try any local file</xf:hint>
+    </xf:upload>
     
     
 
@@ -93,6 +109,10 @@
     <xf:output value="concat('I feed my ', instance('hello')/demo:PetType, ' at ', instance('hello')/demo:FeedingTime)" class="block demo-output"/>
     
     <xf:output value="concat('My ', instance('hello')/demo:PetType, ' has ', instance('hello')/demo:FedTodayStatement , ' been fed today.')" class="block demo-output"/>
+
+    <xf:output value="concat('Mood level: ', instance('hello')/demo:MoodLevel)" class="block demo-output"/>
+
+    <xf:output value="concat('Uploaded payload length: ', string-length(instance('hello')/demo:PetPhoto))" class="block demo-output"/>
     
     <xf:output bind="test-relevant" value="concat('Display the description only when pet name is ''Scout'': ', instance('hello')/demo:PetDescription)" class="block demo-output"/>
     

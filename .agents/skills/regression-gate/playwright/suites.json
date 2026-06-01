@@ -18,6 +18,13 @@
       "baseline_path": ".agents/skills/regression-gate/baselines/saxon-forms.json",
       "regression_policy": "waivable-with-justification"
     },
+    "examples-demos": {
+      "description": "Examples directory demo coverage (direct-load and stylesheet-driven samples)",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/examples",
+      "baseline_path": ".agents/skills/regression-gate/baselines/examples-demos.json",
+      "regression_policy": "waivable-with-justification"
+    },
     "w3c-ch02": {
       "description": "W3C Chapter 2 behavioral coverage",
       "config_path": "playwright.config.ts",

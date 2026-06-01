@@ -42,9 +42,10 @@ npm run examples
 
 Then open `http://127.0.0.1:5174/` and start with:
 - `examples/hello.html`
-- `examples/xforms-fiddle.html`
+- `examples/native-xforms-fiddle.html`
 - `examples/sample1.html` (direct XForms-source loading)
-- `examples/sample2.html` (stylesheet-driven loading)
+- `examples/sample2.html` (restored legacy sample page)
+- `examples/sample3.html` (restored legacy sample page)
 
 `npm run examples` starts a local server and continues running until you stop it manually.
 

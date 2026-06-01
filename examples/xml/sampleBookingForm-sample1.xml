@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xf:xform xmlns:xf="http://www.w3.org/2002/xforms" xmlns:xs="http://www.w3.org/2001/XMLSchema">
     <xf:model id="model-1">
-        <xf:instance>
+        <xf:instance id="booking">
             <document xmlns="">
               <Event>
                   <EventDate></EventDate>
@@ -37,7 +37,9 @@
         <xf:bind nodeset="Event/Title" required="true()"/> 
         
         <!-- <xf:bind nodeset="EventTime" type="xf:time"/>-->
-        <xf:submission ref="submit_model_records" 
+        <xf:submission id="submit_model_records"
+            ref="instance('booking')"
+            method="post"
             resource="/api/book-submit" />
     </xf:model>
  
@@ -113,7 +115,7 @@
         
         <xf:item>
             <xf:label>Fair</xf:label>
-            <xf:value>Fiar</xf:value> 
+            <xf:value>Fair</xf:value> 
         </xf:item>
         
         
@@ -149,7 +151,7 @@
         <xf:label>Number of people/guests at event: </xf:label>
     </xf:input>
     <p>Event Description:</p>
-    <xf:textarea ref="Event/EventDescription" increment="true" style="width:300px;height:10em;">
+    <xf:textarea ref="Event/EventDescription" incremental="true" style="width:300px;height:10em;">
         
         <xf:hint>Please enter as much details as possible</xf:hint>
         
@@ -205,7 +207,7 @@
     </xf:input>
     <br/>
    
-    <xf:submit  id="submit_model_records">
+    <xf:submit submission="submit_model_records">
         <xf:label>Submit Booking</xf:label>
     </xf:submit>
     

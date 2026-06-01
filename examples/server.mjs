@@ -117,6 +117,13 @@ ${interestingHeaders}`)}</pre>
   </body>
 </html>`;
 }
+function renderApiResultXml({ status, message }) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<result>
+  <status>${escapeXml(status)}</status>
+  <message>${escapeXml(message)}</message>
+</result>`;
+}
 
 const server = createServer(async (request, response) => {
   try {
@@ -156,6 +163,25 @@ const server = createServer(async (request, response) => {
       const body = await readBody(request);
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       response.end(renderSubmitResponse({ body, requestUrl, request }));
+      return;
+    }
+
+    if (requestUrl.pathname === "/api/purchase") {
+      const body = await readBody(request);
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      response.end(renderSubmitResponse({ body, requestUrl, request }));
+      return;
+    }
+
+    if (requestUrl.pathname === "/api/submit-ok") {
+      response.writeHead(200, { "Content-Type": "application/xml; charset=utf-8" });
+      response.end(renderApiResultXml({ status: "ok", message: "Submission accepted" }));
+      return;
+    }
+
+    if (requestUrl.pathname === "/api/submit-fail") {
+      response.writeHead(500, { "Content-Type": "application/xml; charset=utf-8" });
+      response.end(renderApiResultXml({ status: "error", message: "Submission rejected" }));
       return;
     }
 

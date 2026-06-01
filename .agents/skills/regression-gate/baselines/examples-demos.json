@@ -1,0 +1,14 @@
+{
+  "suite_id": "examples-demos",
+  "test_path": "tests/examples",
+  "config_path": "playwright.config.ts",
+  "last_updated": "2026-05-30T12:56:56.933Z",
+  "stats": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "flaky": 0,
+    "skipped": 0
+  },
+  "allowed_failures": []
+}

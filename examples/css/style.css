@@ -53,10 +53,20 @@ textarea.xforms-invalid {
     background-color: #fff2f2;
 }
 
-.xforms-input.xforms-invalid::after,
-.xforms-select.xforms-invalid::after,
-.xforms-textarea.xforms-invalid::after {
-    content: "Invalid value. Check the hint.";
+/*
+  Only surface the textual invalid message for the control the user is
+  actually interacting with (focused or hovered). Model-wide revalidation
+  marks every invalid control on each change; without this scoping the page
+  would show the message on all invalid fields at once. The hint is rendered
+  by the engine as the field's title (tooltip), so the message points there.
+*/
+.xforms-input.xforms-invalid:focus-within::after,
+.xforms-input.xforms-invalid:hover::after,
+.xforms-select.xforms-invalid:focus-within::after,
+.xforms-select.xforms-invalid:hover::after,
+.xforms-textarea.xforms-invalid:focus-within::after,
+.xforms-textarea.xforms-invalid:hover::after {
+    content: "Invalid value \2014 hover this field to read its hint.";
     display: block;
     margin-top: 0.2em;
     font-size: 8pt;

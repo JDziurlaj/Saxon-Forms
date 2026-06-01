@@ -56,7 +56,7 @@
                 <xs:restriction base="xs:string">
                     <xs:enumeration value="pending" />
                     <xs:enumeration value="confirmed" />
-                    <xs:enumeration value="sshipped" />
+                    <xs:enumeration value="shipped" />
                 </xs:restriction>
             </xs:simpleType>
         </xs:schema>
