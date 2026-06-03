@@ -68,7 +68,12 @@ async function stopServer(server: RunningServer): Promise<void> {
     server.child.kill("SIGKILL");
   }
 }
-
+function splitClassTokens(classValue: string | null): string[] {
+  return (classValue ?? "")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+}
 
 test.describe("Schema validation demo", () => {
   test.describe.configure({ mode: "serial" });
@@ -147,6 +152,31 @@ test.describe("Schema validation demo", () => {
     await page.locator("body").click();
     await expect(orderIdInput).toHaveValue("ABC-1234");
     await expect(orderIdInput).toHaveClass(/xforms-valid/);
+  });
+
+  test("repeated submit keeps validation class tokens unique", async ({ page }) => {
+    // TEST-TRACE: guards against refresh-time class accumulation on repeated submit; helps tests/supplemental/demo-schema-validation.spec.ts "repeated submit keeps validation class tokens unique".
+    await page.goto(`${examplesServer.baseUrl}/demo-schema-validation.html`);
+    await expect(page.locator("#xForm .xforms-input").first()).toBeVisible({ timeout: renderTimeoutMs });
+
+    const orderIdInput = page.getByRole("textbox", { name: "Pattern: AAA-1234" });
+    const submitPurchaseButton = page.getByRole("button", { name: "Submit Purchase" });
+    const classSignatures: string[] = [];
+
+    for (let index = 0; index < 3; index += 1) {
+      await submitPurchaseButton.click();
+      await expect(orderIdInput).toHaveClass(/xforms-valid/);
+      await expect(orderIdInput).toHaveClass(/xforms-required/);
+
+      const classTokens = splitClassTokens(await orderIdInput.getAttribute("class"));
+      expect(classTokens).toContain("xforms-input");
+      expect(classTokens).toContain("xforms-valid");
+      expect(classTokens).toContain("xforms-required");
+      expect(new Set(classTokens).size).toBe(classTokens.length);
+      classSignatures.push([...classTokens].sort().join(" "));
+    }
+
+    expect(new Set(classSignatures).size).toBe(1);
   });
 
   test("invalid orderId does not submit purchase request", async ({ page }) => {

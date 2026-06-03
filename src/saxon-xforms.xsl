@@ -561,7 +561,19 @@
     
     <xsl:template match="*:input[exists(@data-ref)][not(@type='file')] | *:select[exists(@data-ref)] | *:textarea[exists(@data-ref)]" mode="ixsl:onblur">
         <xsl:sequence select="js:markControlVisited(normalize-space(string(@instance-context)), normalize-space(string(@data-ref)))"/>
-        <xsl:call-template name="refreshOutputs-JS"/>
+        <!-- TEST-TRACE: commit blurred control values before refresh so invalid/valid projection uses current instance data; helps tests/supplemental/demo-schema-validation.spec.ts "orderId pattern facet marks invalid then valid". -->
+        <xsl:call-template name="action-setvalue-form-control">
+            <xsl:with-param name="form-control" select="."/>
+        </xsl:call-template>
+        <xsl:call-template name="outermost-action-handler"/>
+    </xsl:template>
+    <xsl:template match="*:input[exists(@data-ref)][not(@type='file')] | *:textarea[exists(@data-ref)]" mode="ixsl:onfocusout">
+        <!-- TEST-TRACE: mirror blur-time control commit on focusout for UA/event-order variants where focusout fires without a usable blur hook; helps tests/supplemental/demo-schema-validation.spec.ts "orderId pattern facet marks invalid then valid". -->
+        <xsl:sequence select="js:markControlVisited(normalize-space(string(@instance-context)), normalize-space(string(@data-ref)))"/>
+        <xsl:call-template name="action-setvalue-form-control">
+            <xsl:with-param name="form-control" select="."/>
+        </xsl:call-template>
+        <xsl:call-template name="outermost-action-handler"/>
     </xsl:template>
     
     
@@ -4443,14 +4455,40 @@
         
         <xsl:message use-when="$debugMode">[getHtmlClass] @class = '<xsl:sequence select="$class"/>'</xsl:message>
         
-        <xsl:variable name="class-mod" as="xs:string*">
-            <xsl:sequence select="fn:tokenize($class,'\s+')"/>
+        <!-- TEST-TRACE: when refreshed validation classes are supplied, drop stale mutually-exclusive validation tokens from class-source; helps tests/supplemental/saxon-forms-validation.spec.ts "correcting invalid value removes xforms-invalid". -->
+        <xsl:variable name="replace-validity-state" as="xs:boolean" select="some $v in $additional-values satisfies $v = ('xforms-valid','xforms-invalid')"/>
+        <xsl:variable name="replace-required-state" as="xs:boolean" select="some $v in $additional-values satisfies $v = ('xforms-required','xforms-optional')"/>
+        <xsl:variable name="source-class-values" as="xs:string*" select="
+            for $token in fn:tokenize($class,'\s+')
+            return
+                if (normalize-space($token) = '')
+                then ()
+                else (
+                    if ($replace-validity-state and $token = ('xforms-valid','xforms-invalid'))
+                    then ()
+                    else (
+                        if ($replace-required-state and $token = ('xforms-required','xforms-optional'))
+                        then ()
+                        else $token
+                    )
+                )"/>
+        <xsl:variable name="class-mod-raw" as="xs:string*">
+            <xsl:sequence select="$source-class-values"/>
             <!-- include any additional "seed" values -->
             <xsl:sequence select="$additional-values"/>
             <xsl:if test="$incremental eq 'true'">
                 <xsl:sequence select="'incremental'"/>
             </xsl:if>
          </xsl:variable>
+        <!-- TEST-TRACE: keep refresh class composition stable by removing duplicate class tokens while preserving first-seen order; helps tests/supplemental/demo-schema-validation.spec.ts "repeated submit keeps validation class tokens unique". -->
+        <xsl:variable name="class-mod" as="xs:string*" select="
+            let $filtered := $class-mod-raw[normalize-space(.) ne '']
+            return
+                for $pos in 1 to count($filtered)
+                return
+                    if (some $prev in subsequence($filtered,1,$pos - 1) satisfies $prev = $filtered[$pos])
+                    then ()
+                    else $filtered[$pos]"/>
         
         <xsl:sequence select="string-join($class-mod,' ')"/>
         
