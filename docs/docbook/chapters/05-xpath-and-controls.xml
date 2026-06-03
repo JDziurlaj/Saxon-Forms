@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <chapter xmlns="http://docbook.org/ns/docbook" id="chapter-xpath-and-controls" xmlns:xi="http://www.w3.org/2001/XInclude">
-    <title>XPath and Controls (XForms 1.1 Chapters 7, 8, and 9)</title>
+    <title>XPath and Controls</title>
     <para>This chapter maps XForms XPath semantics to XPath 3.1 execution in SaxonForms and explains control rendering and interaction patterns for standard and custom controls.</para>
 
     <section id="chapter-xpath-mapping">
@@ -83,15 +83,5 @@
                 <listitem><para>Namespace prefix propagation — XPaths can use prefixes declared on <literal>&lt;xf:xform&gt;</literal> (e.g., <literal>o:catalog</literal> instead of <literal>*:catalog</literal>). Implemented via <literal>addNamespaceDeclarationsToDocument()</literal> in <literal>src/saxon-xforms.xsl</literal>.</para></listitem>
             </itemizedlist>
         </section>
-    </section>
-
-    <section id="chapter-xpath-and-controls-checkpoint">
-        <title>Checkpoint validation focus</title>
-        <itemizedlist>
-            <listitem><para>Targeted W3C coverage: <literal>tests/xforms/w3c/ch07.spec.ts</literal> (XPath, 62 tests), <literal>tests/xforms/w3c/ch08.spec.ts</literal> (core controls, 59 tests), and <literal>tests/xforms/w3c/ch09.spec.ts</literal> (container controls, 21 tests).</para></listitem>
-            <listitem><para>Review toggle/repeat-specific behavior against known edge cases (9.3.1.b startindex, 9.3.1.f toggle scoping) before chapter approval.</para></listitem>
-            <listitem><para>Verify function library documentation remains aligned with current XSLT sources and the conformance gap inventory in <literal>tests/xforms/w3c/STATUS.md</literal>.</para></listitem>
-            <listitem><para>Run full regression (<literal>npm run test:gate</literal>) before checkpoint closure.</para></listitem>
-        </itemizedlist>
     </section>
 </chapter>

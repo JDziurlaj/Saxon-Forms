@@ -452,7 +452,9 @@
     <xd:doc scope="component">
         <xd:desc>Handle incremental change to HTML input</xd:desc>
     </xd:doc>
-    <xsl:template match="*:input[xforms:hasClass(.,'incremental')][not(@type='range')]" mode="ixsl:onkeyup">
+    <xsl:template match="*:input[xforms:hasClass(.,'incremental')][not(@type=('range','date','time'))]" mode="ixsl:onkeyup">
+        <!-- TEST-TRACE: exclude native date/time controls from keyup-driven incremental updates;
+             helps tests/examples/booking-form-blur.spec.ts "date/time controls do not blur while editing internal segments". -->
         <xsl:call-template name="action-setvalue-form-control">
             <xsl:with-param name="form-control" select="."/>
         </xsl:call-template>
@@ -534,13 +536,29 @@
              must happen on focus change / blur (4.6.3.b/c sequencing). -->
     </xsl:template>
     
-    <xsl:template match="*:input[not(xforms:hasClass(.,'incremental'))][not(@type='file')] | *:textarea" mode="ixsl:onchange">
+    <xsl:template match="*:input[not(xforms:hasClass(.,'incremental'))][not(@type=('file','date','time'))] | *:textarea" mode="ixsl:onchange">
+        <!-- TEST-TRACE: keep native date/time off generic onchange input path so transient segment edits
+             do not overwrite bound values before explicit field exit; helps tests/examples/booking-form-blur.spec.ts booking form date/time regression. -->
         <xsl:message use-when="$debugMode">[ixsl:onchange mode] HTML form control '<xsl:sequence select="name()"/>' value changed</xsl:message>
         <xsl:call-template name="action-setvalue-form-control">
             <xsl:with-param name="form-control" select="."/>
         </xsl:call-template>
         <xsl:call-template name="outermost-action-handler"/>
     </xsl:template>
+    <xsl:template match="*:input[xforms:hasClass(.,'incremental')][@type=('date','time')][exists(@data-ref)]" mode="ixsl:onchange">
+        <!-- TEST-TRACE: commit incremental date/time values on native change event (field-level commit),
+             avoiding blur-time writes during internal segment navigation in native editors;
+             helps tests/examples/booking-form-blur.spec.ts "date/time controls do not blur while editing internal segments". -->
+        <xsl:call-template name="action-setvalue-form-control">
+            <xsl:with-param name="form-control" select="."/>
+            <!-- keep focused native commits enabled so valid date/time changes persist before submit;
+                 action-setvalue-form-control still blocks implausible partial date segment values. -->
+            <xsl:with-param name="allow-focused-native-date-time" select="true()"/>
+        </xsl:call-template>
+        <!-- TEST-TRACE: avoid running full outermost deferred cycle on native date/time onchange,
+             which can recreate controls and drop focus while editing internal segments. -->
+    </xsl:template>
+    
     <xsl:template match="*:input[exists(@data-ref)][not(@type='file')] | *:select[exists(@data-ref)] | *:textarea[exists(@data-ref)]" mode="ixsl:onblur">
         <xsl:sequence select="js:markControlVisited(normalize-space(string(@instance-context)), normalize-space(string(@data-ref)))"/>
         <xsl:call-template name="refreshOutputs-JS"/>
@@ -6296,6 +6314,19 @@
     </xd:doc>
     <xsl:template name="xforms-submit">
         <xsl:param name="submission" as="xs:string"/>
+        <xsl:variable name="active-form-control" as="element()?">
+            <xsl:variable name="active-element" as="item()*" select="ixsl:get(ixsl:page(), 'activeElement')"/>
+            <xsl:sequence select="$active-element[1][self::element()[local-name() = ('input','select','textarea')][exists(@data-ref)]]"/>
+        </xsl:variable>
+        <!-- ensure pending edits in a still-focused bound control are committed before submit-time validation
+             and serialization; this is especially important for native date/time controls where change/blur
+             sequencing can lag behind submit click handling. -->
+        <xsl:if test="exists($active-form-control)">
+            <xsl:call-template name="action-setvalue-form-control">
+                <xsl:with-param name="form-control" select="$active-form-control"/>
+                <xsl:with-param name="allow-focused-native-date-time" select="true()"/>
+            </xsl:call-template>
+        </xsl:if>
         
         <xsl:variable name="submission-map" select="js:getSubmission($submission)" as="map(*)"/>
         <xsl:variable name="submission-id" as="xs:string" select="
@@ -7626,6 +7657,15 @@
     </xd:doc>
     <xsl:template name="action-setvalue-form-control">
         <xsl:param name="form-control" as="node()"/>
+        <xsl:param name="allow-focused-native-date-time" as="xs:boolean" required="no" select="false()"/>
+        <xsl:variable name="is-native-date-time-incremental" as="xs:boolean" select="
+            local-name($form-control) = 'input'
+            and $form-control/@type = ('date','time')
+            and xforms:hasClass($form-control,'incremental')"/>
+        <xsl:variable name="is-focused-native-date-time" as="xs:boolean" select="
+            $is-native-date-time-incremental
+            and exists($form-control/@id)
+            and js:isActiveElement(string($form-control/@id))"/>
         
         <!-- TEST-TRACE: skip value update when readonly MIP is active;
              helps tests/w3c/ch06.spec.ts "6.1.2.a", "6.1.2.b" -->
@@ -7642,7 +7682,10 @@
                 else (xforms:evaluate-xpath-with-context-node($ro-ref-local,$ro-instanceXML,()))[1]"/>
             <ixsl:set-property name="value" select="string($ro-current)" object="$form-control"/>
         </xsl:if>
-        <xsl:if test="not($form-control/@data-readonly = 'true')">
+        <xsl:if test="not($form-control/@data-readonly = 'true') and (not($is-focused-native-date-time) or $allow-focused-native-date-time)">
+        <!-- TEST-TRACE: defer incremental native date/time writes while the same control remains focused;
+             transient segment edits (e.g. typing month/hour) must not mutate instance until true field exit;
+             helps tests/examples/booking-form-blur.spec.ts booking form date/time regression. -->
         
         <xsl:variable name="refi" select="$form-control/@data-ref"/>
         <xsl:variable name="refElement" select="$form-control/@data-element"/>
@@ -7675,6 +7718,12 @@
         <xsl:variable name="new-value" as="xs:string">
             <xsl:apply-templates select="$form-control" mode="get-field"/>
         </xsl:variable>
+        <xsl:variable name="skip-native-date-segment-commit" as="xs:boolean" select="
+            $is-native-date-time-incremental
+            and $form-control/@type = 'date'
+            and matches($new-value,'^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            and xs:integer(substring($new-value,1,4)) lt 1000"/>
+        <xsl:if test="not($skip-native-date-segment-commit)">
         <xsl:variable name="is-select-control" as="xs:boolean" select="local-name($form-control) = 'select'"/>
         <xsl:variable name="selection-changed" as="xs:boolean" select="$is-select-control and $old-value ne $new-value"/>
         <xsl:variable name="updatedInstanceXML" as="element()">
@@ -7750,6 +7799,14 @@
                         <xsl:sequence select="map:put(.,'handler-status','inner')"/>
                     </xsl:for-each>
                 </xsl:when>
+                <xsl:when test="$is-native-date-time-incremental">
+                    <!-- TEST-TRACE: keep native date/time incremental value-changed handlers inner-only
+                         to avoid focus churn during cross-field transitions from native editor segments;
+                         helps tests/examples/booking-form-blur.spec.ts booking form time blur regression. -->
+                    <xsl:for-each select="$value-changed-actions">
+                        <xsl:sequence select="map:put(.,'handler-status','inner')"/>
+                    </xsl:for-each>
+                </xsl:when>
                 <xsl:otherwise>
                     <xsl:sequence select="$value-changed-actions"/>
                 </xsl:otherwise>
@@ -7759,6 +7816,7 @@
             <xsl:call-template name="xforms-value-changed">
                 <xsl:with-param name="when-value-changed" select="$value-changed-actions-adjusted" tunnel="yes"/>
             </xsl:call-template>
+        </xsl:if>
         </xsl:if>
         
         </xsl:if><!-- end not(data-readonly) guard -->

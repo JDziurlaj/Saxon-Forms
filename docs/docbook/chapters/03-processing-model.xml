@@ -47,25 +47,4 @@
             </imageobject>
         </mediaobject>
     </section>
-
-    <section id="chapter-processing-model-known-issues">
-        <title>Known processing model issues</title>
-        <itemizedlist>
-            <listitem><para><emphasis>4.2.1.a/d, 4.2.2.a, 4.2.3.a, 4.5.2.a</emphasis> — Model-construction crash when model has no instance. Resolved by making <literal>$context-node</literal> parameter optional (<literal>node()?</literal>) in <literal>evaluate-xpath-with-context-node</literal>.</para></listitem>
-            <listitem><para><emphasis>4.2.2.b</emphasis> — <literal>xforms-model-construct-done</literal> setvalue handler does not clear instance data during model construction. Root cause: event handler execution timing during model construction.</para></listitem>
-            <listitem><para><emphasis>4.2.2.c1</emphasis> — Form control referencing instance not yet loaded; output hidden after <literal>xforms-ready</literal>. Root cause: lazy instance resolution timing.</para></listitem>
-            <listitem><para><emphasis>4.4.1.a</emphasis> — <literal>xforms-insert</literal> event properties (<literal>inserted-nodes</literal>) not populated in event handler after trigger click.</para></listitem>
-            <listitem><para><emphasis>4.6.3.a/b/c</emphasis> — Resolved: Non-incremental select/select1 onchange now performs inline recalculate/revalidate/refresh to avoid duplicate outer deferred-cycle dispatch.</para></listitem>
-        </itemizedlist>
-    </section>
-
-    <section id="chapter-processing-model-checkpoint">
-        <title>Checkpoint validation focus</title>
-        <itemizedlist>
-            <listitem><para>Targeted W3C coverage: <literal>tests/xforms/w3c/ch04.spec.ts</literal>.</para></listitem>
-            <listitem><para>Sequence trace checkpoints must map each message to concrete runtime hooks and ordered <literal>[SEQTRACE]</literal> template chains in <literal>tests/xforms/w3c/sequence-trace.spec.ts</literal>.</para></listitem>
-            <listitem><para>Verify deferred update cycle description against non-incremental select fix (4.6.3.a/b/c).</para></listitem>
-            <listitem><para>Regression command for final acceptance: <literal>npm run test:gate</literal>.</para></listitem>
-        </itemizedlist>
-    </section>
 </chapter>

@@ -40,22 +40,12 @@
         <section id="chapter-saxonforms-and-saxonjs-source-files">
             <title>Source file inventory</title>
             <variablelist>
-                <varlistentry><term>src/saxon-xforms.xsl (~8,100 lines)</term><listitem><para>The main transform. Contains the entry point (<literal>xformsjs-main</literal>), model lifecycle templates (<literal>xforms-model-construct</literal>, <literal>xforms-rebuild</literal>, <literal>xforms-recalculate</literal>, <literal>xforms-revalidate</literal>, <literal>xforms-refresh</literal>), control rendering templates (<literal>get-html</literal> mode), action dispatch (<literal>applyActions</literal>, <literal>outermost-action-handler</literal>, all <literal>action-*</literal> named templates), submission logic (<literal>HTTPsubmit</literal>, <literal>xforms-submit</literal>), and DOM event handler templates (<literal>ixsl:on*</literal> modes).</para></listitem></varlistentry>
-                <varlistentry><term>src/xforms-function-library.xsl (~300 lines)</term><listitem><para>Core runtime functions: <literal>xforms:impose()</literal> (XPath rewriting), <literal>xforms:instance()</literal>, <literal>xforms:index()</literal>, <literal>xforms:id()</literal>, <literal>xforms:min()</literal>/<literal>max()</literal>, <literal>xforms:random()</literal>, <literal>xforms:context()</literal>, <literal>xforms:if()</literal>.</para></listitem></varlistentry>
-                <varlistentry><term>src/xforms-xpath-functions.xsl (~420 lines)</term><listitem><para>XForms specification functions: <literal>property()</literal>, <literal>boolean-from-string()</literal>, <literal>avg()</literal>, <literal>event()</literal>, date/time functions, cryptographic stubs (<literal>digest()</literal>, <literal>hmac()</literal>).</para></listitem></varlistentry>
-                <varlistentry><term>src/xsd-helpers.xsl (~148 lines)</term><listitem><para>XSD type validation: <literal>xsdh:canonical-type()</literal> normalizes type QNames, <literal>xsdh:is-type-valid()</literal> validates values against XSD types.</para></listitem></varlistentry>
+                <varlistentry><term>src/saxon-xforms.xsl</term><listitem><para>The main transform. Contains the entry point (<literal>xformsjs-main</literal>), model lifecycle templates (<literal>xforms-model-construct</literal>, <literal>xforms-rebuild</literal>, <literal>xforms-recalculate</literal>, <literal>xforms-revalidate</literal>, <literal>xforms-refresh</literal>), control rendering templates (<literal>get-html</literal> mode), action dispatch (<literal>applyActions</literal>, <literal>outermost-action-handler</literal>, all <literal>action-*</literal> named templates), submission logic (<literal>HTTPsubmit</literal>, <literal>xforms-submit</literal>), and DOM event handler templates (<literal>ixsl:on*</literal> modes).</para></listitem></varlistentry>
+                <varlistentry><term>src/xforms-function-library.xsl </term><listitem><para>Core runtime functions: <literal>xforms:impose()</literal> (XPath rewriting), <literal>xforms:instance()</literal>, <literal>xforms:index()</literal>, <literal>xforms:id()</literal>, <literal>xforms:min()</literal>/<literal>max()</literal>, <literal>xforms:random()</literal>, <literal>xforms:context()</literal>, <literal>xforms:if()</literal>.</para></listitem></varlistentry>
+                <varlistentry><term>src/xforms-xpath-functions.xsl </term><listitem><para>XForms specification functions: <literal>property()</literal>, <literal>boolean-from-string()</literal>, <literal>avg()</literal>, <literal>event()</literal>, date/time functions, cryptographic stubs (<literal>digest()</literal>, <literal>hmac()</literal>).</para></listitem></varlistentry>
+                <varlistentry><term>src/xsd-helpers.xsl </term><listitem><para>XSD type validation: <literal>xsdh:canonical-type()</literal> normalizes type QNames, <literal>xsdh:is-type-valid()</literal> validates values against XSD types.</para></listitem></varlistentry>
                 <varlistentry><term>src/packages/logger.xsl</term><listitem><para>Optional logging package with configurable log levels (<literal>sfp:logInfo</literal>, <literal>sfp:logDebug</literal>). Controlled by the <literal>$LOGLEVEL</literal> parameter.</para></listitem></varlistentry>
             </variablelist>
         </section>
-    </section>
-
-    <section id="chapter-saxonforms-and-saxonjs-checkpoint">
-        <title>Checkpoint validation focus</title>
-        <itemizedlist>
-            <listitem><para>Validate that component and package diagrams use the same subsystem names and edges.</para></listitem>
-            <listitem><para>Confirm one-hop interactions with HTML/DOM/JavaScript are represented explicitly in component diagram.</para></listitem>
-            <listitem><para>Verify source file inventory matches actual file list and line counts.</para></listitem>
-            <listitem><para>Confirm chapter links to implementation files remain current before processing-model chapters are reviewed.</para></listitem>
-        </itemizedlist>
     </section>
 </chapter>

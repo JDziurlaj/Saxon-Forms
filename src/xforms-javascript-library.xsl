@@ -616,6 +616,11 @@
             focusable.focus();
          }
          
+         var isActiveElement = function(id) {
+            var active = document.activeElement;
+            return !!(active &amp;&amp; active.id === id);
+         }
+         
          var setValue = function(id,val) {
              var item = document.getElementById(id);
              item.value = val;

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <chapter xmlns="http://docbook.org/ns/docbook" id="chapter-data-types-and-mips" xmlns:xi="http://www.w3.org/2001/XInclude">
-    <title>Data Types and Model Item Properties (XForms 1.1 Chapters 5 and 6)</title>
+    <title>Data Types and Model Item Properties</title>
     <para>This chapter documents data typing support (including XSD-derived constraints) and the mapping between XForms model item properties and runtime state propagation into rendered controls.</para>
 
     <section id="chapter-data-types-support">
@@ -80,15 +80,5 @@
                 <imagedata fileref="../diagrams/data-types-mip-flow.svg" format="SVG" width="100%" scalefit="1"/>
             </imageobject>
         </mediaobject>
-    </section>
-
-    <section id="chapter-data-types-and-mips-checkpoint">
-        <title>Checkpoint validation focus</title>
-        <itemizedlist>
-            <listitem><para>Targeted W3C coverage: <literal>tests/xforms/w3c/ch05.spec.ts</literal> (15 tests, 73% pass) and <literal>tests/xforms/w3c/ch06.spec.ts</literal> (11 tests, 82% pass).</para></listitem>
-            <listitem><para>Cross-check chapter behavior statements against known resolved/gap entries: readonly enforcement (6.1.2.a/b), type coercion (6.1.5.a, 6.1.4.b), constraint events (6.1.6.a).</para></listitem>
-            <listitem><para>Verify schema type validation limitation is accurately described per STATUS.md.</para></listitem>
-            <listitem><para>Run full regression (<literal>npm run test:gate</literal>) before chapter sign-off.</para></listitem>
-        </itemizedlist>
     </section>
 </chapter>

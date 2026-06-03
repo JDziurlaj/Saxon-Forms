@@ -195,18 +195,6 @@
         </section>
     </section>
 
-    <section id="chapter-additional-topics-bpmn">
-        <title>BPMN workflow diagrams</title>
-        <para>Workflow-level behavior is represented with BPMN 2.x artifacts under <literal>docs/bpmn</literal>. These diagrams document the development and validation processes rather than runtime behavior:</para>
-        <itemizedlist>
-            <listitem><para><ulink url="../../bpmn/00-development-lifecycle.bpmn">Development lifecycle workflow</ulink> — Overall development process from feature request to release.</para></listitem>
-            <listitem><para><ulink url="../../bpmn/01-regression-gate.bpmn">Regression gate workflow</ulink> — Automated gate that validates W3C test suite pass rates and prevents regressions.</para></listitem>
-            <listitem><para><ulink url="../../bpmn/02-git-commit.bpmn">Git commit workflow</ulink> — Pre-commit validation steps.</para></listitem>
-            <listitem><para><ulink url="../../bpmn/03-test-suite-development.bpmn">Test suite development workflow</ulink> — Process for adding new W3C tests and fixture forms.</para></listitem>
-            <listitem><para><ulink url="../../bpmn/04-xslt-xpath-change.bpmn">XSLT/XPath change workflow</ulink> — Process for modifying XSLT source with regression verification.</para></listitem>
-        </itemizedlist>
-    </section>
-
     <section id="chapter-additional-topics-api-reference">
         <title>XSLT API reference</title>
         <para>This section provides a summary of the public API surface of SaxonForms — the named templates and functions that form the implementation contract.</para>
@@ -261,15 +249,5 @@
                 <listitem><para><literal>xsdh:is-type-valid($value, $type)</literal> in <literal>src/xsd-helpers.xsl</literal> — Validates value against XSD type.</para></listitem>
             </itemizedlist>
         </section>
-    </section>
-
-    <section id="chapter-additional-topics-checkpoint">
-        <title>Checkpoint validation focus</title>
-        <itemizedlist>
-            <listitem><para>Validate consistency between chapter workflows and existing BPMN process definitions.</para></listitem>
-            <listitem><para>Confirm accessibility guidance is backed by executable tests where available.</para></listitem>
-            <listitem><para>Verify API reference symbol names and file paths match current source.</para></listitem>
-            <listitem><para>Gather user review feedback before final full-document validation pass.</para></listitem>
-        </itemizedlist>
     </section>
 </chapter>
