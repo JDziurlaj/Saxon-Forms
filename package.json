@@ -29,6 +29,7 @@
     "test:nist-facets": "node scripts/run-nist-facet-harness.mjs --engine saxonforms",
     "test:nist-facets:inventory": "node scripts/run-nist-facet-inventory.mjs --engine saxonforms --jobs 1",
     "test:nist-facets:list": "node scripts/run-nist-facet-harness.mjs --list-only",
+    "build:nist-engine-index": "node scripts/build-nist-engine-case-index.mjs",
     "docs:build": "node scripts/build-docs.mjs",
     "docs:docbook:validate": "node scripts/validate-docbook-sources.mjs",
     "docs:docbook:build": "node scripts/run-docbook-build.mjs",
