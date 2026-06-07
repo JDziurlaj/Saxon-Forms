@@ -75,16 +75,31 @@ npm run test:e2e:ui
 - Compile stylesheet-driven examples on demand: `npm run examples:compile`
 - Fetch W3C suite: `npm run fetch:w3c`
 - Fetch NIST xsdtests dataset: `npm run fetch:nist`
+- Build precomputed NIST Playwright case index: `npm run build:nist-engine-index`
 - Run e2e in Chrome only: `npm run test:e2e:chrome`
 - Run e2e in Firefox only: `npm run test:e2e:firefox`
 - Run e2e in both browsers: `npm run test:e2e:both`
 - Run full e2e flow (prepare + build + test): `npm run test:e2e:full`
 - Run xsd helper tests: `npm run test:xsd-helpers`
+- Run NIST facet harness with Saxon-Forms engine: `npm run test:nist-facets`
+- Run NIST facet inventory by datatype families: `npm run test:nist-facets:inventory`
 - Run diagnostics tests: `npm run test:e2e:diagnostics`
+
+### NIST Playwright engine index
+`tests/xsd/nist/nist-facets-engine.spec.ts` reads precomputed case data from:
+- `tests/xsd/nist/.cache/nist-engine-case-index.json`
+
+Generate/update this file with:
+```bash
+npm run build:nist-engine-index
+```
+
+Use a custom index path for experimentation by setting `NIST_ENGINE_CASE_INDEX` to an absolute or repo-relative JSON path.
 
 ### Troubleshooting
 - If W3C tests are missing assets, run `npm run fetch:w3c`.
 - If NIST workflows are missing assets, run `npm run fetch:nist`.
+- If `tests/xsd/nist/nist-facets-engine.spec.ts` reports missing index data, run `npm run build:nist-engine-index`.
 - If runtime output looks stale, rerun `npm run build:sef`.
 - If docs builds fail, ensure `ant` is on PATH (or use `--ant-bin` with `scripts/run-docbook-build.mjs`).
 

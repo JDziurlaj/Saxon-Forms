@@ -29,6 +29,56 @@
             then 'card-number'
             else $normalized-prefix"/>
     </xsl:function>
+    <xsl:variable name="xsdh:type-validators" as="map(xs:string, function(xs:string) as xs:boolean)" select="
+        map{
+            'datetime': function($v as xs:string) as xs:boolean { ($v castable as xs:dateTime) or xsdh:is-native-datetime-local-lexical($v) },
+            'time': function($v as xs:string) as xs:boolean { ($v castable as xs:time) or xsdh:is-native-time-lexical($v) },
+            'date': function($v as xs:string) as xs:boolean { $v castable as xs:date },
+            'gyearmonth': function($v as xs:string) as xs:boolean { $v castable as xs:gYearMonth },
+            'gyear': function($v as xs:string) as xs:boolean { $v castable as xs:gYear },
+            'gmonthday': function($v as xs:string) as xs:boolean { $v castable as xs:gMonthDay },
+            'gday': function($v as xs:string) as xs:boolean { $v castable as xs:gDay },
+            'gmonth': function($v as xs:string) as xs:boolean { $v castable as xs:gMonth },
+            'string': function($v as xs:string) as xs:boolean { true() },
+            'normalizedstring': function($v as xs:string) as xs:boolean { true() },
+            'token': function($v as xs:string) as xs:boolean { true() },
+            'language': function($v as xs:string) as xs:boolean { $v castable as xs:language },
+            'name': function($v as xs:string) as xs:boolean { $v castable as xs:Name },
+            'ncname': function($v as xs:string) as xs:boolean { $v castable as xs:NCName },
+            'id': function($v as xs:string) as xs:boolean { $v castable as xs:ID },
+            'idref': function($v as xs:string) as xs:boolean { $v castable as xs:IDREF },
+            'idrefs': function($v as xs:string) as xs:boolean { $v castable as xs:IDREFS },
+            'nmtoken': function($v as xs:string) as xs:boolean { $v castable as xs:NMTOKEN },
+            'nmtokens': function($v as xs:string) as xs:boolean { $v castable as xs:NMTOKENS },
+            'boolean': function($v as xs:string) as xs:boolean { $v castable as xs:boolean },
+            'base64binary': function($v as xs:string) as xs:boolean { $v castable as xs:base64Binary },
+            'hexbinary': function($v as xs:string) as xs:boolean { $v castable as xs:hexBinary },
+            'float': function($v as xs:string) as xs:boolean { $v castable as xs:float },
+            'decimal': function($v as xs:string) as xs:boolean { $v castable as xs:decimal },
+            'double': function($v as xs:string) as xs:boolean { $v castable as xs:double },
+            'anyuri': function($v as xs:string) as xs:boolean { not(matches($v,'\s')) and ($v castable as xs:anyURI) },
+            'qname': function($v as xs:string) as xs:boolean { matches($v,'^\i\c*(:\i\c*)?$') },
+            'integer': function($v as xs:string) as xs:boolean { $v castable as xs:integer },
+            'nonpositiveinteger': function($v as xs:string) as xs:boolean { $v castable as xs:nonPositiveInteger },
+            'negativeinteger': function($v as xs:string) as xs:boolean { $v castable as xs:negativeInteger },
+            'long': function($v as xs:string) as xs:boolean { $v castable as xs:long },
+            'int': function($v as xs:string) as xs:boolean { $v castable as xs:int },
+            'short': function($v as xs:string) as xs:boolean { $v castable as xs:short },
+            'byte': function($v as xs:string) as xs:boolean { $v castable as xs:byte },
+            'nonnegativeinteger': function($v as xs:string) as xs:boolean { $v castable as xs:nonNegativeInteger },
+            'unsignedlong': function($v as xs:string) as xs:boolean { $v castable as xs:unsignedLong },
+            'unsignedint': function($v as xs:string) as xs:boolean { $v castable as xs:unsignedInt },
+            'unsignedshort': function($v as xs:string) as xs:boolean { $v castable as xs:unsignedShort },
+            'unsignedbyte': function($v as xs:string) as xs:boolean { $v castable as xs:unsignedByte },
+            'positiveinteger': function($v as xs:string) as xs:boolean { $v castable as xs:positiveInteger },
+            'listitem': function($v as xs:string) as xs:boolean { not(matches($v,'\s')) },
+            'listitems': function($v as xs:string) as xs:boolean { matches($v,'^\S+(\s+\S+)*$') },
+            'daytimeduration': function($v as xs:string) as xs:boolean { $v castable as xs:dayTimeDuration },
+            'yearmonthduration': function($v as xs:string) as xs:boolean { $v castable as xs:yearMonthDuration },
+            'email': function($v as xs:string) as xs:boolean { matches($v,'^[^\s@]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$') },
+            'card-number': function($v as xs:string) as xs:boolean { matches($v,'^\d{12,19}$') },
+            'ccnumber-strict': function($v as xs:string) as xs:boolean { matches($v,'^\d{14,18}$') }
+        }"/>
 
     <xd:doc scope="component">
         <xd:desc>
@@ -45,10 +95,11 @@
         <xsl:variable name="is-xforms-type" as="xs:boolean" select="starts-with($raw-type,'xforms:')"/>
         <xsl:variable name="type" as="xs:string" select="xsdh:canonical-type($binding-type)"/>
         <xsl:variable name="value" as="xs:string" select="normalize-space(string($raw-value))"/>
+        <xsl:variable name="validator" as="(function(xs:string) as xs:boolean)?" select="$xsdh:type-validators($type)"/>
         <!--
             High-level lexical validation model:
             - canonical-type() normalizes prefix variants into a single internal token.
-            - Most branches use XPath castability checks to enforce datatype lexical space.
+            - A type->validator map centralizes castability and regex checks by canonical token.
             - For xforms:* custom types, empty lexical values are accepted here so requiredness
               remains controlled by @required/relevant logic in the runtime.
             - Unknown/non-mapped types intentionally default to true() so schema-aware validation
@@ -61,96 +112,8 @@
             then string-length($value) gt 0
             else if ($value = '' and $is-xforms-type)
             then true()
-            else if ($type = 'datetime')
-            then (($value castable as xs:dateTime) or xsdh:is-native-datetime-local-lexical($value))
-            else if ($type = 'time')
-            then (($value castable as xs:time) or xsdh:is-native-time-lexical($value))
-            else if ($type = 'date')
-            then ($value castable as xs:date)
-            else if ($type = 'gyearmonth')
-            then ($value castable as xs:gYearMonth)
-            else if ($type = 'gyear')
-            then ($value castable as xs:gYear)
-            else if ($type = 'gmonthday')
-            then ($value castable as xs:gMonthDay)
-            else if ($type = 'gday')
-            then ($value castable as xs:gDay)
-            else if ($type = 'gmonth')
-            then ($value castable as xs:gMonth)
-            else if ($type = ('string','normalizedstring','token'))
-            then true()
-            else if ($type = 'language')
-            then ($value castable as xs:language)
-            else if ($type = 'name')
-            then ($value castable as xs:Name)
-            else if ($type = 'ncname')
-            then ($value castable as xs:NCName)
-            else if ($type = 'id')
-            then ($value castable as xs:ID)
-            else if ($type = 'idref')
-            then ($value castable as xs:IDREF)
-            else if ($type = 'idrefs')
-            then ($value castable as xs:IDREFS)
-            else if ($type = 'nmtoken')
-            then ($value castable as xs:NMTOKEN)
-            else if ($type = 'nmtokens')
-            then ($value castable as xs:NMTOKENS)
-            else if ($type = 'boolean')
-            then ($value castable as xs:boolean)
-            else if ($type = 'base64binary')
-            then ($value castable as xs:base64Binary)
-            else if ($type = 'hexbinary')
-            then ($value castable as xs:hexBinary)
-            else if ($type = 'float')
-            then ($value castable as xs:float)
-            else if ($type = 'decimal')
-            then ($value castable as xs:decimal)
-            else if ($type = 'double')
-            then ($value castable as xs:double)
-            else if ($type = 'anyuri')
-            then (not(matches($value,'\s')) and ($value castable as xs:anyURI))
-            else if ($type = 'qname')
-            then matches($value,'^\i\c*(:\i\c*)?$')
-            else if ($type = 'integer')
-            then ($value castable as xs:integer)
-            else if ($type = 'nonpositiveinteger')
-            then ($value castable as xs:nonPositiveInteger)
-            else if ($type = 'negativeinteger')
-            then ($value castable as xs:negativeInteger)
-            else if ($type = 'long')
-            then ($value castable as xs:long)
-            else if ($type = 'int')
-            then ($value castable as xs:int)
-            else if ($type = 'short')
-            then ($value castable as xs:short)
-            else if ($type = 'byte')
-            then ($value castable as xs:byte)
-            else if ($type = 'nonnegativeinteger')
-            then ($value castable as xs:nonNegativeInteger)
-            else if ($type = 'unsignedlong')
-            then ($value castable as xs:unsignedLong)
-            else if ($type = 'unsignedint')
-            then ($value castable as xs:unsignedInt)
-            else if ($type = 'unsignedshort')
-            then ($value castable as xs:unsignedShort)
-            else if ($type = 'unsignedbyte')
-            then ($value castable as xs:unsignedByte)
-            else if ($type = 'positiveinteger')
-            then ($value castable as xs:positiveInteger)
-            else if ($type = 'listitem')
-            then not(matches($value,'\s'))
-            else if ($type = 'listitems')
-            then matches($value,'^\S+(\s+\S+)*$')
-            else if ($type = 'daytimeduration')
-            then ($value castable as xs:dayTimeDuration)
-            else if ($type = 'yearmonthduration')
-            then ($value castable as xs:yearMonthDuration)
-            else if ($type = 'email')
-            then matches($value,'^[^\s@]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
-            else if ($type = 'card-number')
-            then matches($value,'^\d{12,19}$')
-            else if ($type = 'ccnumber-strict')
-            then matches($value,'^\d{14,18}$')
+            else if (exists($validator))
+            then $validator($value)
             else if (starts-with($type,'list:'))
             then (
                 let $item-type := substring-after($type,'list:'),
@@ -255,53 +218,51 @@
             This keeps the main boolean expression readable while preserving explicit semantics.
         -->
         <xsl:sequence select="
-            (
-                if (exists($length-facets))
-                then (
-                    if ($canonical = 'qname')
-                    then true()
-                    else exists($length) and (every $l in $length-facets satisfies $length = $l)
-                )
-                else true()
-            )
-            and (
-                if (exists($min-length-facets))
-                then (
-                    if ($canonical = 'qname')
-                    then true()
-                    else exists($length) and (every $l in $min-length-facets satisfies $length ge $l)
-                )
-                else true()
-            )
-            and (
-                if (exists($max-length-facets))
-                then (
-                    if ($canonical = 'qname')
-                    then true()
-                    else exists($length) and (every $l in $max-length-facets satisfies $length le $l)
-                )
-                else true()
-            )
+            xsdh:length-facet-ok($canonical,$length,$length-facets,'eq')
+            and xsdh:length-facet-ok($canonical,$length,$min-length-facets,'ge')
+            and xsdh:length-facet-ok($canonical,$length,$max-length-facets,'le')
             and (every $p in $pattern-facets satisfies xsdh:facet-pattern-match($value,$p))
-            and (
-                if (exists($enum-facets))
-                then some $enum in $enum-facets satisfies xsdh:facet-value-eq($value,$enum,$base-type)
-                else true()
-            )
+            and (empty($enum-facets) or (some $enum in $enum-facets satisfies xsdh:facet-value-eq($value,$enum,$base-type)))
             and (every $bound in $min-inclusive-facets satisfies xsdh:facet-compare($value,$bound,$base-type,'ge'))
             and (every $bound in $max-inclusive-facets satisfies xsdh:facet-compare($value,$bound,$base-type,'le'))
             and (every $bound in $min-exclusive-facets satisfies xsdh:facet-compare($value,$bound,$base-type,'gt'))
             and (every $bound in $max-exclusive-facets satisfies xsdh:facet-compare($value,$bound,$base-type,'lt'))
             and (
-                if (exists($total-digits-facets))
-                then exists($decimal-total-digits) and (every $limit in $total-digits-facets satisfies $decimal-total-digits le $limit)
-                else true()
+                empty($total-digits-facets)
+                or (exists($decimal-total-digits) and (every $limit in $total-digits-facets satisfies $decimal-total-digits le $limit))
             )
             and (
-                if (exists($fraction-digits-facets))
-                then exists($decimal-fraction-digits) and (every $limit in $fraction-digits-facets satisfies $decimal-fraction-digits le $limit)
-                else true()
+                empty($fraction-digits-facets)
+                or (exists($decimal-fraction-digits) and (every $limit in $fraction-digits-facets satisfies $decimal-fraction-digits le $limit))
             )"/>
+    </xsl:function>
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Evaluate length, minLength, and maxLength facet families with shared semantics.</xd:p>
+            <xd:p>QName remains exempt, and missing computed length fails closed when facets are present.</xd:p>
+        </xd:desc>
+        <xd:param name="canonical">Canonical base type token</xd:param>
+        <xd:param name="length">Computed facet length when available</xd:param>
+        <xd:param name="facets">Facet limits for one length-family category</xd:param>
+        <xd:param name="op">Comparison operation: eq/ge/le</xd:param>
+    </xd:doc>
+    <xsl:function name="xsdh:length-facet-ok" as="xs:boolean">
+        <xsl:param name="canonical" as="xs:string"/>
+        <xsl:param name="length" as="xs:integer?"/>
+        <xsl:param name="facets" as="xs:integer*"/>
+        <xsl:param name="op" as="xs:string"/>
+        <xsl:sequence select="
+            if (empty($facets) or $canonical = 'qname')
+            then true()
+            else if (not(exists($length)))
+            then false()
+            else if ($op = 'eq')
+            then every $l in $facets satisfies $length = $l
+            else if ($op = 'ge')
+            then every $l in $facets satisfies $length ge $l
+            else if ($op = 'le')
+            then every $l in $facets satisfies $length le $l
+            else false()"/>
     </xsl:function>
     <xd:doc scope="component">
         <xd:desc>
@@ -373,6 +334,26 @@
             then xs:double($left) = xs:double($right)
             else $left = $right"/>
     </xsl:function>
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Evaluate ordered comparisons for already-cast atomic values.</xd:p>
+            <xd:p>Unsupported operators fail closed as false().</xd:p>
+        </xd:desc>
+        <xd:param name="left">Typed left value</xd:param>
+        <xd:param name="right">Typed right value</xd:param>
+        <xd:param name="op">Comparison operation: ge/le/gt/lt</xd:param>
+    </xd:doc>
+    <xsl:function name="xsdh:ordered" as="xs:boolean">
+        <xsl:param name="left" as="xs:anyAtomicType"/>
+        <xsl:param name="right" as="xs:anyAtomicType"/>
+        <xsl:param name="op" as="xs:string"/>
+        <xsl:sequence select="
+            if ($op = 'ge') then $left ge $right
+            else if ($op = 'le') then $left le $right
+            else if ($op = 'gt') then $left gt $right
+            else if ($op = 'lt') then $left lt $right
+            else false()"/>
+    </xsl:function>
 
     <xsl:function name="xsdh:facet-compare" as="xs:boolean">
         <xsl:param name="left" as="xs:string"/>
@@ -390,45 +371,15 @@
         -->
         <xsl:sequence select="
             if (xsdh:is-decimal-family($base-type) and ($left castable as xs:decimal) and ($right castable as xs:decimal))
-            then (
-                if ($op = 'ge') then xs:decimal($left) ge xs:decimal($right)
-                else if ($op = 'le') then xs:decimal($left) le xs:decimal($right)
-                else if ($op = 'gt') then xs:decimal($left) gt xs:decimal($right)
-                else if ($op = 'lt') then xs:decimal($left) lt xs:decimal($right)
-                else false()
-            )
+            then xsdh:ordered(xs:decimal($left),xs:decimal($right),$op)
             else if ($canonical = ('float','double') and ($left castable as xs:double) and ($right castable as xs:double))
-            then (
-                if ($op = 'ge') then xs:double($left) ge xs:double($right)
-                else if ($op = 'le') then xs:double($left) le xs:double($right)
-                else if ($op = 'gt') then xs:double($left) gt xs:double($right)
-                else if ($op = 'lt') then xs:double($left) lt xs:double($right)
-                else false()
-            )
+            then xsdh:ordered(xs:double($left),xs:double($right),$op)
             else if ($canonical = 'date' and ($left castable as xs:date) and ($right castable as xs:date))
-            then (
-                if ($op = 'ge') then xs:date($left) ge xs:date($right)
-                else if ($op = 'le') then xs:date($left) le xs:date($right)
-                else if ($op = 'gt') then xs:date($left) gt xs:date($right)
-                else if ($op = 'lt') then xs:date($left) lt xs:date($right)
-                else false()
-            )
+            then xsdh:ordered(xs:date($left),xs:date($right),$op)
             else if ($canonical = 'datetime' and ($left castable as xs:dateTime) and ($right castable as xs:dateTime))
-            then (
-                if ($op = 'ge') then xs:dateTime($left) ge xs:dateTime($right)
-                else if ($op = 'le') then xs:dateTime($left) le xs:dateTime($right)
-                else if ($op = 'gt') then xs:dateTime($left) gt xs:dateTime($right)
-                else if ($op = 'lt') then xs:dateTime($left) lt xs:dateTime($right)
-                else false()
-            )
+            then xsdh:ordered(xs:dateTime($left),xs:dateTime($right),$op)
             else if ($canonical = 'time' and ($left castable as xs:time) and ($right castable as xs:time))
-            then (
-                if ($op = 'ge') then xs:time($left) ge xs:time($right)
-                else if ($op = 'le') then xs:time($left) le xs:time($right)
-                else if ($op = 'gt') then xs:time($left) gt xs:time($right)
-                else if ($op = 'lt') then xs:time($left) lt xs:time($right)
-                else false()
-            )
+            then xsdh:ordered(xs:time($left),xs:time($right),$op)
             else if ($canonical = 'gyearmonth' and ($left castable as xs:gYearMonth) and ($right castable as xs:gYearMonth))
             then xsdh:facet-compare-gyearmonth($left,$right,$op)
             else if ($canonical = 'gyear' and ($left castable as xs:gYear) and ($right castable as xs:gYear))
@@ -442,21 +393,9 @@
             else if ($canonical = 'duration' and ($left castable as xs:duration) and ($right castable as xs:duration))
             then xsdh:facet-compare-duration($left,$right,$op)
             else if ($canonical = 'daytimeduration' and ($left castable as xs:dayTimeDuration) and ($right castable as xs:dayTimeDuration))
-            then (
-                if ($op = 'ge') then xs:dayTimeDuration($left) ge xs:dayTimeDuration($right)
-                else if ($op = 'le') then xs:dayTimeDuration($left) le xs:dayTimeDuration($right)
-                else if ($op = 'gt') then xs:dayTimeDuration($left) gt xs:dayTimeDuration($right)
-                else if ($op = 'lt') then xs:dayTimeDuration($left) lt xs:dayTimeDuration($right)
-                else false()
-            )
+            then xsdh:ordered(xs:dayTimeDuration($left),xs:dayTimeDuration($right),$op)
             else if ($canonical = 'yearmonthduration' and ($left castable as xs:yearMonthDuration) and ($right castable as xs:yearMonthDuration))
-            then (
-                if ($op = 'ge') then xs:yearMonthDuration($left) ge xs:yearMonthDuration($right)
-                else if ($op = 'le') then xs:yearMonthDuration($left) le xs:yearMonthDuration($right)
-                else if ($op = 'gt') then xs:yearMonthDuration($left) gt xs:yearMonthDuration($right)
-                else if ($op = 'lt') then xs:yearMonthDuration($left) lt xs:yearMonthDuration($right)
-                else false()
-            )
+            then xsdh:ordered(xs:yearMonthDuration($left),xs:yearMonthDuration($right),$op)
             else false()"/>
     </xsl:function>
     <xsl:function name="xsdh:facet-compare-gyear" as="xs:boolean">
@@ -607,12 +546,7 @@
         <xsl:param name="left" as="xs:integer"/>
         <xsl:param name="right" as="xs:integer"/>
         <xsl:param name="op" as="xs:string"/>
-        <xsl:sequence select="
-            if ($op = 'ge') then $left ge $right
-            else if ($op = 'le') then $left le $right
-            else if ($op = 'gt') then $left gt $right
-            else if ($op = 'lt') then $left lt $right
-            else false()"/>
+        <xsl:sequence select="xsdh:ordered($left,$right,$op)"/>
     </xsl:function>
 
     <xsl:function name="xsdh:is-decimal-family" as="xs:boolean">

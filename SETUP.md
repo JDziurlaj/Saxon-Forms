@@ -19,6 +19,7 @@ The following are excluded by `.gitignore` and are expected to be generated, dow
 - `public-test/w3c-suite/` and `test-app/w3c-suite`
 - `ant4docbook-0.10.0/`
 - `apache-ant*/`
+- `tests/xsd/nist/.cache/` (generated NIST Playwright case index)
 - build and test output directories (`builds/`, `runs/`, `playwright-report/`, `test-results/`)
 
 ## Required tools
@@ -53,6 +54,8 @@ These requirements are intentional and not committed to git.
   Non-destructive preflight checks with fix suggestions.
 - `npm run verify:setup`  
   Canonical Docker-based setup validation.
+- `npm run build:nist-engine-index`  
+  Precompute `tests/xsd/nist/.cache/nist-engine-case-index.json` for `tests/xsd/nist/nist-facets-engine.spec.ts`.
 
 ### Setup profiles
 - `npm run setup -- --profile core` — dependencies + SEF build
@@ -79,12 +82,18 @@ Fetch the dataset with:
 
 This mirrors the W3C asset model by placing downloaded test assets under `public-test/` inside this repository (ignored in git).
 
+NIST Playwright engine tests require a generated case index:
+- `npm run build:nist-engine-index`
+
+Override index path for local experiments with:
+- `NIST_ENGINE_CASE_INDEX=<path-to-json>`
+
 ## Clean-clone bootstrap checklist
 1. `npm run setup`
 2. `npm run doctor`
 3. `npm run verify:setup`
 4. Install Ant + `ant4docbook-0.10.0/` and run `npm run setup -- --profile docs` (if running DocBook build commands)
-5. Run `npm run fetch:nist` and `npm run setup -- --profile nist` (if running NIST facet workflows)
+5. Run `npm run fetch:nist`, `npm run setup -- --profile nist`, and `npm run build:nist-engine-index` (if running NIST facet workflows)
 
 ## Repository hygiene note
 `package-lock.json` currently contains an extraneous local path entry (`../rabet-v-oscal-ui/frontend`).  

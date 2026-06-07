@@ -16,3 +16,4 @@ ant4docbook-0.10.0/
 apache-ant*/
 docs/docbook/_ant4dbk_book.jdom.fo
 docs/docbook/chapters/tmp*.xml
+tests/xsd/nist/.cache/

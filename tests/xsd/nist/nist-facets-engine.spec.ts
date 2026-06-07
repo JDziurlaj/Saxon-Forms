@@ -7,27 +7,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
 
-type ManifestFacetEntry = {
-  valid_groups?: string[];
-  invalid_groups?: string[];
-};
-
-type Manifest = {
-  source_test_set: string;
-  facets: Record<string, ManifestFacetEntry>;
-};
-
-type GroupSelection = {
-  facet: string;
-  origin: "valid_groups" | "invalid_groups";
-  group: string;
-};
-
-type InstanceCase = {
-  href: string;
-  expectedValid: boolean;
-};
-
 type EngineCase = {
   caseId: string;
   title: string;
@@ -39,6 +18,7 @@ type EngineCase = {
   targetNamespace: string;
   lexicalValue: string;
 };
+
 type UnsupportedGroup = {
   facet: string;
   group: string;
@@ -46,79 +26,41 @@ type UnsupportedGroup = {
 };
 
 type EngineCaseBuildResult = {
+  indexPath: string;
   selectedCount: number;
   runnableCases: EngineCase[];
   unsupportedGroups: UnsupportedGroup[];
 };
 
-function loadManifest(): Manifest {
-  const manifestPath = path.resolve(repoRoot, "tests/xsd/nist/nist-simpletype-facets.manifest.json");
-  return JSON.parse(fs.readFileSync(manifestPath, "utf8")) as Manifest;
-}
+type EngineCaseIndexFile = {
+  selected_count: number;
+  runnable_cases: EngineCase[];
+  unsupported_groups: UnsupportedGroup[];
+};
 
-function extractSchemaTargetNamespace(schemaXml: string): string {
-  const schemaMatch = schemaXml.match(/<(?:\w+:)?schema\b[^>]*\btargetNamespace="([^"]+)"/);
-  return schemaMatch?.[1] ?? "";
-}
-
-function selectGroups(manifest: Manifest): GroupSelection[] {
-  const rows: GroupSelection[] = [];
-  for (const facet of Object.keys(manifest.facets)) {
-    const payload = manifest.facets[facet] ?? {};
-    for (const group of payload.valid_groups ?? []) rows.push({ facet, origin: "valid_groups", group });
-    for (const group of payload.invalid_groups ?? []) rows.push({ facet, origin: "invalid_groups", group });
+function resolveIndexPath(): string {
+  const override = process.env.NIST_ENGINE_CASE_INDEX;
+  if (!override || override.trim() === "") {
+    return path.resolve(repoRoot, "tests/xsd/nist/.cache/nist-engine-case-index.json");
   }
-  const seen = new Set<string>();
-  return rows.filter((row) => {
-    if (seen.has(row.group)) return false;
-    seen.add(row.group);
-    return true;
-  });
+  return path.isAbsolute(override) ? override : path.resolve(repoRoot, override);
 }
 
-function extractGroupBody(testsetXml: string, groupName: string): string {
-  const escaped = groupName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`<testGroup\\b[^>]*\\bname=\"${escaped}\"[^>]*>([\\s\\S]*?)<\\/testGroup>`);
-  const match = testsetXml.match(re);
-  if (!match) throw new Error(`Missing group ${groupName} in source testSet`);
-  return match[1];
-}
-
-function extractSchemaHref(groupBody: string): string {
-  const match = groupBody.match(/<schemaDocument\b[^>]*\bxlink:href="([^"]+)"/);
-  if (!match) throw new Error("Missing schemaDocument href");
-  return match[1];
-}
-
-function extractInstanceCases(groupBody: string): InstanceCase[] {
-  const out: InstanceCase[] = [];
-  const re = /<instanceTest\b[^>]*>([\s\S]*?)<\/instanceTest>/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(groupBody)) !== null) {
-    const body = m[1];
-    const hrefMatch = body.match(/<instanceDocument\b[^>]*\bxlink:href="([^"]+)"/);
-    const validityMatch = body.match(/<expected\b[^>]*\bvalidity="(valid|invalid)"/);
-    if (!hrefMatch || !validityMatch) continue;
-    out.push({ href: hrefMatch[1], expectedValid: validityMatch[1] === "valid" });
+function loadPrecomputedEngineCases(): EngineCaseBuildResult {
+  const indexPath = resolveIndexPath();
+  if (!fs.existsSync(indexPath)) {
+    throw new Error(
+      `Missing NIST engine case index at ${indexPath}. Run "npm run build:nist-engine-index" first or set NIST_ENGINE_CASE_INDEX.`
+    );
   }
-  return out;
-}
-
-function analyzeSchemaRootAndType(schemaXml: string): { ok: true; rootName: string; typeName: string } | { ok: false; reason: string } {
-  const elementMatch = schemaXml.match(/<(?:\w+:)?element\b[^>]*\bname="([^"]+)"[^>]*\btype="([^"]+)"/);
-  if (!elementMatch) {
-    return { ok: false, reason: "schema has no top-level element with both @name and @type" };
-  }
-  return { ok: true, rootName: elementMatch[1], typeName: elementMatch[2] };
-}
-
-function extractInstanceLexicalValue(instanceXml: string): string {
-  const noXmlDecl = instanceXml.replace(/^\s*<\?xml[^>]*>\s*/i, "");
-  const rootMatch = noXmlDecl.match(/<[^!?][^>]*>([\s\S]*)<\/[^>]+>\s*$/);
-  if (!rootMatch) return "";
-  const inner = rootMatch[1];
-  // NIST atomic instances contain only character content between root tags.
-  return inner.replace(/^[\r\n\s]+|[\r\n\s]+$/g, "");
+  // TEST-TRACE: read precomputed NIST case index to avoid expensive startup parsing and file traversal in benchmarked spec.
+  const payload = JSON.parse(fs.readFileSync(indexPath, "utf8")) as EngineCaseIndexFile;
+  return {
+    indexPath,
+    selectedCount: Number(payload.selected_count ?? 0),
+    runnableCases: payload.runnable_cases ?? [],
+    unsupportedGroups: payload.unsupported_groups ?? [],
+  };
 }
 
 function xmlEscape(value: string): string {
@@ -165,54 +107,7 @@ function buildXhtml(caseDef: EngineCase): string {
 </html>`;
 }
 
-function buildEngineCases(): EngineCaseBuildResult {
-  const manifest = loadManifest();
-  const testsetPath = path.resolve(repoRoot, manifest.source_test_set);
-  const testsetDir = path.dirname(testsetPath);
-  const testsetXml = fs.readFileSync(testsetPath, "utf8");
-  const selected = selectGroups(manifest);
-  const runnableCases: EngineCase[] = [];
-  const unsupportedGroups: UnsupportedGroup[] = [];
-  for (const row of selected) {
-    const groupBody = extractGroupBody(testsetXml, row.group);
-    const schemaHref = extractSchemaHref(groupBody);
-    const instanceCases = extractInstanceCases(groupBody);
-    const preferredValidity = row.origin === "valid_groups";
-    const chosen = instanceCases.find((c) => c.expectedValid === preferredValidity) ?? instanceCases[0];
-    if (!chosen) {
-      // TEST-TRACE: classify groups with no instance cases as unsupported; helps tests/w3c/nist-facets-engine.spec.ts "NIST facets through Saxon-Forms engine".
-      unsupportedGroups.push({ facet: row.facet, group: row.group, reason: "group has no instanceTest cases" });
-      continue;
-    }
-
-    const schemaPath = path.resolve(testsetDir, schemaHref);
-    const instancePath = path.resolve(testsetDir, chosen.href);
-    const schemaText = fs.readFileSync(schemaPath, "utf8");
-    const instanceText = fs.readFileSync(instancePath, "utf8");
-    const shape = analyzeSchemaRootAndType(schemaText);
-    if (!shape.ok) {
-      // TEST-TRACE: skip unsupported schema shapes instead of throwing; helps tests/w3c/nist-facets-engine.spec.ts expanded non-complex manifest run.
-      unsupportedGroups.push({ facet: row.facet, group: row.group, reason: shape.reason });
-      continue;
-    }
-
-    runnableCases.push({
-      caseId: `${row.facet}-${row.group}`,
-      title: `${row.facet} / ${row.group}`,
-      expectedValid: chosen.expectedValid,
-      schemaText,
-      schemaHref,
-      typeName: shape.typeName,
-      rootName: shape.rootName,
-      // TEST-TRACE: preserve schema targetNamespace so generated instance QName matches element declaration; helps tests/w3c/nist-facets-engine.spec.ts atomic-QName* groups.
-      targetNamespace: extractSchemaTargetNamespace(schemaText),
-      lexicalValue: extractInstanceLexicalValue(instanceText),
-    });
-  }
-  return { selectedCount: selected.length, runnableCases, unsupportedGroups };
-}
-
-const buildResult = buildEngineCases();
+const buildResult = loadPrecomputedEngineCases();
 const engineCases = buildResult.runnableCases;
 const unsupportedGroups = buildResult.unsupportedGroups;
 
@@ -220,18 +115,21 @@ test.describe("NIST facets through Saxon-Forms engine", () => {
   test.describe.configure({ mode: "serial" });
 
   test("manifest selection partitions into runnable and unsupported groups", async () => {
-    // TEST-TRACE: guard against module-load abort regressions when manifest scope expands; helps tests/w3c/nist-facets-engine.spec.ts "NIST facets through Saxon-Forms engine".
+    // TEST-TRACE: guard against index/manifest divergence after precompute refactor; helps tests/w3c/nist-facets-engine.spec.ts "NIST facets through Saxon-Forms engine".
     expect(engineCases.length + unsupportedGroups.length).toBe(buildResult.selectedCount);
     expect(engineCases.length).toBeGreaterThan(0);
   });
 
   test.beforeAll(async () => {
+    // TEST-TRACE: emit index path used by runtime to support benchmark provenance for startup overhead comparisons.
+    console.warn(`[nist-engine] index=${buildResult.indexPath}`);
     if (!unsupportedGroups.length) return;
     const sample = unsupportedGroups.slice(0, 10).map((g) => `${g.group} (${g.reason})`).join(", ");
     // TEST-TRACE: emit one-time unsupported-group diagnostics for expanded manifest triage; helps tests/w3c/nist-facets-engine.spec.ts "NIST facets through Saxon-Forms engine".
     console.warn(`[nist-engine] runnable=${engineCases.length} unsupported=${unsupportedGroups.length} selected=${buildResult.selectedCount}`);
     console.warn(`[nist-engine] unsupported sample: ${sample}`);
   });
+
   for (const caseDef of engineCases) {
     test(`${caseDef.title} => ${caseDef.expectedValid ? "valid" : "invalid"}`, async ({ page }) => {
       const xhtmlPath = "**/w3c-suite/nist-generated/nist-case.xhtml*";

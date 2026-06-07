@@ -40,11 +40,14 @@ This repository contains:
 Run the following before submitting:
 
 ```bash
+npm run build:nist-engine-index
 npm run build:sef
 npm run test:e2e:full
 npm run test:xsd-helpers
 npm run docs:docbook:validate
 ```
+
+`npm run build:nist-engine-index` generates `tests/xsd/nist/.cache/nist-engine-case-index.json`, which is required by `tests/xsd/nist/nist-facets-engine.spec.ts`.
 
 If your change affects documentation, also run:
 
@@ -58,6 +61,15 @@ npm run site:validate
 - Specs are grouped by chapter in `tests/xforms/w3c/chXX.spec.ts`.
 - Shared helpers and fixtures live in `tests/xforms/w3c/helpers.ts`, `tests/helpers.ts`, and `tests/fixtures/`.
 - Known gaps and resolved regressions are tracked in `tests/xforms/w3c/STATUS.md`.
+
+## Working with NIST XSD tests
+- NIST engine coverage spec: `tests/xsd/nist/nist-facets-engine.spec.ts`
+- Build/update precomputed case index before running this spec:
+  - `npm run build:nist-engine-index`
+- Default index output:
+  - `tests/xsd/nist/.cache/nist-engine-case-index.json`
+- Optional override for local experiments:
+  - `NIST_ENGINE_CASE_INDEX=<path-to-json>`
 
 ## Architecture map (where to start)
 Use this map to find implementation ownership quickly:
