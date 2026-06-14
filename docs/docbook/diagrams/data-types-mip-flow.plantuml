@@ -37,9 +37,9 @@ REVAL -> VMIP : setValidationMIP(instanceId, ref,\nvalid, required)
 
 == Refresh Phase (MIP Projection to DOM) ==
 VMIP --> REVAL : getValidationMIPValid/Required
-REVAL --> DOM : refreshOutputs-JS\nupdate output values + project\nxforms-valid/invalid +\nxforms-required/optional
-REVAL --> DOM : refreshRelevantFields-JS\nshow/hide based on relevant
-REVAL --> DOM : getRelevantStatus\ngetHtmlClass\napply readonly/required CSS classes
-REVAL --> DOM : apply class to control and wrapper\nfor input/select/textarea
-REVAL --> DOM : dispatch xforms-valid\nor xforms-invalid events
+REVAL -> DOM : refreshOutputs-JS\nupdate output values + project\nxforms-valid/invalid +\nxforms-required/optional
+REVAL -> DOM : refreshRelevantFields-JS\nshow/hide based on relevant
+REVAL -> DOM : getRelevantStatus\ngetHtmlClass\napply readonly/required CSS classes
+REVAL -> DOM : apply class to control and wrapper\nfor input/select/textarea
+REVAL -> DOM : dispatch xforms-valid\nor xforms-invalid events
 @enduml

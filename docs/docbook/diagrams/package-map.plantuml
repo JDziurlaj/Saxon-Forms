@@ -12,31 +12,8 @@ package "src/" {
   }
 }
 
-package "scripts/" {
-  [run-playwright-with-port.mjs\nTest harness launcher] as RUN_PLAYWRIGHT
-  [xd-doc-extract.xsl\nAPI doc extraction] as XD_DOC
-}
-
-package "tests/xforms/w3c/" {
-  [ch02-03.spec.ts] as CH02_03
-  [ch04.spec.ts\nProcessing model] as CH04
-  [ch05.spec.ts\nData types] as CH05
-  [ch06.spec.ts\nMIPs] as CH06
-  [ch07.spec.ts\nXPath] as CH07
-  [ch08.spec.ts\nCore controls] as CH08
-  [ch09.spec.ts\nContainer controls] as CH09
-  [ch10.spec.ts\nActions] as CH10
-  [ch11.spec.ts\nSubmission] as CH11
-  [appendix.spec.ts\nInsert/delete patterns] as APPX
-}
-
 SAXON_XFORMS --> FUNCTION_LIBRARY : xsl:use-package
 SAXON_XFORMS --> XPATH_FUNCTIONS : xsl:use-package
 SAXON_XFORMS --> XSD_HELPERS : xsl:use-package
 SAXON_XFORMS --> LOGGER : xsl:use-package
-RUN_PLAYWRIGHT --> CH04
-RUN_PLAYWRIGHT --> CH07
-RUN_PLAYWRIGHT --> CH10
-RUN_PLAYWRIGHT --> CH11
-XD_DOC --> SAXON_XFORMS : extracts xd:doc annotations
 @enduml

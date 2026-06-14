@@ -38,9 +38,4 @@ SUBMISSION --> MODEL_STATE : instance replacement/merge
 JS_RUNTIME --> EVENT_LOOP : promise callback
 JS_RUNTIME --> DOM : readFileAsXML(), setFocus()
 
-note right of ACTIONS
-One-hop browser interactions are explicit:
-DOM and JS runtime are first-class neighbors.
-Symbol names map to templates in saxon-xforms.xsl.
-end note
 @enduml
