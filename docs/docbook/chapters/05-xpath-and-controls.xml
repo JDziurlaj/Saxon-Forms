@@ -16,7 +16,13 @@
         <section id="chapter-xpath-context-resolution">
             <title>Context resolution in repeat and action scopes</title>
             <para>XPath evaluation is dispatched through <literal>xforms:evaluate-xpath-with-context-node()</literal> in <literal>src/saxon-xforms.xsl</literal>, which accepts the expression string, a context node from the bound instance, and the namespace context for prefix resolution. The related <literal>xforms:evaluate-xpath-with-instance-id()</literal> function resolves the instance element first.</para>
-            <para>Within repeats, context resolution relies on positional information. The <literal>xforms:resolveXPathStrings()</literal> function in <literal>src/saxon-xforms.xsl</literal> resolves relative paths against the current repeat context node. The <literal>position()</literal>/<literal>last()</literal> substitution (resolved status: 7.2.e) pre-computes positional values in bind calculate expressions before evaluation.</para>
+            <para>Within repeats, context resolution relies on positional information. The
+                    <literal>xforms:resolveXPathStrings()</literal> function in
+                    <literal>src/saxon-xforms.xsl</literal> resolves relative paths against the
+                current repeat context node. The
+                    <literal>position()</literal>/<literal>last()</literal> substitution
+                pre-computes positional values in bind calculate expressions before
+                evaluation.</para>
         </section>
 
         <section id="chapter-xpath-function-library">
@@ -45,17 +51,6 @@
                             <literal>adjust-dateTime-to-timezone()</literal>), and cryptographic
                         stubs (<literal>digest()</literal>, <literal>hmac()</literal> — delegated to
                         JS <literal>crypto.subtle</literal>).</para></listitem>
-            </itemizedlist>
-        </section>
-
-        <section id="chapter-xpath-edge-cases">
-            <title>Edge-case behavior</title>
-            <itemizedlist>
-                <listitem><para><literal>position()</literal>/<literal>last()</literal> in bind calculate — Pre-substituted with actual nodeset position and size before evaluation (resolved: 7.2.e).</para></listitem>
-                <listitem><para><literal>current()</literal> in repeat — Output <literal>@value</literal> starting with <literal>instance(...)</literal> no longer short-circuits <literal>$instanceField</literal> inside repeats (resolved: 7.10.2.b).</para></listitem>
-                <listitem><para><literal>id()</literal> routing — Added to function rewriting; supports <literal>fn:id</literal>, <literal>@xml:id</literal>, and both W3C <literal>xsi</literal> namespace URIs (resolved: 7.10.3.a/b/c).</para></listitem>
-                <listitem><para>Type coercion in calculate/relevant — Wrapped in try/catch to handle empty-string arithmetic crashes under XPath 3.1 strict typing (resolved: 6.1.5.a, 6.1.4.b).</para></listitem>
-                <listitem><para><literal>min()</literal>/<literal>max()</literal> negative tests — Return NaN instead of throwing XPath 3.1 type errors (resolved: 7.7.2.b, 7.7.3.b).</para></listitem>
             </itemizedlist>
         </section>
     </section>
