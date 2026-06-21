@@ -67,14 +67,4 @@
         </variablelist>
         <para>Implementation hook references in this guide use symbol names plus source files (for example, <literal>xformsjs-main</literal> in <literal>src/saxon-xforms.xsl</literal>) unless a different file is specified.</para>
     </section>
-
-    <section id="chapter-introduction-checkpoint">
-        <title>Checkpoint validation focus</title>
-        <itemizedlist>
-            <listitem><para>DocBook source validity and XInclude closure for this chapter.</para></listitem>
-            <listitem><para>Consistency between use-case language and component/package terms used in later chapters.</para></listitem>
-            <listitem><para>Verify terminology definitions match actual variable/template names in source.</para></listitem>
-            <listitem><para>User review required before proceeding to processing-model chapters.</para></listitem>
-        </itemizedlist>
-    </section>
 </chapter>
