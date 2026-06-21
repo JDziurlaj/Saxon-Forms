@@ -17,6 +17,8 @@ concurrency:
 jobs:
   build-site:
     runs-on: ubuntu-latest
+    env:
+      GRAPHVIZ_DOT: /usr/bin/dot
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,7 +38,7 @@ jobs:
       - name: Install Apache Ant
         run: |
           sudo apt-get update
-          sudo apt-get install -y ant
+          sudo apt-get install -y ant graphviz
 
       - name: Cache ant4docbook distribution
         uses: actions/cache@v4

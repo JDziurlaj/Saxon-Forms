@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <chapter xmlns="http://docbook.org/ns/docbook" id="chapter-processing-model" xmlns:xi="http://www.w3.org/2001/XInclude">
-    <title>Processing Model (XForms 1.1 Chapter 4)</title>
+    <title>Processing Model</title>
     <para>This chapter maps lifecycle events and deferred processing behavior to SaxonForms runtime dispatch, recalculate/revalidate/refresh orchestration, and DOM updates.</para>
 
     <section id="chapter-processing-model-events">
@@ -32,8 +32,19 @@
                 <listitem><para>Action execution — Insert, delete, and setvalue actions trigger recalculation after modifying instance data.</para></listitem>
                 <listitem><para>Explicit dispatch — The <literal>action-recalculate</literal>, <literal>action-revalidate</literal>, and <literal>action-refresh</literal> templates in <literal>src/saxon-xforms.xsl</literal> handle explicit <literal>xf:recalculate</literal>/<literal>xf:revalidate</literal>/<literal>xf:refresh</literal> actions.</para></listitem>
             </itemizedlist>
-            <para>The recalculate phase (<literal>xforms-recalculate</literal>) iterates binds and evaluates MIP expressions. The <literal>xforms-recalculate-binding</literal> template evaluates each bind's <literal>@calculate</literal> expression and updates the instance node value if changed. For non-incremental <literal>&lt;select&gt;</literal>/<literal>&lt;select1&gt;</literal> controls, the deferred cycle runs inline during <literal>onchange</literal> via dedicated <literal>ixsl:onchange</literal> handlers to avoid duplicate outer dispatch (resolved: 4.6.3.a/b/c).</para>
-            <para>The revalidate phase (<literal>xforms-revalidate</literal>) checks required fields, constraint expressions, and XSD type validity. During each cycle, validation MIP state (valid/required) is rebuilt into a runtime registry keyed by instance ID and binding reference, and validation state changes dispatch <literal>xforms-valid</literal>/<literal>xforms-invalid</literal> events (resolved: 6.1.6.a).</para>
+            <para>The recalculate phase (<literal>xforms-recalculate</literal>) iterates binds and
+                evaluates MIP expressions. The <literal>xforms-recalculate-binding</literal>
+                template evaluates each bind's <literal>@calculate</literal> expression and updates
+                the instance node value if changed. For non-incremental
+                    <literal>&lt;select&gt;</literal>/<literal>&lt;select1&gt;</literal> controls,
+                the deferred cycle runs inline during <literal>onchange</literal> via dedicated
+                    <literal>ixsl:onchange</literal> handlers to avoid duplicate outer
+                dispatch.</para>
+            <para>The revalidate phase (<literal>xforms-revalidate</literal>) checks required
+                fields, constraint expressions, and XSD type validity. During each cycle, validation
+                MIP state (valid/required) is rebuilt into a runtime registry keyed by instance ID
+                and binding reference, and validation state changes dispatch
+                    <literal>xforms-valid</literal>/<literal>xforms-invalid</literal> events.</para>
             <para>The refresh phase (<literal>xforms-refresh</literal>) updates the DOM to reflect current model state: <literal>refreshOutputs-JS</literal> updates output/control values and projects validation CSS classes from the revalidate registry, <literal>refreshRepeats-JS</literal> regenerates repeat content, <literal>refreshRelevantFields-JS</literal> shows/hides controls based on <literal>relevant</literal> MIP, and <literal>refreshElementsUsingIndexFunction-JS</literal> updates elements whose values depend on <literal>index()</literal>.</para>
         </section>
     </section>

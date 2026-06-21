@@ -23,8 +23,28 @@
             <title>XForms function library</title>
             <para>Functions are split across two XSLT packages:</para>
             <itemizedlist>
-                <listitem><para><literal>xforms-function-library.xsl</literal> (~300 lines): Core runtime functions — <literal>instance()</literal>, <literal>index()</literal>, <literal>id()</literal> (three overloads: <literal>fn:id</literal>, <literal>@xml:id</literal>, and <literal>xsi:type</literal> ID), <literal>min()</literal>/<literal>max()</literal> (NaN-safe wrappers), <literal>random()</literal>, <literal>context()</literal>, <literal>if()</literal>.</para></listitem>
-                <listitem><para><literal>xforms-xpath-functions.xsl</literal> (~420 lines): Specification-defined functions — <literal>property()</literal>, <literal>boolean-from-string()</literal>, <literal>count-non-empty()</literal>, <literal>power()</literal>, <literal>choose()</literal>, <literal>avg()</literal>, <literal>is-card-number()</literal> (Luhn algorithm), <literal>event()</literal>, date/time functions (<literal>now()</literal>, <literal>local-date()</literal>, <literal>local-dateTime()</literal>, <literal>days-from-date()</literal>, <literal>days-to-date()</literal>, <literal>seconds-from-dateTime()</literal>, <literal>seconds-to-dateTime()</literal>, <literal>seconds()</literal>, <literal>months()</literal>, <literal>adjust-dateTime-to-timezone()</literal>), and cryptographic stubs (<literal>digest()</literal>, <literal>hmac()</literal> — delegated to JS <literal>crypto.subtle</literal>).</para></listitem>
+                <listitem><para><literal>xforms-function-library.xsl</literal> : Core runtime functions —
+                            <literal>instance()</literal>, <literal>index()</literal>,
+                            <literal>id()</literal> (three overloads: <literal>fn:id</literal>,
+                            <literal>@xml:id</literal>, and <literal>xsi:type</literal> ID),
+                            <literal>min()</literal>/<literal>max()</literal> (NaN-safe wrappers),
+                            <literal>random()</literal>, <literal>context()</literal>,
+                            <literal>if()</literal>.</para></listitem>
+                <listitem><para><literal>xforms-xpath-functions.xsl</literal> : Specification-defined functions —
+                            <literal>property()</literal>, <literal>boolean-from-string()</literal>,
+                            <literal>count-non-empty()</literal>, <literal>power()</literal>,
+                            <literal>choose()</literal>, <literal>avg()</literal>,
+                            <literal>is-card-number()</literal> (Luhn algorithm),
+                            <literal>event()</literal>, date/time functions
+                            (<literal>now()</literal>, <literal>local-date()</literal>,
+                            <literal>local-dateTime()</literal>,
+                        <literal>days-from-date()</literal>, <literal>days-to-date()</literal>,
+                            <literal>seconds-from-dateTime()</literal>,
+                            <literal>seconds-to-dateTime()</literal>, <literal>seconds()</literal>,
+                            <literal>months()</literal>,
+                            <literal>adjust-dateTime-to-timezone()</literal>), and cryptographic
+                        stubs (<literal>digest()</literal>, <literal>hmac()</literal> — delegated to
+                        JS <literal>crypto.subtle</literal>).</para></listitem>
             </itemizedlist>
         </section>
 
