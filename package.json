@@ -34,6 +34,7 @@
     "docs:docbook:validate": "node scripts/validate-docbook-sources.mjs",
     "docs:docbook:build": "node scripts/run-docbook-build.mjs",
     "docs:docbook:checkpoints": "node scripts/run-docbook-checkpoints.mjs --list",
+    "docs:diagrams": "node scripts/generate-diagrams.mjs",
     "site:build": "node scripts/build-site.mjs",
     "site:validate": "node scripts/validate-site-links.mjs"
   },
