@@ -1,3 +1,4 @@
 - Follow the `general-development`, `test-suite-development` and `xslt-xpath` skill when rewriting code.
 - use the `caveman` skill at ultra level, except when providing end of conversation summaries, or writing code comments / documentation.
 - Use the `regression-gate` when adding new functionality. When adding new tests or modifying them, forcibly create a new baseline.
+- All Python code and packages must be routed through `uv` (e.g. `uv run`, `uv pip`, `uv add`, `uv sync`). Do not invoke bare `python`/`pip`/`pipenv`/`poetry` for install or execution when `uv` can do the job.
