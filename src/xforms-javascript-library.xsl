@@ -959,7 +959,33 @@ var isDirtyRepeat = function(name) {
             });
          }
          
-        /* TEST-TRACE: crypto bridge for digest()/hmac(); uses @noble/hashes if loaded;
+         /**
+          * Deferred-event queue for SaxonJS 3 promise completions.
+          *
+          * Promise on-completion/on-failure handlers run in function context,
+          * where xsl:result-document is prohibited (XTDE1480) and there is no
+          * context item. Handlers store a pending XForms event here (a map with
+          * 'name' and optional 'context', built in XSLT), then call
+          * activateDeferredTrigger(), which dispatches the custom DOM event
+          * 'saxonforms-deferred' on the document. The matching ixsl event-mode
+          * template drains this queue in template context, where event dispatch
+          * and the deferred update cycle are legal.
+          */
+         var pendingEvents = [];
+         var enqueuePendingEvent = function(eventMap) {
+            pendingEvents.push(eventMap);
+         }
+         var getPendingEvents = function() {
+            return pendingEvents;
+         }
+         var clearPendingEvents = function() {
+            pendingEvents = [];
+         }
+         var activateDeferredTrigger = function() {
+            document.dispatchEvent(new Event('saxonforms-deferred'));
+         }
+         
+        /* crypto bridge for digest()/hmac(); uses @noble/hashes if loaded;
            returns empty string when library is unavailable;
            helps tests/w3c/ch07.spec.ts "7.8.3.*", "7.8.4.*" */
         var _nobleAlgMap = {

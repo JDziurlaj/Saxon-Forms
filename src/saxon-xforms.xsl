@@ -7506,6 +7506,26 @@
     
     <xd:doc scope="component">
         <xd:desc>
+            <xd:p>Drain the JS-side pending-event queue in template context.</xd:p>
+            <xd:p>SaxonJS 3 ixsl:promise completion handlers are functions: they have no context item and cannot execute xsl:result-document (XTDE1480). Handlers enqueue XForms events via js:enqueuePendingEvent() and call js:activateDeferredTrigger(), which dispatches the custom DOM event 'saxonforms-deferred' (see src/xforms-javascript-library.xsl). This template matches that event, dispatches each recorded event through xforms-event-handler, and runs the deferred update cycle - all legal in template context.</xd:p>
+        </xd:desc>
+    </xd:doc>
+    <!-- TEST-TRACE: template-context drain point for ixsl:promise completion handlers; exercised by tests/supplemental/promise-migration.spec.ts -->
+    <xsl:template match="document-node()" mode="ixsl:onsaxonforms-deferred">
+        <xsl:variable name="pending" as="map(*)*" select="js:getPendingEvents()"/>
+        <xsl:message use-when="$debugMode">[deferred-event-drain] count=<xsl:value-of select="count($pending)"/></xsl:message>
+        <xsl:sequence select="js:clearPendingEvents()"/>
+        <xsl:for-each select="$pending">
+            <xsl:call-template name="xforms-event-handler">
+                <xsl:with-param name="event-name" select="string(map:get(., 'name'))" as="xs:string" tunnel="yes"/>
+                <xsl:with-param name="event-context" select="if (map:contains(., 'context')) then map:get(., 'context') else map{}" as="map(*)" tunnel="yes"/>
+            </xsl:call-template>
+        </xsl:for-each>
+        <xsl:call-template name="outermost-action-handler"/>
+    </xsl:template>
+    
+    <xd:doc scope="component">
+        <xd:desc>
             <xd:p>Function xforms:dispatchEvent() sends an event to the event handler template.</xd:p>
             <xd:p>Can't always (ever?) use this. Saxon-JS error: "Cannot call xsl:result-document while evaluating function".</xd:p>
         </xd:desc>
