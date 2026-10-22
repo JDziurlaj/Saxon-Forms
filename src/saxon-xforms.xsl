@@ -8635,6 +8635,20 @@
     
     <xd:doc scope="component">
         <xd:desc>
+            <xd:p>Completion handler for delayed xf:dispatch (ixsl:sleep promise in the action-dispatch template).</xd:p>
+            <xd:p>Promise completion handlers are functions with no context item and no access to xsl:result-document (XTDE1480), so the delayed event is enqueued for the deferred drain (ixsl:onsaxonforms-deferred template), which dispatches it in template context. Event name and dispatch context arrive via partial application from the promise instruction.</xd:p>
+        </xd:desc>
+    </xd:doc>
+    <xsl:function name="xforms:delayedDispatchDone">
+        <xsl:param name="sleep-result" as="item()*"/>
+        <xsl:param name="event-name" as="xs:string"/>
+        <xsl:param name="dispatch-event-context" as="map(*)"/>
+        <xsl:sequence select="js:enqueuePendingEvent(map{'name':$event-name,'context':$dispatch-event-context})"/>
+        <xsl:sequence select="js:activateDeferredTrigger()"/>
+    </xsl:function>
+    
+    <xd:doc scope="component">
+        <xd:desc>
             <xd:p>Template for applying dispatch action</xd:p>
             <xd:p>XForms 2.0 spec <xd:a href="https://www.w3.org/TR/xforms20/#The_dispatch_Element">dispatch element</xd:a></xd:p>
         </xd:desc>
@@ -8760,12 +8774,12 @@
             </xsl:message>
             <xsl:choose>
                 <xsl:when test="$delay-ms gt 0">
-                    <ixsl:schedule-action wait="$delay-ms">
-                        <xsl:call-template name="xforms-event-handler">
-                            <xsl:with-param name="event-name" select="$event-name" as="xs:string" tunnel="yes"/>
-                            <xsl:with-param name="event-context" select="$dispatch-event-context" as="map(*)" tunnel="yes"/>
-                        </xsl:call-template>
-                    </ixsl:schedule-action>
+                    <!-- TEST-TRACE: ixsl:sleep promise replaces deprecated ixsl:schedule-action/@wait;
+                         the completion function carries event name and context via partial application
+                         (solves the upstream event-name capture TODO); helps tests/xforms/w3c/ch10.spec.ts
+                         "10.8.c", "10.8.3.c" and tests/supplemental/promise-migration.spec.ts -->
+                    <ixsl:promise select="ixsl:sleep($delay-ms)"
+                        on-completion="xforms:delayedDispatchDone(?, $event-name, $dispatch-event-context)"/>
                 </xsl:when>
                 <xsl:otherwise>
                     <xsl:call-template name="xforms-event-handler">
