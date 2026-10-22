@@ -14,7 +14,7 @@
     "sync:tinymce": "node scripts/sync-tinymce-assets.mjs",
     "fetch:w3c": "node scripts/fetch-w3c-suite.mjs",
     "fetch:nist": "node scripts/fetch-nist-xsdtests.mjs",
-    "test:baseline": "node scripts/create-playwright-baseline.mjs --all",
+    "test:baseline": "node scripts/create-playwright-baseline.mjs",
     "test:gate": "node .agents/skills/regression-gate/scripts/run_regression_gate.mjs",
     "examples": "node examples/server.mjs",
     "examples:compile": "node examples/compile-examples.mjs",

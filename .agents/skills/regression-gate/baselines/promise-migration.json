@@ -1,0 +1,14 @@
+{
+  "suite_id": "promise-migration",
+  "test_path": "tests/supplemental/promise-migration.spec.ts",
+  "config_path": "playwright.config.ts",
+  "last_updated": "2026-10-22T16:45:48.312Z",
+  "stats": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "flaky": 0,
+    "skipped": 0
+  },
+  "allowed_failures": []
+}

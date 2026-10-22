@@ -296,7 +296,9 @@ console.log("Compiling/refreshing SEF...");
 const compileResult = run(
   "npx",
   [
-    "xslt3",
+    // TEST-TRACE: use the SaxonJS 3 compiler (xslt3-he); the xslt3 2.x compiler cannot compile
+    // ixsl:promise (it emits it as an inert literal element). Mirrors the regression gate.
+    "xslt3-he",
     "-t",
     `-xsl:${path.join(repoRoot, "src", "saxon-xforms.xsl")}`,
     `-export:${sefPath}`,
