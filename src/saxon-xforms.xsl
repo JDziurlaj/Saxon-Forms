@@ -492,7 +492,7 @@
                  readFileAsXML + hidden-refresh-trigger click bridge; helps tests/supplemental/saxon-forms.spec.ts
                  "uploading XML via xf:upload sets instance data" and tests/supplemental/promise-migration.spec.ts -->
             <ixsl:promise select="ixsl:call(ixsl:window(), 'readFileAsXMLAsync', [$file, $instance-id])"
-                on-completion="xforms:uploadComplete(?, $instance-id)"
+                on-completion="xforms:uploadComplete#0"
                 on-failure="xforms:uploadError#1"/>
         </xsl:if>
     </xsl:template>
@@ -7469,14 +7469,11 @@
     <xd:doc scope="component">
         <xd:desc>
             <xd:p>Completion handler for the xf:upload file-read ixsl:promise (readFileAsXMLAsync helper).</xd:p>
-            <xd:p>The JS helper has already replaced the instance and set the deferred update flags. This function only activates the deferred drain, which runs the deferred update cycle in template context (xsl:result-document is prohibited in function context, XTDE1480).</xd:p>
+            <xd:p>The JS helper has already replaced the instance and set the deferred update flags. This arity-0 function only activates the deferred drain, which runs the deferred update cycle in template context (xsl:result-document is prohibited in function context, XTDE1480). Arity 0 also avoids SaxonJS 3 beta completion-value conversion issues for JS-resolved promise results.</xd:p>
         </xd:desc>
     </xd:doc>
-    <!-- TEST-TRACE: thin completion handler for the upload promise; helps tests/supplemental/saxon-forms.spec.ts "uploading XML via xf:upload sets instance data" -->
+    <!-- TEST-TRACE: thin arity-0 completion handler for the upload promise; helps tests/supplemental/saxon-forms.spec.ts "uploading XML via xf:upload sets instance data" -->
     <xsl:function name="xforms:uploadComplete">
-        <xsl:param name="read-result" as="item()*"/>
-        <xsl:param name="instance-id" as="xs:string"/>
-        <xsl:message use-when="$debugMode">[xforms:uploadComplete] File upload complete for instance '<xsl:value-of select="$instance-id"/>' (root: <xsl:value-of select="string($read-result)"/>)</xsl:message>
         <xsl:sequence select="js:activateDeferredTrigger()"/>
     </xsl:function>
     

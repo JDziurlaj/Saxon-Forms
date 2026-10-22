@@ -11,11 +11,18 @@
       "baseline_path": ".agents/skills/regression-gate/baselines/issues-spec.json",
       "regression_policy": "waivable-with-justification"
     },
-"saxon-forms": {
+    "saxon-forms": {
       "description": "General Saxon-Forms behavior smoke/regression checks",
       "config_path": "playwright.config.ts",
       "test_path": "tests/supplemental/saxon-forms.spec.ts",
       "baseline_path": ".agents/skills/regression-gate/baselines/saxon-forms.json",
+      "regression_policy": "waivable-with-justification"
+    },
+    "promise-migration": {
+      "description": "SaxonJS 3 ixsl:promise migration coverage (submission, delayed dispatch, upload)",
+      "config_path": "playwright.config.ts",
+      "test_path": "tests/supplemental/promise-migration.spec.ts",
+      "baseline_path": ".agents/skills/regression-gate/baselines/promise-migration.json",
       "regression_policy": "waivable-with-justification"
     },
     "engine-limitations": {
