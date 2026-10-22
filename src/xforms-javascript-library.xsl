@@ -884,81 +884,39 @@ var isDirtyRepeat = function(name) {
 
          /**
           * Read a File object as XML, parse it, and replace the named
-          * XForms instance with the parsed document element.
-          * Triggers deferred updates (rebuild, recalculate, revalidate, refresh).
+          * XForms instance with the parsed document element. Returns a
+          * Promise that resolves to the root element local name, or
+          * rejects with an error message on read/parse failure. Deferred
+          * update flags are set here; the ixsl:promise on-completion
+          * handler (xforms:uploadComplete) activates the deferred drain so
+          * rebuild/recalculate/revalidate/refresh run in template context.
           *
-          * Called from XSLT via: ixsl:call(ixsl:window(), 'readFileAsXML', [$file, $instanceId])
+          * Called from XSLT via: ixsl:call(ixsl:window(), 'readFileAsXMLAsync', [$file, $instanceId])
           */
-         var readFileAsXML = function(file, instanceId) {
-            var reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    var parser = new DOMParser();
-                    var doc = parser.parseFromString(e.target.result, 'application/xml');
-                    var parseError = doc.querySelector('parsererror');
-                    if (parseError) {
-                        alert('Invalid XML file: ' + parseError.textContent);
-                        return;
-                    }
-                    setInstance(instanceId, doc.documentElement);
-                    setDeferredUpdateFlags(['rebuild','recalculate','revalidate','refresh']);
-                    // Trigger refresh by clicking the hidden refresh trigger
-                    // (bridges async JS back into XSLT processing pipeline)
-                    var refreshBtn = document.querySelector('button[data-action*="upload-refresh-trigger"]');
-                    if (refreshBtn) { refreshBtn.click(); }
-                } catch(err) {
-                    alert('Error processing file: ' + err.message);
-                }
-            };
-            reader.onerror = function() { alert('File read error'); };
-            reader.readAsText(file);
-         }
-
-         /**
-          * Open a file picker, read an XML file, parse it, and replace
-          * the named XForms instance. Returns a Promise that resolves
-          * to the root element name of the uploaded document (or rejects
-          * on cancel/error).
-          *
-          * Called from XSLT via: ixsl:call(ixsl:window(), 'uploadAndSetInstance', [instanceId])
-          */
-         var uploadAndSetInstance = function(instanceId) {
+         var readFileAsXMLAsync = function(file, instanceId) {
             return new Promise(function(resolve, reject) {
-                var input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '.xml';
-                input.onchange = function() {
-                    if (!input.files || !input.files[0]) {
-                        reject('No file selected');
-                        return;
-                    }
-                    var file = input.files[0];
-                    var reader = new FileReader();
-                    reader.onload = function(e) {
-                        try {
-                            var parser = new DOMParser();
-                            var doc = parser.parseFromString(e.target.result, 'application/xml');
-                            var parseError = doc.querySelector('parsererror');
-                            if (parseError) {
-                                reject('XML parse error: ' + parseError.textContent);
-                                return;
-                            }
-                            // Store as instance via Saxon-Forms JS API
-                            setInstance(instanceId, doc.documentElement);
-                            // Set deferred update flags so Saxon-Forms refreshes
-                            setDeferredUpdateFlags(['rebuild','recalculate','revalidate','refresh']);
-                            resolve(doc.documentElement.localName);
-                        } catch(err) {
-                            reject('Error processing file: ' + err.message);
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        var parser = new DOMParser();
+                        var doc = parser.parseFromString(e.target.result, 'application/xml');
+                        var parseError = doc.querySelector('parsererror');
+                        if (parseError) {
+                            reject('Invalid XML file: ' + parseError.textContent);
+                            return;
                         }
-                    };
-                    reader.onerror = function() { reject('File read error'); };
-                    reader.readAsText(file);
+                        setInstance(instanceId, doc.documentElement);
+                        setDeferredUpdateFlags(['rebuild','recalculate','revalidate','refresh']);
+                        resolve(doc.documentElement.localName);
+                    } catch(err) {
+                        reject('Error processing file: ' + err.message);
+                    }
                 };
-                input.click();
+                reader.onerror = function() { reject('File read error'); };
+                reader.readAsText(file);
             });
          }
-         
+
          /**
           * Deferred-event queue for SaxonJS 3 promise completions.
           *

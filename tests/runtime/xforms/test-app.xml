@@ -66,16 +66,8 @@
         <xf:label>Upload XML</xf:label>
       </xf:upload>
 
-      <!-- Hidden refresh trigger for async upload bridge -->
-      <xf:trigger id="upload-refresh-trigger" style="display:none">
-        <xf:label/>
-        <xf:action ev:event="DOMActivate">
-          <xf:rebuild/>
-          <xf:recalculate/>
-          <xf:refresh/>
-        </xf:action>
-      </xf:trigger>
-
+      <!-- TEST-TRACE: hidden upload-refresh-trigger removed; the upload ixsl:promise completion
+           activates the engine deferred drain (rebuild/recalculate/revalidate/refresh) instead -->
       <div id="upload-result">
         <xf:output ref="instance('upload-target')" class="upload-content"/>
       </div>

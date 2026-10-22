@@ -488,8 +488,12 @@
         
         <xsl:if test="exists($file)">
             <xsl:message use-when="$debugMode">[xf:upload onchange] File selected for instance '<xsl:value-of select="$instance-id"/>'</xsl:message>
-            <!-- Call JS helper: reads file async, sets instance, then clicks hidden refresh trigger -->
-            <xsl:sequence select="ixsl:call(ixsl:window(), 'readFileAsXML', [$file, $instance-id])"/>
+            <!-- TEST-TRACE: ixsl:promise on the Promise-returning readFileAsXMLAsync helper replaces the
+                 readFileAsXML + hidden-refresh-trigger click bridge; helps tests/supplemental/saxon-forms.spec.ts
+                 "uploading XML via xf:upload sets instance data" and tests/supplemental/promise-migration.spec.ts -->
+            <ixsl:promise select="ixsl:call(ixsl:window(), 'readFileAsXMLAsync', [$file, $instance-id])"
+                on-completion="xforms:uploadComplete(?, $instance-id)"
+                on-failure="xforms:uploadError#1"/>
         </xsl:if>
     </xsl:template>
     
@@ -2624,7 +2628,7 @@
     <xd:doc scope="component">
         <xd:desc>
             <xd:p>Implementation of XForms <a href="https://www.w3.org/TR/xforms11/#ui-upload">upload element</a></xd:p>
-            <xd:p>Generates HTML file input. File content is read via the readFileAsXML JS helper and set as instance data.</xd:p>
+            <xd:p>Generates HTML file input. File content is read via the Promise-returning readFileAsXMLAsync JS helper and set as instance data.</xd:p>
         </xd:desc>
         <xd:param name="id">ID of HTML element.</xd:param>
         <xd:param name="nodeset">XPath binding expression</xd:param>
@@ -7464,13 +7468,16 @@
     
     <xd:doc scope="component">
         <xd:desc>
-            <xd:p>Completion handler for xf:upload file read. Triggers the deferred update cycle (rebuild/recalculate/refresh).</xd:p>
+            <xd:p>Completion handler for the xf:upload file-read ixsl:promise (readFileAsXMLAsync helper).</xd:p>
+            <xd:p>The JS helper has already replaced the instance and set the deferred update flags. This function only activates the deferred drain, which runs the deferred update cycle in template context (xsl:result-document is prohibited in function context, XTDE1480).</xd:p>
         </xd:desc>
     </xd:doc>
+    <!-- TEST-TRACE: thin completion handler for the upload promise; helps tests/supplemental/saxon-forms.spec.ts "uploading XML via xf:upload sets instance data" -->
     <xsl:function name="xforms:uploadComplete">
-        <xsl:param name="instance-id" as="item()"/>
-        <xsl:message use-when="$debugMode">[xforms:uploadComplete] File upload complete for instance '<xsl:value-of select="$instance-id"/>'</xsl:message>
-        <xsl:call-template name="outermost-action-handler"/>
+        <xsl:param name="read-result" as="item()*"/>
+        <xsl:param name="instance-id" as="xs:string"/>
+        <xsl:message use-when="$debugMode">[xforms:uploadComplete] File upload complete for instance '<xsl:value-of select="$instance-id"/>' (root: <xsl:value-of select="string($read-result)"/>)</xsl:message>
+        <xsl:sequence select="js:activateDeferredTrigger()"/>
     </xsl:function>
     
     <xd:doc scope="component">
