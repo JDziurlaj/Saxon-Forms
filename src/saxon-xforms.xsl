@@ -1984,22 +1984,27 @@
     
     <xd:doc scope="component">
         <xd:desc>
-            <xd:p>Template called by ixsl:schedule-action in template for xforms-submit event</xd:p>
-            <xd:p>The context item should be an <xd:a href="https://www.saxonica.com/saxon-js/documentation/index.html#!development/http">HTTP response map</xd:a>, i.e. Saxon-JS representation of an HTTP response as an XDM map. </xd:p>
+            <xd:p>Function xforms:HTTPsubmit() is the on-completion handler of the ixsl:promise instruction in the xforms-submit template.</xd:p>
+            <xd:p>Receives the HTTP response map as a parameter, not as the context item: promise completion handlers are functions and have no context item. Performs the function-safe data phase (response parsing, instance replacement, deferred update flags), then enqueues the xforms-submit-done or xforms-submit-error event and activates the deferred drain, which dispatches the event and runs the deferred update cycle in template context.</xd:p>
         </xd:desc>
+        <xd:param name="http-response">HTTP response map per the SaxonJS HTTP client</xd:param>
         <xd:param name="instance-id">Identifier of instance affected by submission</xd:param>
-        <xd:param name="targetref">XPath to identify node within target instance</xd:param>
-        <xd:param name="replace">String to identify whether to replace the node or just the text content</xd:param>
+        <xd:param name="submission-id">Identifier of the submission (in-progress gating and event targeting)</xd:param>
+        <xd:param name="resource-uri">Resolved submission resource URI</xd:param>
+        <xd:param name="submission-map">Registered submission properties map</xd:param>
+        <xd:param name="actions">Action maps registered for the submission</xd:param>
     </xd:doc>
-    <xsl:template name="HTTPsubmit">
-         
-        <xsl:context-item as="map(*)" use="required"/>
-                
-        <xsl:param name="instance-id" as="xs:string" required="no" select="$global-default-instance-id"/>
-        <xsl:param name="resource-uri" as="xs:string?" required="no"/>
-        <xsl:param name="submission-id" as="xs:string?" required="no"/>
-        <xsl:param name="targetref" as="xs:string?" required="no"/>
-        <xsl:param name="replace" as="xs:string?" required="no"/>
+    <!-- TEST-TRACE: converted from template HTTPsubmit (context-item response map, ixsl:schedule-action caller) to the ixsl:promise on-completion function; helps tests/xforms/w3c/ch11.spec.ts and tests/supplemental/promise-migration.spec.ts -->
+    <xsl:function name="xforms:HTTPsubmit">
+        <xsl:param name="http-response" as="map(*)"/>
+        <xsl:param name="instance-id" as="xs:string?"/>
+        <xsl:param name="submission-id" as="xs:string?"/>
+        <xsl:param name="resource-uri" as="xs:string?"/>
+        <xsl:param name="submission-map" as="map(*)"/>
+        <xsl:param name="actions" as="map(*)*"/>
+        
+        <xsl:variable name="targetref" as="xs:string?" select="map:get($submission-map,'@targetref')"/>
+        <xsl:variable name="replace" as="xs:string?" select="map:get($submission-map,'@replace')"/>
         <xsl:if test="$sequence-template-trace-enabled">
             <xsl:message>[SEQTRACE] template=HTTPsubmit submission=<xsl:value-of select="$submission-id"/> replace=<xsl:value-of select="$replace"/></xsl:message>
         </xsl:if>
@@ -2013,7 +2018,7 @@
         <!-- 
             https://www.saxonica.com/saxon-js/documentation2/index.html#!development/http
         -->
-        <xsl:variable name="response-headers" select="(?headers, map{})[1]" as="map(*)"/>
+        <xsl:variable name="response-headers" select="(map:get($http-response,'headers'), map{})[1]" as="map(*)"/>
         <xsl:message use-when="$debugMode">[HTTPsubmit] response content type: <xsl:sequence select="map:get($response-headers,'content-type')"/></xsl:message>
         
         <!-- 
@@ -2022,9 +2027,9 @@
             '?' is the lookup operator: https://www.w3.org/TR/xpath-31/#id-lookup
             Here it acts on the context item, i.e. the HTTP response map
         -->
-        <xsl:variable name="response" select="?body" as="item()?"/>  
-        <xsl:variable name="response-status" as="item()?" select="?status"/>
-        <xsl:variable name="response-message" as="item()?" select="?message"/>
+        <xsl:variable name="response" select="map:get($http-response,'body')" as="item()?"/>
+        <xsl:variable name="response-status" as="item()?" select="map:get($http-response,'status')"/>
+        <xsl:variable name="response-message" as="item()?" select="map:get($http-response,'message')"/>
         <xsl:variable name="response-status-code" as="xs:integer?" select="
             if (exists($response-status) and normalize-space(string($response-status)) castable as xs:integer)
             then xs:integer(normalize-space(string($response-status)))
@@ -2087,26 +2092,14 @@
                   <xsl:if test="exists($submission-id-normalized)">
                       <xsl:sequence select="js:clearSubmissionInProgress($submission-id-normalized)"/>
                   </xsl:if>
-                  <xsl:call-template name="dispatch-submit-error">
-                      <xsl:with-param name="submission-id" select="$submission-id-normalized"/>
-                      <xsl:with-param name="error-type" select="'resource-error'"/>
-                      <xsl:with-param name="resource-uri" select="$resource-uri"/>
-                      <xsl:with-param name="response-status-code" select="if (exists($response-status-code)) then string($response-status-code) else ()"/>
-                      <xsl:with-param name="response-headers" select="$response-headers"/>
-                  </xsl:call-template>
+                  <xsl:sequence select="xforms:enqueueSubmitError($submission-id-normalized,'resource-error',$resource-uri,if (exists($response-status-code)) then string($response-status-code) else (),$response-headers)"/>
               </xsl:when>
               <xsl:when test="empty($response)">
                   <xsl:message>++++++++++++ ERROR +++++++++++++</xsl:message>
                   <xsl:if test="exists($submission-id-normalized)">
                       <xsl:sequence select="js:clearSubmissionInProgress($submission-id-normalized)"/>
                   </xsl:if>
-                  <xsl:call-template name="dispatch-submit-error">
-                      <xsl:with-param name="submission-id" select="$submission-id-normalized"/>
-                      <xsl:with-param name="error-type" select="'resource-error'"/>
-                      <xsl:with-param name="resource-uri" select="$resource-uri"/>
-                      <xsl:with-param name="response-status-code" select="if (exists($response-status)) then string($response-status) else ()"/>
-                      <xsl:with-param name="response-headers" select="$response-headers"/>
-                  </xsl:call-template>
+                  <xsl:sequence select="xforms:enqueueSubmitError($submission-id-normalized,'resource-error',$resource-uri,if (exists($response-status)) then string($response-status) else (),$response-headers)"/>
               </xsl:when>
 
 
@@ -2185,13 +2178,7 @@
                                               </xsl:when>
                                               <xsl:otherwise>
                                                   <xsl:message use-when="$debugMode">[HTTPsubmit-trace] targetref-invalid dispatching-submit-error error-type=target-error targetref=<xsl:value-of select="$targetref"/></xsl:message>
-                                                  <xsl:call-template name="dispatch-submit-error">
-                                                      <xsl:with-param name="submission-id" select="$submission-id-normalized"/>
-                                                      <xsl:with-param name="error-type" select="'target-error'"/>
-                                                      <xsl:with-param name="resource-uri" select="$resource-uri"/>
-                                                      <xsl:with-param name="response-status-code" select="if (exists($response-status)) then string($response-status) else ()"/>
-                                                      <xsl:with-param name="response-headers" select="$response-headers"/>
-                                                  </xsl:call-template>
+                                                  <xsl:sequence select="xforms:enqueueSubmitError($submission-id-normalized,'target-error',$resource-uri,if (exists($response-status)) then string($response-status) else (),$response-headers)"/>
                                               </xsl:otherwise>
                                           </xsl:choose>
                                       </xsl:when>
@@ -2285,29 +2272,17 @@
                           </xsl:if>
                       </xsl:map>
                   </xsl:variable>
-                  <xsl:call-template name="xforms-event-handler">
-                      <xsl:with-param name="event-name" select="'xforms-submit-done'" as="xs:string" tunnel="yes"/>
-                      <xsl:with-param name="event-context" select="$submit-done-context" as="map(*)" tunnel="yes"/>
-                  </xsl:call-template>
-                  <!-- Ensure submission-driven deferred updates are processed even when no explicit
-                       xforms-submit-done actions are registered. -->
-                  <xsl:call-template name="outermost-action-handler"/>
-                  
+                  <!-- Enqueue xforms-submit-done and activate the deferred drain; the drain
+                       dispatches the event and runs the deferred update cycle in template
+                       context (xsl:result-document is prohibited in function context, XTDE1480). -->
+                  <xsl:sequence select="js:enqueuePendingEvent(map{'name':'xforms-submit-done','context':$submit-done-context})"/>
+                  <xsl:sequence select="js:activateDeferredTrigger()"/>
+              
               </xsl:otherwise>
           </xsl:choose>
-      </xsl:template>
+    </xsl:function>
 
 
-    <xd:doc scope="component">
-        <xd:desc>
-            <xd:p>Send server error message to console log</xd:p>
-        </xd:desc>
-        <xd:param name="responseMap">HTTP response map, per <a href="http://www.saxonica.com/saxon-js/documentation/index.html#!development/http">Saxon HTTP client</a></xd:param>
-    </xd:doc>
-    <xsl:template name="serverError">
-        <xsl:param name="responseMap" as="map(*)"/>
-        <xsl:message>Server side error HTTP response - <xsl:value-of select="concat($responseMap?status, ' ', $responseMap?message)"/></xsl:message>
-    </xsl:template>
 
 
     <xd:doc scope="component">
@@ -6616,7 +6591,43 @@
     </xsl:template>
     <xd:doc scope="component">
         <xd:desc>
+            <xd:p>Build the normalized xforms-submit-error event context map.</xd:p>
+            <xd:p>Shared by the template-context dispatch-submit-error and the function-context enqueueSubmitError.</xd:p>
+        </xd:desc>
+        <xd:param name="submission-id">Submission identifier for event target matching.</xd:param>
+        <xd:param name="error-type">Submit error type (for example no-data, validation-error, resource-error, target-error, submission-in-progress).</xd:param>
+        <xd:param name="resource-uri">Submission resource URI when available.</xd:param>
+        <xd:param name="response-status-code">HTTP status code when available.</xd:param>
+        <xd:param name="response-headers">HTTP response headers when available.</xd:param>
+    </xd:doc>
+    <xsl:function name="xforms:submit-error-context" as="map(*)">
+        <xsl:param name="submission-id" as="xs:string?"/>
+        <xsl:param name="error-type" as="xs:string"/>
+        <xsl:param name="resource-uri" as="xs:string?"/>
+        <xsl:param name="response-status-code" as="item()?"/>
+        <xsl:param name="response-headers" as="map(*)?"/>
+        <xsl:variable name="response-headers-nodes" as="element()*" select="xforms:response-headers-to-nodes($response-headers)"/>
+        <xsl:map>
+            <xsl:map-entry key="'error-type'" select="$error-type"/>
+            <xsl:if test="exists($resource-uri) and normalize-space($resource-uri) != ''">
+                <xsl:map-entry key="'resource-uri'" select="$resource-uri"/>
+            </xsl:if>
+            <xsl:if test="exists($submission-id) and normalize-space($submission-id) != ''">
+                <xsl:map-entry key="'targetid'" select="$submission-id"/>
+            </xsl:if>
+            <xsl:if test="exists($response-status-code)">
+                <xsl:map-entry key="'response-status-code'" select="string($response-status-code)"/>
+            </xsl:if>
+            <xsl:if test="exists($response-headers-nodes)">
+                <xsl:map-entry key="'response-headers'" select="$response-headers-nodes"/>
+            </xsl:if>
+        </xsl:map>
+    </xsl:function>
+    
+    <xd:doc scope="component">
+        <xd:desc>
             <xd:p>Dispatch an xforms-submit-error event with normalized context fields.</xd:p>
+            <xd:p>Template-context callers only: the event handler may run action handlers that use xsl:result-document.</xd:p>
         </xd:desc>
         <xd:param name="submission-id">Submission identifier for event target matching.</xd:param>
         <xd:param name="error-type">Submit error type (for example no-data, validation-error, resource-error, target-error, submission-in-progress).</xd:param>
@@ -6630,32 +6641,30 @@
         <xsl:param name="resource-uri" as="xs:string?" required="no"/>
         <xsl:param name="response-status-code" as="item()?" required="no"/>
         <xsl:param name="response-headers" as="map(*)?" required="no"/>
-        <xsl:if test="$sequence-template-trace-enabled">
-            <xsl:message>[SEQTRACE] template=dispatch-submit-error submission=<xsl:value-of select="$submission-id"/> error-type=<xsl:value-of select="$error-type"/></xsl:message>
-        </xsl:if>
-        <xsl:variable name="response-headers-nodes" as="element()*" select="xforms:response-headers-to-nodes($response-headers)"/>
-        <xsl:variable name="submit-error-context" as="map(*)">
-            <xsl:map>
-                <xsl:map-entry key="'error-type'" select="$error-type"/>
-                <xsl:if test="exists($resource-uri) and normalize-space($resource-uri) != ''">
-                    <xsl:map-entry key="'resource-uri'" select="$resource-uri"/>
-                </xsl:if>
-                <xsl:if test="exists($submission-id) and normalize-space($submission-id) != ''">
-                    <xsl:map-entry key="'targetid'" select="$submission-id"/>
-                </xsl:if>
-                <xsl:if test="exists($response-status-code)">
-                    <xsl:map-entry key="'response-status-code'" select="string($response-status-code)"/>
-                </xsl:if>
-                <xsl:if test="exists($response-headers-nodes)">
-                    <xsl:map-entry key="'response-headers'" select="$response-headers-nodes"/>
-                </xsl:if>
-            </xsl:map>
-        </xsl:variable>
+
         <xsl:call-template name="xforms-event-handler">
             <xsl:with-param name="event-name" select="'xforms-submit-error'" as="xs:string" tunnel="yes"/>
-            <xsl:with-param name="event-context" select="$submit-error-context" as="map(*)" tunnel="yes"/>
+            <xsl:with-param name="event-context" select="xforms:submit-error-context($submission-id,$error-type,$resource-uri,$response-status-code,$response-headers)" as="map(*)" tunnel="yes"/>
         </xsl:call-template>
     </xsl:template>
+    
+    <xd:doc scope="component">
+        <xd:desc>
+            <xd:p>Enqueue an xforms-submit-error event for the deferred drain (function-context safe).</xd:p>
+            <xd:p>Used by ixsl:promise completion handlers, which cannot dispatch events directly: xforms-event-handler may reach xsl:result-document through action handlers, prohibited in function context (XTDE1480).</xd:p>
+        </xd:desc>
+    </xd:doc>
+    <!-- TEST-TRACE: function-safe submit-error enqueue for promise completion handlers; helps tests/xforms/w3c/ch11.spec.ts and tests/supplemental/promise-migration.spec.ts -->
+    <xsl:function name="xforms:enqueueSubmitError">
+        <xsl:param name="submission-id" as="xs:string?"/>
+        <xsl:param name="error-type" as="xs:string"/>
+        <xsl:param name="resource-uri" as="xs:string?"/>
+        <xsl:param name="response-status-code" as="item()?"/>
+        <xsl:param name="response-headers" as="map(*)?"/>
+        <xsl:variable name="submit-error-context" as="map(*)" select="xforms:submit-error-context($submission-id,$error-type,$resource-uri,$response-status-code,$response-headers)"/>
+        <xsl:sequence select="js:enqueuePendingEvent(map{'name':'xforms-submit-error','context':$submit-error-context})"/>
+        <xsl:sequence select="js:activateDeferredTrigger()"/>
+    </xsl:function>
     
     
     <xd:doc scope="component">
@@ -7412,27 +7421,16 @@
                     All needed parameters are captured as function arguments (no tunnel parameters needed).
                     See https://www.saxonica.com/saxonjs/documentation3/index.html#!ixsl-extension/instructions/promise
                 -->
-                <!--<ixsl:promise select="ixsl:http-request($HTTPrequest)"
-                    on-completion="xforms:HTTPsubmit(?, $instance-id-update, $submission-map, $actions)"
-                    on-failure="xforms:serverError#1"/>-->
-                
+                <!-- TEST-TRACE: ixsl:promise replaces deprecated ixsl:schedule-action for submission;
+                     helps tests/xforms/w3c/ch11.spec.ts and tests/supplemental/promise-migration.spec.ts -->
                 <xsl:choose>
                     <xsl:when test="exists($href-final) and normalize-space($href-final) != '' and $is-supported-http-scheme">
                         <xsl:if test="$submission-id != ''">
                             <xsl:sequence select="js:setSubmissionInProgress($submission-id, true())"/>
                         </xsl:if>
-                        <ixsl:schedule-action http-request="$HTTPrequest">
-                            <!-- The value of @http-request is an XPath expression, which evaluates to an 'HTTP request
-                                    map' - i.e. our representation of an HTTP request as an XDM map -->                    
-                            <xsl:call-template name="HTTPsubmit">
-                                <xsl:with-param name="instance-id" select="$instance-id-update" as="xs:string"/>
-                                <xsl:with-param name="resource-uri" select="$href-final"/>
-                                <xsl:with-param name="submission-id" select="$submission-id"/>
-                                <xsl:with-param name="targetref" select="map:get($submission-map,'@targetref')"/>
-                                <xsl:with-param name="replace" select="map:get($submission-map,'@replace')"/>
-                                <xsl:with-param name="when-done" select="$actions[map:get(.,'@event') = 'xforms-submit-done']" tunnel="yes"/>
-                            </xsl:call-template>
-                        </ixsl:schedule-action>
+                        <ixsl:promise select="ixsl:http-request($HTTPrequest)"
+                            on-completion="xforms:HTTPsubmit(?, $instance-id-update, $submission-id, $href-final, $submission-map, $actions)"
+                            on-failure="xforms:serverError(?, $submission-id, $href-final)"/>
                     </xsl:when>
                     <xsl:when test="exists($href-final) and normalize-space($href-final) != ''">
                         <xsl:call-template name="dispatch-submit-error">
@@ -7463,25 +7461,6 @@
         <xsl:message use-when="$debugMode"><xsl:sequence select="$submit-message"/> END</xsl:message>
     </xsl:template>
     
-    <xd:doc scope="component">
-        <xd:desc>
-            <xd:p>Function xforms:HTTPsubmit() is the on-completion action of the ixsl:promise instruction in the xforms-submit tenmplate.</xd:p>
-            <xd:p>Previously the code used ixsl:schedule-action with the call-template here as its child. Saxon-JS 3 deprecates ixsl:scheduled-action in favour of ixsl:promise.</xd:p>
-        </xd:desc>
-    </xd:doc>
-    <xsl:function name="xforms:HTTPsubmit">
-        <xsl:param name="http-response" as="map(*)"/>
-        <xsl:param name="instance-id" as="xs:string?"/>
-        <xsl:param name="submission-map" as="map(*)"/>
-        <xsl:param name="actions" as="map(*)*"/>
-        <xsl:message>Debug xforms:HTTPsubmit retrieve</xsl:message>
-        <xsl:call-template name="HTTPsubmit">
-            <xsl:with-param name="instance-id" select="$instance-id" as="xs:string"/>
-            <xsl:with-param name="targetref" select="map:get($submission-map,'@targetref')"/>
-            <xsl:with-param name="replace" select="map:get($submission-map,'@replace')"/>
-            <xsl:with-param name="when-done" select="$actions[map:get(.,'@event') = 'xforms-submit-done']" tunnel="yes"/>
-        </xsl:call-template>
-    </xsl:function>
     
     <xd:doc scope="component">
         <xd:desc>
@@ -7540,15 +7519,22 @@
     
     <xd:doc scope="component">
         <xd:desc>
-            <xd:p>Function xforms:serverError() is the on-failure action of the ixsl:promise instruction in the xforms-submit tenmplate.</xd:p>
-            <xd:p>Previously the code used ixsl:schedule-action with the call-template here as part of the HTTPsubmit tenmplate. Saxon-JS 3 deprecates ixsl:scheduled-action in favour of ixsl:promise.</xd:p>
+            <xd:p>Function xforms:serverError() is the on-failure handler of the ixsl:promise instruction in the xforms-submit template.</xd:p>
+            <xd:p>Receives the SaxonJS 3 error-info map (transport-level failure), not an HTTP response map. Clears the submission-in-progress flag, then enqueues an xforms-submit-error event (resource-error) and activates the deferred drain, which dispatches it in template context.</xd:p>
         </xd:desc>
     </xd:doc>
+    <!-- TEST-TRACE: network-failure on-failure path for promise submission; helps tests/supplemental/promise-migration.spec.ts -->
     <xsl:function name="xforms:serverError">
-        <xsl:param name="http-response" as="map(*)"/>
-        <xsl:call-template name="serverError">
-            <xsl:with-param name="responseMap" select="$http-response"/>
-        </xsl:call-template>
+        <xsl:param name="error" as="map(*)"/>
+        <xsl:param name="submission-id" as="xs:string?"/>
+        <xsl:param name="resource-uri" as="xs:string?"/>
+        <xsl:message>Server side error - <xsl:value-of select="string((map:get($error,'message'), map:get($error,'code'), 'transport error')[1])"/></xsl:message>
+        <xsl:if test="exists($submission-id) and normalize-space($submission-id) != ''">
+            <xsl:sequence select="js:clearSubmissionInProgress($submission-id)"/>
+        </xsl:if>
+        <!-- TEST-TRACE: resource-uri must reach the submit-error context (event('resource-uri'))
+             for network-failure submissions; helps tests/xforms/w3c/ch11.spec.ts "11.5.b" -->
+        <xsl:sequence select="xforms:enqueueSubmitError($submission-id,'resource-error',$resource-uri,(),())"/>
     </xsl:function>
     
     <xd:doc scope="component">
@@ -7984,17 +7970,23 @@
                                     <xsl:when test="map:contains($action-map,'@value')">
                                         <!--                        <xsl:message use-when="$debugMode">[action-setvalue] evaluating @value '<xsl:sequence select="map:get($action-map,'@value')"/>'</xsl:message>-->
                                         
-                                        <xsl:variable name="updated-item" as="item()">
+                                        <!-- TEST-TRACE: tolerate empty @value result (XForms setvalue: empty sequence
+                                             means empty string content, e.g. event('response-status-code') on network-failure
+                                             submit-error); helps tests/xforms/w3c/ch11.spec.ts "11.5.b" -->
+                                        <xsl:variable name="updated-item" as="item()?">
                                             <xsl:evaluate xpath="xforms:impose(map:get($action-map,'@value'))" context-item="$updated-node" namespace-context="$instanceXML" />
                                         </xsl:variable>
                                         <!--                        <xsl:message use-when="$debugMode">[action-setvalue] updated item '<xsl:sequence select="serialize($updated-item)"/>'</xsl:message>-->
                                         <xsl:choose>
                                             <!-- 
-                                Handle case where @value evaluates to a boolean.
-                                Logic mirrors that in template for HTML input (mode="get-field")
-                                
-                                TO DO: handle other possible data types of @value?
-                            -->
+                                                Handle case where @value evaluates to a boolean.
+                                                Logic mirrors that in template for HTML input (mode="get-field")
+                                                
+                                                TO DO: handle other possible data types of @value?
+                                            -->
+                                            <xsl:when test="empty($updated-item)">
+                                                <xsl:sequence select="''"/>
+                                            </xsl:when>
                                             <xsl:when test="xs:string($updated-item) = 'true'">
                                                 <xsl:sequence select="'true'"/>
                                             </xsl:when>

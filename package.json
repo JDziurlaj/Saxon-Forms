@@ -9,7 +9,7 @@
     "verify:setup": "npm run verify:setup:docker",
     "verify:setup:local": "node scripts/verify-setup-local.mjs",
     "verify:setup:docker": "node scripts/verify-setup-docker.mjs",
-    "build:sef": "npx xslt3 -t -xsl:src/saxon-xforms.xsl -export:sef/saxon-xforms.sef.json -nogo -ns:##html5 && node -e \"require('fs').cpSync('sef/saxon-xforms.sef.json','tests/runtime/sef/saxon-xforms.sef.json')\"",
+    "build:sef": "npx xslt3-he -t -xsl:src/saxon-xforms.xsl -export:sef/saxon-xforms.sef.json -nogo -ns:##html5 && node -e \"require('fs').cpSync('sef/saxon-xforms.sef.json','tests/runtime/sef/saxon-xforms.sef.json')\"",
     "predev": "node scripts/fetch-w3c-suite.mjs && npm run sync:tinymce",
     "sync:tinymce": "node scripts/sync-tinymce-assets.mjs",
     "fetch:w3c": "node scripts/fetch-w3c-suite.mjs",
@@ -51,6 +51,7 @@
     "tinymce": "8.7.0",
     "tsx": "^4.21.0",
     "vite": "^6.4.1",
-    "xslt3": "^2.7.0"
+    "xslt3": "^2.7.0",
+    "xslt3-he": "^3.0.0-beta2"
   }
 }
