@@ -2478,7 +2478,10 @@
         <xd:param name="binding">xforms:bind elements relevant to this control</xd:param>
     </xd:doc>
     <xsl:template match="*:output" mode="get-html">
-        <xsl:param name="id" as="xs:string"/>
+        <!-- TEST-TRACE: id must be tunnel to match the get-html apply-templates caller (saxon-xforms.xsl get-html dispatch);
+             without tunnel the param is empty and the transform dies with XTTE0570 on any form containing xf:output;
+             helps tests/xforms/w3c/appendix.spec.ts "B.1"-"B.12" and all output-bearing W3C chapters -->
+        <xsl:param name="id" as="xs:string" tunnel="yes"/>
         <xsl:param name="nodeset" as="xs:string" tunnel="yes"/>
         <xsl:param name="context-nodeset" as="xs:string" tunnel="yes"/>
         <xsl:param name="instance-context" as="xs:string" tunnel="yes"/>
